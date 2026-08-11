@@ -10,33 +10,155 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedAyarlarRouteImport } from './routes/_authenticated/ayarlar'
+import { Route as AuthenticatedCarilerRouteImport } from './routes/_authenticated/cariler'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedFaturaKesRouteImport } from './routes/_authenticated/fatura-kes'
+import { Route as AuthenticatedFaturalarRouteImport } from './routes/_authenticated/faturalar'
+import { Route as AuthenticatedPosSatislarRouteImport } from './routes/_authenticated/pos-satislar'
+import { Route as AuthenticatedUrunlerRouteImport } from './routes/_authenticated/urunler'
+import { Route as AuthenticatedZRaporuRouteImport } from './routes/_authenticated/z-raporu'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAyarlarRoute = AuthenticatedAyarlarRouteImport.update({
+  id: '/ayarlar',
+  path: '/ayarlar',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCarilerRoute = AuthenticatedCarilerRouteImport.update({
+  id: '/cariler',
+  path: '/cariler',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFaturaKesRoute = AuthenticatedFaturaKesRouteImport.update({
+  id: '/fatura-kes',
+  path: '/fatura-kes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFaturalarRoute = AuthenticatedFaturalarRouteImport.update({
+  id: '/faturalar',
+  path: '/faturalar',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPosSatislarRoute =
+  AuthenticatedPosSatislarRouteImport.update({
+    id: '/pos-satislar',
+    path: '/pos-satislar',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedUrunlerRoute = AuthenticatedUrunlerRouteImport.update({
+  id: '/urunler',
+  path: '/urunler',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedZRaporuRoute = AuthenticatedZRaporuRouteImport.update({
+  id: '/z-raporu',
+  path: '/z-raporu',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/ayarlar': typeof AuthenticatedAyarlarRoute
+  '/cariler': typeof AuthenticatedCarilerRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/fatura-kes': typeof AuthenticatedFaturaKesRoute
+  '/faturalar': typeof AuthenticatedFaturalarRoute
+  '/pos-satislar': typeof AuthenticatedPosSatislarRoute
+  '/urunler': typeof AuthenticatedUrunlerRoute
+  '/z-raporu': typeof AuthenticatedZRaporuRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/ayarlar': typeof AuthenticatedAyarlarRoute
+  '/cariler': typeof AuthenticatedCarilerRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/fatura-kes': typeof AuthenticatedFaturaKesRoute
+  '/faturalar': typeof AuthenticatedFaturalarRoute
+  '/pos-satislar': typeof AuthenticatedPosSatislarRoute
+  '/urunler': typeof AuthenticatedUrunlerRoute
+  '/z-raporu': typeof AuthenticatedZRaporuRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/ayarlar': typeof AuthenticatedAyarlarRoute
+  '/_authenticated/cariler': typeof AuthenticatedCarilerRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/fatura-kes': typeof AuthenticatedFaturaKesRoute
+  '/_authenticated/faturalar': typeof AuthenticatedFaturalarRoute
+  '/_authenticated/pos-satislar': typeof AuthenticatedPosSatislarRoute
+  '/_authenticated/urunler': typeof AuthenticatedUrunlerRoute
+  '/_authenticated/z-raporu': typeof AuthenticatedZRaporuRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/ayarlar'
+    | '/cariler'
+    | '/dashboard'
+    | '/fatura-kes'
+    | '/faturalar'
+    | '/pos-satislar'
+    | '/urunler'
+    | '/z-raporu'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/ayarlar'
+    | '/cariler'
+    | '/dashboard'
+    | '/fatura-kes'
+    | '/faturalar'
+    | '/pos-satislar'
+    | '/urunler'
+    | '/z-raporu'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/ayarlar'
+    | '/_authenticated/cariler'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/fatura-kes'
+    | '/_authenticated/faturalar'
+    | '/_authenticated/pos-satislar'
+    | '/_authenticated/urunler'
+    | '/_authenticated/z-raporu'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +170,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/ayarlar': {
+      id: '/_authenticated/ayarlar'
+      path: '/ayarlar'
+      fullPath: '/ayarlar'
+      preLoaderRoute: typeof AuthenticatedAyarlarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cariler': {
+      id: '/_authenticated/cariler'
+      path: '/cariler'
+      fullPath: '/cariler'
+      preLoaderRoute: typeof AuthenticatedCarilerRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/fatura-kes': {
+      id: '/_authenticated/fatura-kes'
+      path: '/fatura-kes'
+      fullPath: '/fatura-kes'
+      preLoaderRoute: typeof AuthenticatedFaturaKesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturalar': {
+      id: '/_authenticated/faturalar'
+      path: '/faturalar'
+      fullPath: '/faturalar'
+      preLoaderRoute: typeof AuthenticatedFaturalarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pos-satislar': {
+      id: '/_authenticated/pos-satislar'
+      path: '/pos-satislar'
+      fullPath: '/pos-satislar'
+      preLoaderRoute: typeof AuthenticatedPosSatislarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/urunler': {
+      id: '/_authenticated/urunler'
+      path: '/urunler'
+      fullPath: '/urunler'
+      preLoaderRoute: typeof AuthenticatedUrunlerRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/z-raporu': {
+      id: '/_authenticated/z-raporu'
+      path: '/z-raporu'
+      fullPath: '/z-raporu'
+      preLoaderRoute: typeof AuthenticatedZRaporuRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAyarlarRoute: typeof AuthenticatedAyarlarRoute
+  AuthenticatedCarilerRoute: typeof AuthenticatedCarilerRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedFaturaKesRoute: typeof AuthenticatedFaturaKesRoute
+  AuthenticatedFaturalarRoute: typeof AuthenticatedFaturalarRoute
+  AuthenticatedPosSatislarRoute: typeof AuthenticatedPosSatislarRoute
+  AuthenticatedUrunlerRoute: typeof AuthenticatedUrunlerRoute
+  AuthenticatedZRaporuRoute: typeof AuthenticatedZRaporuRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAyarlarRoute: AuthenticatedAyarlarRoute,
+  AuthenticatedCarilerRoute: AuthenticatedCarilerRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedFaturaKesRoute: AuthenticatedFaturaKesRoute,
+  AuthenticatedFaturalarRoute: AuthenticatedFaturalarRoute,
+  AuthenticatedPosSatislarRoute: AuthenticatedPosSatislarRoute,
+  AuthenticatedUrunlerRoute: AuthenticatedUrunlerRoute,
+  AuthenticatedZRaporuRoute: AuthenticatedZRaporuRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
