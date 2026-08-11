@@ -1,1 +1,0 @@
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS neighborhood text NOT NULL DEFAULT ''::text;
