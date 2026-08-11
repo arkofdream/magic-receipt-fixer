@@ -17,6 +17,7 @@ import { Route as AuthenticatedCarilerRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFaturaKesRouteImport } from './routes/_authenticated/fatura-kes'
 import { Route as AuthenticatedFaturalarRouteImport } from './routes/_authenticated/faturalar'
+import { Route as AuthenticatedGuncellemelerRouteImport } from './routes/_authenticated/guncellemeler'
 import { Route as AuthenticatedPosSatislarRouteImport } from './routes/_authenticated/pos-satislar'
 import { Route as AuthenticatedUrunlerRouteImport } from './routes/_authenticated/urunler'
 import { Route as AuthenticatedZRaporuRouteImport } from './routes/_authenticated/z-raporu'
@@ -60,6 +61,12 @@ const AuthenticatedFaturalarRoute = AuthenticatedFaturalarRouteImport.update({
   path: '/faturalar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedGuncellemelerRoute =
+  AuthenticatedGuncellemelerRouteImport.update({
+    id: '/guncellemeler',
+    path: '/guncellemeler',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPosSatislarRoute =
   AuthenticatedPosSatislarRouteImport.update({
     id: '/pos-satislar',
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/fatura-kes': typeof AuthenticatedFaturaKesRoute
   '/faturalar': typeof AuthenticatedFaturalarRoute
+  '/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
@@ -97,6 +105,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/fatura-kes': typeof AuthenticatedFaturaKesRoute
   '/faturalar': typeof AuthenticatedFaturalarRoute
+  '/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
@@ -111,6 +120,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/fatura-kes': typeof AuthenticatedFaturaKesRoute
   '/_authenticated/faturalar': typeof AuthenticatedFaturalarRoute
+  '/_authenticated/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/_authenticated/pos-satislar': typeof AuthenticatedPosSatislarRoute
   '/_authenticated/urunler': typeof AuthenticatedUrunlerRoute
   '/_authenticated/z-raporu': typeof AuthenticatedZRaporuRoute
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/fatura-kes'
     | '/faturalar'
+    | '/guncellemeler'
     | '/pos-satislar'
     | '/urunler'
     | '/z-raporu'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/fatura-kes'
     | '/faturalar'
+    | '/guncellemeler'
     | '/pos-satislar'
     | '/urunler'
     | '/z-raporu'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/fatura-kes'
     | '/_authenticated/faturalar'
+    | '/_authenticated/guncellemeler'
     | '/_authenticated/pos-satislar'
     | '/_authenticated/urunler'
     | '/_authenticated/z-raporu'
@@ -219,6 +232,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFaturalarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/guncellemeler': {
+      id: '/_authenticated/guncellemeler'
+      path: '/guncellemeler'
+      fullPath: '/guncellemeler'
+      preLoaderRoute: typeof AuthenticatedGuncellemelerRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/pos-satislar': {
       id: '/_authenticated/pos-satislar'
       path: '/pos-satislar'
@@ -249,6 +269,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFaturaKesRoute: typeof AuthenticatedFaturaKesRoute
   AuthenticatedFaturalarRoute: typeof AuthenticatedFaturalarRoute
+  AuthenticatedGuncellemelerRoute: typeof AuthenticatedGuncellemelerRoute
   AuthenticatedPosSatislarRoute: typeof AuthenticatedPosSatislarRoute
   AuthenticatedUrunlerRoute: typeof AuthenticatedUrunlerRoute
   AuthenticatedZRaporuRoute: typeof AuthenticatedZRaporuRoute
@@ -260,6 +281,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFaturaKesRoute: AuthenticatedFaturaKesRoute,
   AuthenticatedFaturalarRoute: AuthenticatedFaturalarRoute,
+  AuthenticatedGuncellemelerRoute: AuthenticatedGuncellemelerRoute,
   AuthenticatedPosSatislarRoute: AuthenticatedPosSatislarRoute,
   AuthenticatedUrunlerRoute: AuthenticatedUrunlerRoute,
   AuthenticatedZRaporuRoute: AuthenticatedZRaporuRoute,
@@ -276,3 +298,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
