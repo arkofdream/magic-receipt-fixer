@@ -9,12 +9,14 @@ import {
   BarChart3,
   CreditCard,
   Settings,
+  Sparkles,
   LogOut,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { CHANGELOG_SEEN_KEY, LATEST_CHANGELOG_ID } from "@/lib/changelog";
 
 const nav = [
   { to: "/dashboard", label: "Kontrol Paneli", icon: LayoutDashboard },
@@ -25,7 +27,27 @@ const nav = [
   { to: "/pos-satislar", label: "POS Satışları", icon: CreditCard },
   { to: "/z-raporu", label: "Günlük Z Raporu", icon: BarChart3 },
   { to: "/ayarlar", label: "Entegrasyon Ayarları", icon: Settings },
+  { to: "/guncellemeler", label: "Güncellemeler", icon: Sparkles },
 ] as const;
+
+function useHasUnseenChangelog() {
+  const [unseen, setUnseen] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      try {
+        setUnseen(localStorage.getItem(CHANGELOG_SEEN_KEY) !== LATEST_CHANGELOG_ID);
+      } catch {
+        setUnseen(false);
+      }
+    };
+    check();
+    window.addEventListener("changelog-seen", check);
+    return () => window.removeEventListener("changelog-seen", check);
+  }, []);
+  return unseen;
+}
+
+
 
 
 
@@ -42,6 +64,8 @@ export function AppShell({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const hasUnseenUpdates = useHasUnseenChangelog();
+
 
   async function handleSignOut() {
     await queryClient.cancelQueries();
@@ -70,7 +94,11 @@ export function AppShell({
             >
               <item.icon className="size-4" />
               {item.label}
+              {item.to === "/guncellemeler" && hasUnseenUpdates ? (
+                <span className="ml-auto size-2 rounded-full bg-primary" aria-label="Yeni güncelleme var" />
+              ) : null}
             </Link>
+
           ))}
         </nav>
         <div className="border-t border-sidebar-border p-3">
@@ -91,7 +119,19 @@ export function AppShell({
             <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
             {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
           </div>
-          <div className="flex items-center gap-2">{actions}</div>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="relative gap-2">
+              <Link to="/guncellemeler">
+                <Sparkles className="size-4" />
+                Güncellemeler
+                {hasUnseenUpdates ? (
+                  <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-primary ring-2 ring-card" />
+                ) : null}
+              </Link>
+            </Button>
+            {actions}
+          </div>
+
         </header>
 
         <div className="flex gap-1 overflow-x-auto border-b border-border bg-card px-3 py-2 md:hidden">
