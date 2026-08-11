@@ -68,14 +68,21 @@ function NewInvoicePage() {
     },
   });
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["products"],
+  const {
+    data: products = [],
+    isLoading: productsLoading,
+    error: productsError,
+  } = useQuery({
+    queryKey: ["products", "catalog"],
     queryFn: async () => {
       const { data, error } = await supabase.from("products").select("*").order("name");
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
+
 
   const { data: invoiceCount = 0 } = useQuery({
     queryKey: ["invoice-count"],
