@@ -14,7 +14,312 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      customers: {
+        Row: {
+          address: string
+          city: string
+          created_at: string
+          district: string
+          email: string
+          id: string
+          neighborhood: string
+          phone: string
+          tax_office: string
+          title: string
+          updated_at: string
+          user_id: string
+          vkn_tckn: string
+        }
+        Insert: {
+          address?: string
+          city?: string
+          created_at?: string
+          district?: string
+          email?: string
+          id?: string
+          neighborhood?: string
+          phone?: string
+          tax_office?: string
+          title: string
+          updated_at?: string
+          user_id: string
+          vkn_tckn: string
+        }
+        Update: {
+          address?: string
+          city?: string
+          created_at?: string
+          district?: string
+          email?: string
+          id?: string
+          neighborhood?: string
+          phone?: string
+          tax_office?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          vkn_tckn?: string
+        }
+        Relationships: []
+      }
+      efatura_connection_settings: {
+        Row: {
+          active_provider: string
+          created_at: string
+          gib_enabled: boolean
+          gib_environment: string
+          gib_last_error: string
+          gib_last_tested_at: string | null
+          gib_password_encrypted: string | null
+          gib_status: string
+          gib_username: string
+          integrator_api_key_encrypted: string | null
+          integrator_api_username: string
+          integrator_base_url: string
+          integrator_enabled: boolean
+          integrator_last_error: string
+          integrator_last_tested_at: string | null
+          integrator_provider: string
+          integrator_status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_provider?: string
+          created_at?: string
+          gib_enabled?: boolean
+          gib_environment?: string
+          gib_last_error?: string
+          gib_last_tested_at?: string | null
+          gib_password_encrypted?: string | null
+          gib_status?: string
+          gib_username?: string
+          integrator_api_key_encrypted?: string | null
+          integrator_api_username?: string
+          integrator_base_url?: string
+          integrator_enabled?: boolean
+          integrator_last_error?: string
+          integrator_last_tested_at?: string | null
+          integrator_provider?: string
+          integrator_status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_provider?: string
+          created_at?: string
+          gib_enabled?: boolean
+          gib_environment?: string
+          gib_last_error?: string
+          gib_last_tested_at?: string | null
+          gib_password_encrypted?: string | null
+          gib_status?: string
+          gib_username?: string
+          integrator_api_key_encrypted?: string | null
+          integrator_api_username?: string
+          integrator_base_url?: string
+          integrator_enabled?: boolean
+          integrator_last_error?: string
+          integrator_last_tested_at?: string | null
+          integrator_provider?: string
+          integrator_status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          cancel_date: string | null
+          created_at: string
+          currency: string
+          customer: Json
+          ettn: string
+          exchange_rate: number
+          gib_approval_date: string | null
+          grand_total: number
+          id: string
+          invoice_date: string
+          invoice_number: string
+          items: Json
+          notes: string
+          payment_info: string
+          status: string
+          subtotal: number
+          taxable_amount: number
+          total_discount: number
+          total_tevkifat: number
+          total_vat: number
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_date?: string | null
+          created_at?: string
+          currency?: string
+          customer?: Json
+          ettn: string
+          exchange_rate?: number
+          gib_approval_date?: string | null
+          grand_total?: number
+          id?: string
+          invoice_date?: string
+          invoice_number: string
+          items?: Json
+          notes?: string
+          payment_info?: string
+          status?: string
+          subtotal?: number
+          taxable_amount?: number
+          total_discount?: number
+          total_tevkifat?: number
+          total_vat?: number
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_date?: string | null
+          created_at?: string
+          currency?: string
+          customer?: Json
+          ettn?: string
+          exchange_rate?: number
+          gib_approval_date?: string | null
+          grand_total?: number
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          items?: Json
+          notes?: string
+          payment_info?: string
+          status?: string
+          subtotal?: number
+          taxable_amount?: number
+          total_discount?: number
+          total_tevkifat?: number
+          total_vat?: number
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pos_sales: {
+        Row: {
+          created_at: string
+          description: string
+          document_no: string
+          gross_amount: number
+          id: string
+          net_amount: number
+          payment_type: string
+          sale_date: string
+          updated_at: string
+          user_id: string
+          vat_amount: number
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          document_no?: string
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          payment_type?: string
+          sale_date?: string
+          updated_at?: string
+          user_id: string
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          document_no?: string
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          payment_type?: string
+          sale_date?: string
+          updated_at?: string
+          user_id?: string
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          unit: string
+          unit_price: number
+          updated_at: string
+          user_id: string
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          unit?: string
+          unit_price?: number
+          updated_at?: string
+          user_id: string
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          unit?: string
+          unit_price?: number
+          updated_at?: string
+          user_id?: string
+          vat_rate?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          address: string
+          company_title: string
+          created_at: string
+          email: string
+          id: string
+          phone: string
+          tax_office: string
+          updated_at: string
+          vkn_tckn: string
+        }
+        Insert: {
+          address?: string
+          company_title?: string
+          created_at?: string
+          email?: string
+          id: string
+          phone?: string
+          tax_office?: string
+          updated_at?: string
+          vkn_tckn?: string
+        }
+        Update: {
+          address?: string
+          company_title?: string
+          created_at?: string
+          email?: string
+          id?: string
+          phone?: string
+          tax_office?: string
+          updated_at?: string
+          vkn_tckn?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
