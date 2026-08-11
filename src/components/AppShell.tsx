@@ -119,7 +119,19 @@ export function AppShell({
             <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
             {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
           </div>
-          <div className="flex items-center gap-2">{actions}</div>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="relative gap-2">
+              <Link to="/guncellemeler">
+                <Sparkles className="size-4" />
+                Güncellemeler
+                {hasUnseenUpdates ? (
+                  <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-primary ring-2 ring-card" />
+                ) : null}
+              </Link>
+            </Button>
+            {actions}
+          </div>
+
         </header>
 
         <div className="flex gap-1 overflow-x-auto border-b border-border bg-card px-3 py-2 md:hidden">
