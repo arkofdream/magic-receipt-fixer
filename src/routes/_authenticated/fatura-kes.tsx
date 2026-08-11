@@ -165,39 +165,11 @@ function NewInvoicePage() {
       title="Fatura Kes"
       subtitle="E-Arşiv / E-Fatura düzenle"
       actions={
-        <>
-          <InvoicePhotoDialog
-            onExtracted={(data) => {
-              setCustomer((prev) => ({
-                ...prev,
-                vknTckn: data.customer.vknTckn || prev.vknTckn,
-                title: data.customer.title || prev.title,
-                taxOffice: data.customer.taxOffice || prev.taxOffice,
-                address: data.customer.address || prev.address,
-                city: data.customer.city || prev.city,
-                district: data.customer.district || prev.district,
-              }));
-              if (/^\d{4}-\d{2}-\d{2}$/.test(data.invoiceDate)) setDate(data.invoiceDate);
-              if (data.items.length > 0) {
-                setItems(
-                  data.items.map((i) => ({
-                    ...newItem(),
-                    name: i.name,
-                    unit: i.unit,
-                    quantity: i.quantity,
-                    unitPrice: i.unitPrice,
-                    vatRate: i.vatRate,
-                  })),
-                );
-              }
-              if (data.note) setNotes(data.note);
-            }}
-          />
-          <Button onClick={() => saveInvoice.mutate()} disabled={saveInvoice.isPending}>
-            Taslak Olarak Kaydet
-          </Button>
-        </>
+        <Button onClick={() => saveInvoice.mutate()} disabled={saveInvoice.isPending}>
+          Taslak Olarak Kaydet
+        </Button>
       }
+
 
     >
       <div className="grid gap-6 lg:grid-cols-3">
