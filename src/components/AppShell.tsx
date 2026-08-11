@@ -94,7 +94,11 @@ export function AppShell({
             >
               <item.icon className="size-4" />
               {item.label}
+              {item.to === "/guncellemeler" && hasUnseenUpdates ? (
+                <span className="ml-auto size-2 rounded-full bg-primary" aria-label="Yeni güncelleme var" />
+              ) : null}
             </Link>
+
           ))}
         </nav>
         <div className="border-t border-sidebar-border p-3">
