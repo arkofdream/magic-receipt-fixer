@@ -306,17 +306,38 @@ function NewInvoicePage() {
                         <Label>Katalogdan Seç</Label>
                         <Select onValueChange={(v) => applyProduct(item.id, v)}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Ürün/hizmet seçin (opsiyonel)" />
+                            <SelectValue
+                              placeholder={
+                                productsLoading
+                                  ? "Katalog yükleniyor…"
+                                  : productsError
+                                    ? "Katalog yüklenemedi"
+                                    : products.length === 0
+                                      ? "Katalogda kayıtlı ürün yok"
+                                      : "Ürün/hizmet seçin (opsiyonel)"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            {products.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
+                            {products.length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-muted-foreground">
+                                {productsLoading
+                                  ? "Yükleniyor…"
+                                  : productsError
+                                    ? "Katalog yüklenemedi, sayfayı yenileyin."
+                                    : "Ürün & Hizmet sayfasından kalem ekleyin."}
+                              </div>
+                            ) : (
+                              products.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.name} — {formatMoney(Number(p.unit_price), currency)}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
+
                       <div className="space-y-2 sm:col-span-2">
                         <Label>Açıklama</Label>
                         <Input value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
