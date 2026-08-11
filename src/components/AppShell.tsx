@@ -64,6 +64,8 @@ export function AppShell({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const hasUnseenUpdates = useHasUnseenChangelog();
+
 
   async function handleSignOut() {
     await queryClient.cancelQueries();
