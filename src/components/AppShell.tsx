@@ -11,12 +11,18 @@ import {
   Settings,
   Sparkles,
   LogOut,
+  BadgeCheck,
+  ShieldCheck,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CHANGELOG_SEEN_KEY, LATEST_CHANGELOG_ID } from "@/lib/changelog";
+import { SubscriptionNotice } from "@/components/SubscriptionGate";
+import { getMyAccountFlags } from "@/lib/subscription.functions";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 const nav = [
   { to: "/dashboard", label: "Kontrol Paneli", icon: LayoutDashboard },
@@ -27,6 +33,7 @@ const nav = [
   { to: "/pos-satislar", label: "POS Satışları", icon: CreditCard },
   { to: "/z-raporu", label: "Günlük Z Raporu", icon: BarChart3 },
   { to: "/ayarlar", label: "Entegrasyon Ayarları", icon: Settings },
+  { to: "/abonelik", label: "Aboneliğim", icon: BadgeCheck },
   { to: "/guncellemeler", label: "Güncellemeler", icon: Sparkles },
 ] as const;
 
@@ -65,6 +72,8 @@ export function AppShell({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const hasUnseenUpdates = useHasUnseenChangelog();
+  const fetchFlags = useServerFn(getMyAccountFlags);
+  const flags = useQuery({ queryKey: ["account-flags"], queryFn: () => fetchFlags(), staleTime: 300_000 });
 
 
   async function handleSignOut() {
@@ -100,6 +109,19 @@ export function AppShell({
             </Link>
 
           ))}
+          {flags.data?.isAdmin ? (
+            <Link
+              to="/admin"
+              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              activeProps={{
+                className:
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold bg-sidebar-primary text-sidebar-primary-foreground",
+              }}
+            >
+              <ShieldCheck className="size-4" />
+              Yönetim Paneli
+            </Link>
+          ) : null}
         </nav>
         <div className="border-t border-sidebar-border p-3">
           <Button
@@ -150,7 +172,9 @@ export function AppShell({
           ))}
         </div>
 
-        <main className="flex-1 p-6">{children}</main>
+        <SubscriptionNotice />
+
+        <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

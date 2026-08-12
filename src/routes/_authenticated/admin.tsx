@@ -111,8 +111,13 @@ function SubscriptionsTab() {
   const subs = useQuery({ queryKey: ["admin-subscriptions"], queryFn: () => list() });
 
   const mutation = useMutation({
-    mutationFn: (input: Parameters<typeof adminUpdateSubscription>[0]["data"]) =>
-      update({ data: input }),
+    mutationFn: (input: {
+      targetUserId: string;
+      action: "RENEW" | "SUSPEND" | "REACTIVATE" | "CANCEL";
+      period?: "1_MONTH" | "1_YEAR";
+      renewalPrice?: number | null;
+      paymentVerified?: boolean;
+    }) => update({ data: input }),
     onSuccess: () => {
       toast.success("Abonelik güncellendi.");
       queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] });

@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as KvkkAydinlatmaRouteImport } from './routes/kvkk-aydinlatma'
 import { Route as UyelikSozlesmesiRouteImport } from './routes/uyelik-sozlesmesi'
 import { Route as AuthenticatedAbonelikRouteImport } from './routes/_authenticated/abonelik'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAyarlarRouteImport } from './routes/_authenticated/ayarlar'
 import { Route as AuthenticatedCarilerRouteImport } from './routes/_authenticated/cariler'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -52,6 +53,11 @@ const UyelikSozlesmesiRoute = UyelikSozlesmesiRouteImport.update({
 const AuthenticatedAbonelikRoute = AuthenticatedAbonelikRouteImport.update({
   id: '/abonelik',
   path: '/abonelik',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAyarlarRoute = AuthenticatedAyarlarRouteImport.update({
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/abonelik': typeof AuthenticatedAbonelikRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/ayarlar': typeof AuthenticatedAyarlarRoute
   '/cariler': typeof AuthenticatedCarilerRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/abonelik': typeof AuthenticatedAbonelikRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/ayarlar': typeof AuthenticatedAyarlarRoute
   '/cariler': typeof AuthenticatedCarilerRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/_authenticated/abonelik': typeof AuthenticatedAbonelikRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/ayarlar': typeof AuthenticatedAyarlarRoute
   '/_authenticated/cariler': typeof AuthenticatedCarilerRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
     | '/abonelik'
+    | '/admin'
     | '/ayarlar'
     | '/cariler'
     | '/dashboard'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
     | '/abonelik'
+    | '/admin'
     | '/ayarlar'
     | '/cariler'
     | '/dashboard'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
     | '/_authenticated/abonelik'
+    | '/_authenticated/admin'
     | '/_authenticated/ayarlar'
     | '/_authenticated/cariler'
     | '/_authenticated/dashboard'
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/abonelik'
       fullPath: '/abonelik'
       preLoaderRoute: typeof AuthenticatedAbonelikRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ayarlar': {
@@ -324,6 +343,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAbonelikRoute: typeof AuthenticatedAbonelikRoute
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAyarlarRoute: typeof AuthenticatedAyarlarRoute
   AuthenticatedCarilerRoute: typeof AuthenticatedCarilerRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -337,6 +357,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAbonelikRoute: AuthenticatedAbonelikRoute,
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAyarlarRoute: AuthenticatedAyarlarRoute,
   AuthenticatedCarilerRoute: AuthenticatedCarilerRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
