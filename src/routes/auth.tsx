@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { Checkbox } from "@/components/ui/checkbox";
+import { getCurrentLegalVersions, recordSignupConsents } from "@/lib/legal.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,13 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [company, setCompany] = useState("");
   const [pendingConfirm, setPendingConfirm] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const [versions, setVersions] = useState({ membership_terms: "v1.0", kvkk_notice: "v1.0" });
+
+  useEffect(() => {
+    getCurrentLegalVersions().then(setVersions).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -60,13 +68,22 @@ function AuthPage() {
 
   async function signUp(e: React.FormEvent) {
     e.preventDefault();
+    if (!acceptTerms) {
+      toast.error("Kaydı tamamlamak için Üyelik ve Kullanım Sözleşmesi'ni kabul etmelisiniz.");
+      return;
+    }
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { company_title: company },
+        data: {
+          company_title: company,
+          membership_terms_version: versions.membership_terms,
+          kvkk_notice_version: versions.kvkk_notice,
+          marketing_consent: marketing,
+        },
       },
     });
     setLoading(false);
@@ -77,21 +94,20 @@ function AuthPage() {
     if (!data.session) {
       setPendingConfirm(true);
       toast.success("Hesabınızı doğrulamak için e-postanızı kontrol edin.");
-    }
-  }
-
-  async function signInWithGoogle() {
-    setLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      setLoading(false);
-      toast.error("Google ile giriş yapılamadı.");
       return;
     }
-    if (result.redirected) return;
-    navigate({ to: "/dashboard", replace: true });
+    try {
+      await recordSignupConsents({
+        data: {
+          membershipTermsVersion: versions.membership_terms,
+          kvkkVersion: versions.kvkk_notice,
+          marketingConsent: marketing,
+          userAgent: navigator.userAgent.slice(0, 400),
+        },
+      });
+    } catch {
+      toast.error("Onay kaydınız oluşturulamadı. Lütfen destek ile iletişime geçin.");
+    }
   }
 
   return (
@@ -112,20 +128,6 @@ function AuthPage() {
                 sonra buradan giriş yapabilirsiniz.
               </p>
             ) : null}
-
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-2 w-full"
-              disabled={loading}
-              onClick={signInWithGoogle}
-            >
-              Google ile devam et
-            </Button>
-
-            <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="h-px flex-1 bg-border" /> veya e-posta ile <span className="h-px flex-1 bg-border" />
-            </div>
 
             <Tabs defaultValue="signin">
               <TabsList className="grid w-full grid-cols-2">
@@ -193,7 +195,36 @@ function AuthPage() {
                       onChange={(e) => setPassword(e.target.value)}
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <div className="space-y-3 rounded-md border border-border p-3">
+                    <label className="flex items-start gap-3 text-sm leading-relaxed">
+                      <Checkbox
+                        className="mt-0.5 size-5"
+                        checked={acceptTerms}
+                        onCheckedChange={(c) => setAcceptTerms(c === true)}
+                      />
+                      <span>
+                        <Link to="/uyelik-sozlesmesi" target="_blank" className="font-medium underline">
+                          Üyelik ve Kullanım Sözleşmesi
+                        </Link>
+                        'ni okudum ve kabul ediyorum. Kişisel verilerime ilişkin{" "}
+                        <Link to="/kvkk-aydinlatma" target="_blank" className="font-medium underline">
+                          KVKK Aydınlatma Metni
+                        </Link>
+                        'ni okudum.
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 text-sm leading-relaxed">
+                      <Checkbox
+                        className="mt-0.5 size-5"
+                        checked={marketing}
+                        onCheckedChange={(c) => setMarketing(c === true)}
+                      />
+                      <span>
+                        Kampanya, duyuru ve fırsatlardan haberdar olmak istiyorum. (İsteğe bağlı)
+                      </span>
+                    </label>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading || !acceptTerms}>
                     Hesap Oluştur
                   </Button>
                 </form>
