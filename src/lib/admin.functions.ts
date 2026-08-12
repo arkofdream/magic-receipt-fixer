@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import type { Database } from "@/integrations/supabase/types";
+
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   daysBetween,
@@ -89,7 +91,7 @@ export const adminUpdateSubscription = createServerFn({ method: "POST" })
     if (readError) throw new Error(readError.message);
     if (!current) throw new Error("Abonelik kaydı bulunamadı.");
 
-    const patch: Record<string, string | number | null> = {};
+    const patch: Database["public"]["Tables"]["subscriptions"]["Update"] = {};
     const today = new Date();
     const todayIso = today.toISOString().slice(0, 10);
 
@@ -103,18 +105,18 @@ export const adminUpdateSubscription = createServerFn({ method: "POST" })
       if (period === "1_YEAR") next.setUTCFullYear(next.getUTCFullYear() + 1);
       else next.setUTCMonth(next.getUTCMonth() + 1);
 
-      patch["plan"] = period === "1_YEAR" ? "YEARLY" : "MONTHLY";
-      patch["status"] = "ACTIVE";
-      patch["end_date"] = next.toISOString().slice(0, 10);
-      if (current.status === "EXPIRED" || current.plan === "TRIAL") patch["start_date"] = todayIso;
-      if (data.paymentVerified) patch["last_payment_date"] = todayIso;
-      if (data.renewalPrice !== undefined) patch["renewal_price"] = data.renewalPrice;
+      patch.plan = period === "1_YEAR" ? "YEARLY" : "MONTHLY";
+      patch.status = "ACTIVE";
+      patch.end_date = next.toISOString().slice(0, 10);
+      if (current.status === "EXPIRED" || current.plan === "TRIAL") patch.start_date = todayIso;
+      if (data.paymentVerified) patch.last_payment_date = todayIso;
+      if (data.renewalPrice !== undefined) patch.renewal_price = data.renewalPrice;
     } else if (data.action === "SUSPEND") {
-      patch["status"] = "SUSPENDED";
+      patch.status = "SUSPENDED";
     } else if (data.action === "REACTIVATE") {
-      patch["status"] = daysBetween(current.end_date) < 0 ? "EXPIRED" : "ACTIVE";
+      patch.status = daysBetween(current.end_date) < 0 ? "EXPIRED" : "ACTIVE";
     } else {
-      patch["status"] = "CANCELLED";
+      patch.status = "CANCELLED";
     }
 
     const { error: updateError } = await admin
