@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as KvkkAydinlatmaRouteImport } from './routes/kvkk-aydinlatma'
 import { Route as UyelikSozlesmesiRouteImport } from './routes/uyelik-sozlesmesi'
 import { Route as AuthenticatedAyarlarRouteImport } from './routes/_authenticated/ayarlar'
 import { Route as AuthenticatedCarilerRouteImport } from './routes/_authenticated/cariler'
@@ -35,6 +36,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KvkkAydinlatmaRoute = KvkkAydinlatmaRouteImport.update({
+  id: '/kvkk-aydinlatma',
+  path: '/kvkk-aydinlatma',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UyelikSozlesmesiRoute = UyelikSozlesmesiRouteImport.update({
@@ -93,6 +99,7 @@ const AuthenticatedZRaporuRoute = AuthenticatedZRaporuRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/ayarlar': typeof AuthenticatedAyarlarRoute
   '/cariler': typeof AuthenticatedCarilerRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/ayarlar': typeof AuthenticatedAyarlarRoute
   '/cariler': typeof AuthenticatedCarilerRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
   '/_authenticated/ayarlar': typeof AuthenticatedAyarlarRoute
   '/_authenticated/cariler': typeof AuthenticatedCarilerRoute
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
     | '/ayarlar'
     | '/cariler'
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
     | '/ayarlar'
     | '/cariler'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
     | '/_authenticated/ayarlar'
     | '/_authenticated/cariler'
@@ -184,6 +196,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  KvkkAydinlatmaRoute: typeof KvkkAydinlatmaRoute
   UyelikSozlesmesiRoute: typeof UyelikSozlesmesiRoute
 }
 
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kvkk-aydinlatma': {
+      id: '/kvkk-aydinlatma'
+      path: '/kvkk-aydinlatma'
+      fullPath: '/kvkk-aydinlatma'
+      preLoaderRoute: typeof KvkkAydinlatmaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/uyelik-sozlesmesi': {
@@ -314,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  KvkkAydinlatmaRoute: KvkkAydinlatmaRoute,
   UyelikSozlesmesiRoute: UyelikSozlesmesiRoute,
 }
 export const routeTree = rootRouteImport
