@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { PaidFeatureGate } from "@/components/SubscriptionGate";
 import { AppShell } from "@/components/AppShell";
 import { AddressSelect } from "@/components/AddressSelect";
 
@@ -179,6 +180,7 @@ function NewInvoicePage() {
 
 
     >
+      <PaidFeatureGate>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
@@ -443,6 +445,7 @@ function NewInvoicePage() {
           </Card>
         </div>
       </div>
+    </PaidFeatureGate>
     </AppShell>
   );
 }
