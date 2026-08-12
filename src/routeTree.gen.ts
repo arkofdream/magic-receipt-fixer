@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as KvkkAydinlatmaRouteImport } from './routes/kvkk-aydinlatma'
 import { Route as UyelikSozlesmesiRouteImport } from './routes/uyelik-sozlesmesi'
+import { Route as AuthenticatedAbonelikRouteImport } from './routes/_authenticated/abonelik'
 import { Route as AuthenticatedAyarlarRouteImport } from './routes/_authenticated/ayarlar'
 import { Route as AuthenticatedCarilerRouteImport } from './routes/_authenticated/cariler'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -47,6 +48,11 @@ const UyelikSozlesmesiRoute = UyelikSozlesmesiRouteImport.update({
   id: '/uyelik-sozlesmesi',
   path: '/uyelik-sozlesmesi',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAbonelikRoute = AuthenticatedAbonelikRouteImport.update({
+  id: '/abonelik',
+  path: '/abonelik',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAyarlarRoute = AuthenticatedAyarlarRouteImport.update({
   id: '/ayarlar',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
+  '/abonelik': typeof AuthenticatedAbonelikRoute
   '/ayarlar': typeof AuthenticatedAyarlarRoute
   '/cariler': typeof AuthenticatedCarilerRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
+  '/abonelik': typeof AuthenticatedAbonelikRoute
   '/ayarlar': typeof AuthenticatedAyarlarRoute
   '/cariler': typeof AuthenticatedCarilerRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/kvkk-aydinlatma': typeof KvkkAydinlatmaRoute
   '/uyelik-sozlesmesi': typeof UyelikSozlesmesiRoute
+  '/_authenticated/abonelik': typeof AuthenticatedAbonelikRoute
   '/_authenticated/ayarlar': typeof AuthenticatedAyarlarRoute
   '/_authenticated/cariler': typeof AuthenticatedCarilerRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
+    | '/abonelik'
     | '/ayarlar'
     | '/cariler'
     | '/dashboard'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
+    | '/abonelik'
     | '/ayarlar'
     | '/cariler'
     | '/dashboard'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/kvkk-aydinlatma'
     | '/uyelik-sozlesmesi'
+    | '/_authenticated/abonelik'
     | '/_authenticated/ayarlar'
     | '/_authenticated/cariler'
     | '/_authenticated/dashboard'
@@ -236,6 +248,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/uyelik-sozlesmesi'
       preLoaderRoute: typeof UyelikSozlesmesiRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/abonelik': {
+      id: '/_authenticated/abonelik'
+      path: '/abonelik'
+      fullPath: '/abonelik'
+      preLoaderRoute: typeof AuthenticatedAbonelikRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ayarlar': {
       id: '/_authenticated/ayarlar'
@@ -304,6 +323,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAbonelikRoute: typeof AuthenticatedAbonelikRoute
   AuthenticatedAyarlarRoute: typeof AuthenticatedAyarlarRoute
   AuthenticatedCarilerRoute: typeof AuthenticatedCarilerRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -316,6 +336,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAbonelikRoute: AuthenticatedAbonelikRoute,
   AuthenticatedAyarlarRoute: AuthenticatedAyarlarRoute,
   AuthenticatedCarilerRoute: AuthenticatedCarilerRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
