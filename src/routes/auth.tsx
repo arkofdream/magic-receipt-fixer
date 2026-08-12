@@ -17,12 +17,12 @@ export const Route = createFileRoute("/auth")({
       { title: "Giriş Yap | e-Fatura Portalı" },
       {
         name: "description",
-        content: "e-Fatura Portalı'na e-posta veya Google hesabınızla giriş yapın, faturalarınızı yönetin.",
+        content: "e-Fatura Portalı'na e-posta ve şifrenizle giriş yapın, faturalarınızı yönetin.",
       },
       { property: "og:title", content: "Giriş Yap | e-Fatura Portalı" },
       {
         property: "og:description",
-        content: "e-Fatura Portalı'na e-posta veya Google hesabınızla giriş yapın.",
+        content: "e-Fatura Portalı'na e-posta ve şifrenizle giriş yapın.",
       },
     ],
   }),
