@@ -25,7 +25,7 @@ export type AdminAuditEntry = {
   id: string;
   action: string;
   targetUserId: string | null;
-  details: Record<string, unknown>;
+  details: string;
   createdAt: string;
 };
 
@@ -89,7 +89,7 @@ export const adminUpdateSubscription = createServerFn({ method: "POST" })
     if (readError) throw new Error(readError.message);
     if (!current) throw new Error("Abonelik kaydı bulunamadı.");
 
-    const patch: Record<string, unknown> = {};
+    const patch: Record<string, string | number | null> = {};
     const today = new Date();
     const todayIso = today.toISOString().slice(0, 10);
 
@@ -127,7 +127,7 @@ export const adminUpdateSubscription = createServerFn({ method: "POST" })
       admin_user_id: context.userId,
       action: `SUBSCRIPTION_${data.action}`,
       target_user_id: data.targetUserId,
-      details: { before: current, patch },
+      details: { before: current, patch } as never,
     });
 
     return { ok: true };
@@ -215,7 +215,7 @@ export const adminListAuditLog = createServerFn({ method: "GET" })
       id: e.id,
       action: e.action,
       targetUserId: e.target_user_id,
-      details: (e.details ?? {}) as Record<string, unknown>,
+      details: JSON.stringify(e.details ?? {}),
       createdAt: e.created_at,
     }));
   });
