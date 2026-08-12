@@ -337,6 +337,7 @@ function PosSalesPage() {
         </>
       }
     >
+      <PaidFeatureGate>
       <div className="space-y-6">
         <Card>
           <CardHeader>
@@ -464,6 +465,7 @@ function PosSalesPage() {
           </CardContent>
         </Card>
       </div>
+    </PaidFeatureGate>
     </AppShell>
   );
 }
