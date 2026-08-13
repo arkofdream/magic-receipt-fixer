@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
-import { PaidFeatureGate } from "@/components/SubscriptionGate";
 import { AppShell } from "@/components/AppShell";
 import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { Button } from "@/components/ui/button";
@@ -337,7 +336,6 @@ function PosSalesPage() {
         </>
       }
     >
-      <PaidFeatureGate>
       <div className="space-y-6">
         <Card>
           <CardHeader>
@@ -465,7 +463,6 @@ function PosSalesPage() {
           </CardContent>
         </Card>
       </div>
-    </PaidFeatureGate>
     </AppShell>
   );
 }
