@@ -25,6 +25,7 @@ import { Route as AuthenticatedGuncellemelerRouteImport } from './routes/_authen
 import { Route as AuthenticatedPosSatislarRouteImport } from './routes/_authenticated/pos-satislar'
 import { Route as AuthenticatedUrunlerRouteImport } from './routes/_authenticated/urunler'
 import { Route as AuthenticatedZRaporuRouteImport } from './routes/_authenticated/z-raporu'
+import { Route as ApiPublicSubscriptionRemindersRouteImport } from './routes/api/public/subscription-reminders'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -107,6 +108,12 @@ const AuthenticatedZRaporuRoute = AuthenticatedZRaporuRouteImport.update({
   path: '/z-raporu',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicSubscriptionRemindersRoute =
+  ApiPublicSubscriptionRemindersRouteImport.update({
+    id: '/api/public/subscription-reminders',
+    path: '/api/public/subscription-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
+  '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,6 +149,7 @@ export interface FileRoutesByTo {
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
+  '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,6 +169,7 @@ export interface FileRoutesById {
   '/_authenticated/pos-satislar': typeof AuthenticatedPosSatislarRoute
   '/_authenticated/urunler': typeof AuthenticatedUrunlerRoute
   '/_authenticated/z-raporu': typeof AuthenticatedZRaporuRoute
+  '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/pos-satislar'
     | '/urunler'
     | '/z-raporu'
+    | '/api/public/subscription-reminders'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -196,6 +207,7 @@ export interface FileRouteTypes {
     | '/pos-satislar'
     | '/urunler'
     | '/z-raporu'
+    | '/api/public/subscription-reminders'
   id:
     | '__root__'
     | '/'
@@ -214,6 +226,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pos-satislar'
     | '/_authenticated/urunler'
     | '/_authenticated/z-raporu'
+    | '/api/public/subscription-reminders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -222,6 +235,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   KvkkAydinlatmaRoute: typeof KvkkAydinlatmaRoute
   UyelikSozlesmesiRoute: typeof UyelikSozlesmesiRoute
+  ApiPublicSubscriptionRemindersRoute: typeof ApiPublicSubscriptionRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -338,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedZRaporuRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/subscription-reminders': {
+      id: '/api/public/subscription-reminders'
+      path: '/api/public/subscription-reminders'
+      fullPath: '/api/public/subscription-reminders'
+      preLoaderRoute: typeof ApiPublicSubscriptionRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -378,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   KvkkAydinlatmaRoute: KvkkAydinlatmaRoute,
   UyelikSozlesmesiRoute: UyelikSozlesmesiRoute,
+  ApiPublicSubscriptionRemindersRoute: ApiPublicSubscriptionRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
