@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const THRESHOLDS = [30, 7, 3] as const;
-const FROM = "e-Fatura Portalı <mindcollabss@gmail.com>";
+const FROM = "e-Fatura Portalı <destek@mindcollabs.com>";
 
 function addDays(days: number): string {
   const d = new Date();
