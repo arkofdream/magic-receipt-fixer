@@ -19,7 +19,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CHANGELOG_SEEN_KEY, LATEST_CHANGELOG_ID } from "@/lib/changelog";
-import { SubscriptionNotice } from "@/components/SubscriptionGate";
 import { getMyAccountFlags } from "@/lib/subscription.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -171,8 +170,6 @@ export function AppShell({
             </Link>
           ))}
         </div>
-
-        <SubscriptionNotice />
 
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { PaidFeatureGate } from "@/components/SubscriptionGate";
 import { AppShell } from "@/components/AppShell";
 import { AddressSelect } from "@/components/AddressSelect";
 
@@ -130,7 +129,7 @@ function NewInvoicePage() {
   }
 
   const saveInvoice = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (newStatus: "TASLAK" | "ONAYLANDI" = "TASLAK") => {
       if (!customer.vknTckn || !customer.title) throw new Error("Alıcı VKN/TCKN ve unvan zorunludur.");
       if (items.length === 0 || items.some((i) => !i.name)) throw new Error("En az bir dolu kalem girmelisiniz.");
       const { data: userData } = await supabase.auth.getUser();
@@ -142,7 +141,8 @@ function NewInvoicePage() {
         ettn: generateEttn(),
         invoice_number: generateInvoiceNumber(invoiceCount),
         type,
-        status: "TASLAK",
+        status: newStatus,
+        gib_approval_date: newStatus === "ONAYLANDI" ? new Date().toISOString() : null,
         invoice_date: date,
         currency,
         exchange_rate: 1,
@@ -159,8 +159,8 @@ function NewInvoicePage() {
       });
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Fatura taslak olarak kaydedildi.");
+    onSuccess: (_data, newStatus) => {
+      toast.success(newStatus === "ONAYLANDI" ? "Fatura kaydedildi ve GİB'e gönderildi." : "Fatura taslak olarak kaydedildi.");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-count"] });
       navigate({ to: "/faturalar" });
@@ -173,14 +173,18 @@ function NewInvoicePage() {
       title="Fatura Kes"
       subtitle="E-Arşiv / E-Fatura düzenle"
       actions={
-        <Button onClick={() => saveInvoice.mutate()} disabled={saveInvoice.isPending}>
-          Taslak Olarak Kaydet
-        </Button>
+        <>
+          <Button variant="outline" onClick={() => saveInvoice.mutate("TASLAK")} disabled={saveInvoice.isPending}>
+            Taslak Olarak Kaydet
+          </Button>
+          <Button onClick={() => saveInvoice.mutate("ONAYLANDI")} disabled={saveInvoice.isPending}>
+            GİB'e Gönder
+          </Button>
+        </>
       }
 
 
     >
-      <PaidFeatureGate>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
@@ -438,14 +442,21 @@ function NewInvoicePage() {
                 <span>Genel Toplam</span>
                 <span>{formatMoney(grandTotal, currency)}</span>
               </div>
-              <Button className="w-full" onClick={() => saveInvoice.mutate()} disabled={saveInvoice.isPending}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => saveInvoice.mutate("TASLAK")}
+                disabled={saveInvoice.isPending}
+              >
                 Faturayı Kaydet
+              </Button>
+              <Button className="w-full" onClick={() => saveInvoice.mutate("ONAYLANDI")} disabled={saveInvoice.isPending}>
+                GİB'e Gönder
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
-    </PaidFeatureGate>
     </AppShell>
   );
 }
