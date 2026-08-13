@@ -389,6 +389,33 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_reminders: {
+        Row: {
+          email: string
+          end_date: string
+          id: string
+          sent_at: string
+          threshold_days: number
+          user_id: string
+        }
+        Insert: {
+          email: string
+          end_date: string
+          id?: string
+          sent_at?: string
+          threshold_days: number
+          user_id: string
+        }
+        Update: {
+          email?: string
+          end_date?: string
+          id?: string
+          sent_at?: string
+          threshold_days?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           created_at: string
