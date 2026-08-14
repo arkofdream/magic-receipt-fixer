@@ -6,6 +6,8 @@ import {
   FolderOpen,
   Users,
   Package,
+  Boxes,
+
   BarChart3,
   CreditCard,
   Settings,
