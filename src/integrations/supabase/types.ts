@@ -14,6 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_transactions: {
+        Row: {
+          amount: number
+          counter_customer_id: string | null
+          created_at: string
+          customer_id: string
+          description: string
+          document_no: string
+          due_date: string | null
+          id: string
+          source: string
+          source_id: string | null
+          txn_date: string
+          txn_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          counter_customer_id?: string | null
+          created_at?: string
+          customer_id: string
+          description?: string
+          document_no?: string
+          due_date?: string | null
+          id?: string
+          source?: string
+          source_id?: string | null
+          txn_date?: string
+          txn_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          counter_customer_id?: string | null
+          created_at?: string
+          customer_id?: string
+          description?: string
+          document_no?: string
+          due_date?: string | null
+          id?: string
+          source?: string
+          source_id?: string | null
+          txn_date?: string
+          txn_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_transactions_counter_customer_id_fkey"
+            columns: ["counter_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_balances"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "account_transactions_counter_customer_id_fkey"
+            columns: ["counter_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_balances"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "account_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_audit_log: {
         Row: {
           action: string
@@ -45,12 +125,20 @@ export type Database = {
         Row: {
           address: string
           city: string
+          code: string
+          contact_name: string
           created_at: string
           district: string
           email: string
           id: string
           neighborhood: string
+          note: string
+          opening_balance: number
+          partner_group: string
+          partner_type: string
+          payment_term_days: number
           phone: string
+          risk_limit: number
           tax_office: string
           title: string
           updated_at: string
@@ -60,12 +148,20 @@ export type Database = {
         Insert: {
           address?: string
           city?: string
+          code?: string
+          contact_name?: string
           created_at?: string
           district?: string
           email?: string
           id?: string
           neighborhood?: string
+          note?: string
+          opening_balance?: number
+          partner_group?: string
+          partner_type?: string
+          payment_term_days?: number
           phone?: string
+          risk_limit?: number
           tax_office?: string
           title: string
           updated_at?: string
@@ -75,12 +171,20 @@ export type Database = {
         Update: {
           address?: string
           city?: string
+          code?: string
+          contact_name?: string
           created_at?: string
           district?: string
           email?: string
           id?: string
           neighborhood?: string
+          note?: string
+          opening_balance?: number
+          partner_group?: string
+          partner_type?: string
+          payment_term_days?: number
           phone?: string
+          risk_limit?: number
           tax_office?: string
           title?: string
           updated_at?: string
@@ -322,9 +426,17 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string
+          category: string
+          code: string
           created_at: string
+          description: string
+          discount_rate: number
           id: string
+          min_stock: number
           name: string
+          purchase_price: number
+          track_stock: boolean
           unit: string
           unit_price: number
           updated_at: string
@@ -332,9 +444,17 @@ export type Database = {
           vat_rate: number
         }
         Insert: {
+          barcode?: string
+          category?: string
+          code?: string
           created_at?: string
+          description?: string
+          discount_rate?: number
           id?: string
+          min_stock?: number
           name: string
+          purchase_price?: number
+          track_stock?: boolean
           unit?: string
           unit_price?: number
           updated_at?: string
@@ -342,9 +462,17 @@ export type Database = {
           vat_rate?: number
         }
         Update: {
+          barcode?: string
+          category?: string
+          code?: string
           created_at?: string
+          description?: string
+          discount_rate?: number
           id?: string
+          min_stock?: number
           name?: string
+          purchase_price?: number
+          track_stock?: boolean
           unit?: string
           unit_price?: number
           updated_at?: string
@@ -388,6 +516,106 @@ export type Database = {
           vkn_tckn?: string
         }
         Relationships: []
+      }
+      stock_movements: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          description: string
+          document_no: string
+          id: string
+          movement_date: string
+          movement_type: string
+          product_id: string
+          quantity: number
+          source: string
+          source_id: string | null
+          target_warehouse_id: string | null
+          unit_price: number
+          updated_at: string
+          user_id: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          description?: string
+          document_no?: string
+          id?: string
+          movement_date?: string
+          movement_type?: string
+          product_id: string
+          quantity?: number
+          source?: string
+          source_id?: string | null
+          target_warehouse_id?: string | null
+          unit_price?: number
+          updated_at?: string
+          user_id: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          description?: string
+          document_no?: string
+          id?: string
+          movement_date?: string
+          movement_type?: string
+          product_id?: string
+          quantity?: number
+          source?: string
+          source_id?: string | null
+          target_warehouse_id?: string | null
+          unit_price?: number
+          updated_at?: string
+          user_id?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_balances"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_stocks"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_target_warehouse_id_fkey"
+            columns: ["target_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscription_reminders: {
         Row: {
@@ -509,9 +737,56 @@ export type Database = {
         }
         Relationships: []
       }
+      warehouses: {
+        Row: {
+          address: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      customer_balances: {
+        Row: {
+          balance: number | null
+          customer_id: string | null
+          total_credit: number | null
+          total_debit: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      product_stocks: {
+        Row: {
+          product_id: string | null
+          quantity: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_active_subscription: { Args: { _user_id: string }; Returns: boolean }

@@ -23,6 +23,7 @@ import { Route as AuthenticatedFaturaKesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFaturalarRouteImport } from './routes/_authenticated/faturalar'
 import { Route as AuthenticatedGuncellemelerRouteImport } from './routes/_authenticated/guncellemeler'
 import { Route as AuthenticatedPosSatislarRouteImport } from './routes/_authenticated/pos-satislar'
+import { Route as AuthenticatedStokRouteImport } from './routes/_authenticated/stok'
 import { Route as AuthenticatedUrunlerRouteImport } from './routes/_authenticated/urunler'
 import { Route as AuthenticatedZRaporuRouteImport } from './routes/_authenticated/z-raporu'
 import { Route as ApiPublicSubscriptionRemindersRouteImport } from './routes/api/public/subscription-reminders'
@@ -98,6 +99,11 @@ const AuthenticatedPosSatislarRoute =
     path: '/pos-satislar',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedStokRoute = AuthenticatedStokRouteImport.update({
+  id: '/stok',
+  path: '/stok',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedUrunlerRoute = AuthenticatedUrunlerRouteImport.update({
   id: '/urunler',
   path: '/urunler',
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/faturalar': typeof AuthenticatedFaturalarRoute
   '/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
+  '/stok': typeof AuthenticatedStokRoute
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
   '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/faturalar': typeof AuthenticatedFaturalarRoute
   '/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
+  '/stok': typeof AuthenticatedStokRoute
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
   '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/_authenticated/faturalar': typeof AuthenticatedFaturalarRoute
   '/_authenticated/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/_authenticated/pos-satislar': typeof AuthenticatedPosSatislarRoute
+  '/_authenticated/stok': typeof AuthenticatedStokRoute
   '/_authenticated/urunler': typeof AuthenticatedUrunlerRoute
   '/_authenticated/z-raporu': typeof AuthenticatedZRaporuRoute
   '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/faturalar'
     | '/guncellemeler'
     | '/pos-satislar'
+    | '/stok'
     | '/urunler'
     | '/z-raporu'
     | '/api/public/subscription-reminders'
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/faturalar'
     | '/guncellemeler'
     | '/pos-satislar'
+    | '/stok'
     | '/urunler'
     | '/z-raporu'
     | '/api/public/subscription-reminders'
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | '/_authenticated/faturalar'
     | '/_authenticated/guncellemeler'
     | '/_authenticated/pos-satislar'
+    | '/_authenticated/stok'
     | '/_authenticated/urunler'
     | '/_authenticated/z-raporu'
     | '/api/public/subscription-reminders'
@@ -338,6 +350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPosSatislarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/stok': {
+      id: '/_authenticated/stok'
+      path: '/stok'
+      fullPath: '/stok'
+      preLoaderRoute: typeof AuthenticatedStokRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/urunler': {
       id: '/_authenticated/urunler'
       path: '/urunler'
@@ -372,6 +391,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFaturalarRoute: typeof AuthenticatedFaturalarRoute
   AuthenticatedGuncellemelerRoute: typeof AuthenticatedGuncellemelerRoute
   AuthenticatedPosSatislarRoute: typeof AuthenticatedPosSatislarRoute
+  AuthenticatedStokRoute: typeof AuthenticatedStokRoute
   AuthenticatedUrunlerRoute: typeof AuthenticatedUrunlerRoute
   AuthenticatedZRaporuRoute: typeof AuthenticatedZRaporuRoute
 }
@@ -386,6 +406,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFaturalarRoute: AuthenticatedFaturalarRoute,
   AuthenticatedGuncellemelerRoute: AuthenticatedGuncellemelerRoute,
   AuthenticatedPosSatislarRoute: AuthenticatedPosSatislarRoute,
+  AuthenticatedStokRoute: AuthenticatedStokRoute,
   AuthenticatedUrunlerRoute: AuthenticatedUrunlerRoute,
   AuthenticatedZRaporuRoute: AuthenticatedZRaporuRoute,
 }

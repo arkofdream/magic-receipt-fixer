@@ -6,6 +6,8 @@ import {
   FolderOpen,
   Users,
   Package,
+  Boxes,
+
   BarChart3,
   CreditCard,
   Settings,
@@ -27,8 +29,10 @@ const nav = [
   { to: "/dashboard", label: "Kontrol Paneli", icon: LayoutDashboard },
   { to: "/fatura-kes", label: "Fatura Kes", icon: FilePlus2 },
   { to: "/faturalar", label: "Fatura Arşivi", icon: FolderOpen },
-  { to: "/cariler", label: "Cari Rehberi", icon: Users },
+  { to: "/cariler", label: "Cari Hesaplar", icon: Users },
   { to: "/urunler", label: "Ürün & Hizmet", icon: Package },
+  { to: "/stok", label: "Stok Yönetimi", icon: Boxes },
+
   { to: "/pos-satislar", label: "POS Satışları", icon: CreditCard },
   { to: "/z-raporu", label: "Günlük Z Raporu", icon: BarChart3 },
   { to: "/ayarlar", label: "Entegrasyon Ayarları", icon: Settings },
