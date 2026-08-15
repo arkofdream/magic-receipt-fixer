@@ -149,8 +149,12 @@ function NewInvoicePage() {
       const userId = userData.user?.id;
       if (!userId) throw new Error("Oturum bulunamadı.");
 
-      const { error } = await supabase.from("invoices").insert({
+      const shouldPost = newStatus === "ONAYLANDI";
+      const { data: inserted, error } = await supabase.from("invoices").insert({
         user_id: userId,
+        customer_id: customerId || null,
+        warehouse_id: warehouseId || null,
+        posted: shouldPost,
         ettn: generateEttn(),
         invoice_number: generateInvoiceNumber(invoiceCount),
         type,
