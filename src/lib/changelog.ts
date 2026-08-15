@@ -14,6 +14,32 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-08-15",
+    version: "1.4.0",
+    date: "2026-08-15",
+    title: "Fatura – Cari – Stok entegrasyonu",
+    summary:
+      "Fatura GİB'e gönderildiğinde cari borç kaydı ve stok çıkışı otomatik oluşuyor; fatura arşivinde ödeme takibi başladı.",
+    changes: [
+      { type: "Yeni", text: "Fatura kesme ekranında kayıtlı cari ve depo seçimi." },
+      { type: "Yeni", text: "GİB'e gönderilen faturalar için otomatik cari hareketi ve stok çıkışı." },
+      { type: "Yeni", text: "Fatura arşivinde Ödendi / Kısmi / Ödenmedi durumu ve tek tıkla tahsilat." },
+      { type: "İyileştirme", text: "Cari, stok ve ürün ekranları fatura sonrası anında güncelleniyor." },
+    ],
+  },
+  {
+    id: "2026-08-14",
+    version: "1.3.0",
+    date: "2026-08-14",
+    title: "Cari ve Stok Yönetimi",
+    summary: "Müşteri/tedarikçi kartları, cari ekstre, depo ve stok hareketleri eklendi.",
+    changes: [
+      { type: "Yeni", text: "Müşteri ve tedarikçi ayrımı, cari hareket ve ekstre ekranı." },
+      { type: "Yeni", text: "Depo tanımları, stok giriş/çıkış, transfer ve sayım hareketleri." },
+      { type: "Yeni", text: "Ürün kartlarında barkod, alış fiyatı, kritik stok bilgileri." },
+    ],
+  },
+  {
     id: "2026-08-11",
     version: "1.2.0",
     date: "2026-08-11",

@@ -27,6 +27,21 @@ export const Route = createFileRoute("/_authenticated/faturalar")({
   component: InvoicesPage,
 });
 
+type InvoiceRow = {
+  id: string;
+  user_id: string;
+  invoice_number: string;
+  invoice_date: string;
+  type: string;
+  status: string;
+  currency: string;
+  grand_total: number;
+  customer_id: string | null;
+  warehouse_id: string | null;
+  posted: boolean;
+  items: unknown;
+};
+
 function InvoicesPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("ALL");
@@ -52,17 +67,105 @@ function InvoicesPage() {
     },
   });
 
+  const { data: payments = [] } = useQuery({
+    queryKey: ["invoice-payments"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_transactions")
+        .select("source_id, amount")
+        .eq("source", "FATURA_TAHSILAT");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const paidByInvoice = new Map<string, number>();
+  for (const p of payments) {
+    if (!p.source_id) continue;
+    paidByInvoice.set(p.source_id, (paidByInvoice.get(p.source_id) ?? 0) + Number(p.amount));
+  }
+
   const sign = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (inv: InvoiceRow) => {
       const { error } = await supabase
         .from("invoices")
-        .update({ status: "ONAYLANDI", gib_approval_date: new Date().toISOString() })
-        .eq("id", id);
+        .update({ status: "ONAYLANDI", gib_approval_date: new Date().toISOString(), posted: true })
+        .eq("id", inv.id);
+      if (error) throw error;
+
+      if (inv.posted) return;
+      const isReturn = inv.type === "IADE";
+
+      if (inv.customer_id) {
+        const { error: txnError } = await supabase.from("account_transactions").insert({
+          user_id: inv.user_id,
+          customer_id: inv.customer_id,
+          txn_date: inv.invoice_date,
+          txn_type: isReturn ? "ALACAK" : "BORC",
+          amount: Number(inv.grand_total),
+          document_no: inv.invoice_number,
+          description: isReturn ? "İade faturası" : "Satış faturası",
+          source: "FATURA",
+          source_id: inv.id,
+        });
+        if (txnError) throw txnError;
+      }
+
+      const invItems = (inv.items as unknown as { productId?: string; quantity: number; unitPrice: number }[]) ?? [];
+      const stockRows = invItems
+        .filter((i) => i.productId)
+        .map((i) => ({
+          user_id: inv.user_id,
+          product_id: i.productId as string,
+          warehouse_id: inv.warehouse_id,
+          customer_id: inv.customer_id,
+          movement_date: inv.invoice_date,
+          movement_type: isReturn ? "GIRIS" : "CIKIS",
+          quantity: Number(i.quantity),
+          unit_price: Number(i.unitPrice),
+          document_no: inv.invoice_number,
+          description: "Fatura kaynaklı stok hareketi",
+          source: "FATURA",
+          source_id: inv.id,
+        }));
+      if (stockRows.length > 0) {
+        const { error: stockError } = await supabase.from("stock_movements").insert(stockRows);
+        if (stockError) throw stockError;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Fatura GİB'e iletildi; cari ve stok hareketleri işlendi.");
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const collect = useMutation({
+    mutationFn: async ({ inv, amount }: { inv: InvoiceRow; amount: number }) => {
+      if (!inv.customer_id) throw new Error("Bu fatura bir cari karta bağlı değil. Tahsilatı Cariler ekranından girin.");
+      if (amount <= 0) throw new Error("Tahsil edilecek tutar kalmadı.");
+      const { error } = await supabase.from("account_transactions").insert({
+        user_id: inv.user_id,
+        customer_id: inv.customer_id,
+        txn_date: new Date().toISOString().slice(0, 10),
+        txn_type: "TAHSILAT",
+        amount,
+        document_no: inv.invoice_number,
+        description: "Fatura tahsilatı",
+        source: "FATURA_TAHSILAT",
+        source_id: inv.id,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Fatura GİB'e iletildi olarak işaretlendi.");
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Tahsilat kaydedildi.");
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -189,6 +292,7 @@ function InvoicesPage() {
                     <th className="py-2 pr-4">KDV</th>
                     <th className="py-2 pr-4">Toplam</th>
                     <th className="py-2 pr-4">Durum</th>
+                    <th className="py-2 pr-4">Ödeme</th>
                     <th className="py-2" />
                   </tr>
                 </thead>
@@ -196,6 +300,10 @@ function InvoicesPage() {
                   {filtered.map((inv) => {
                     const customer = inv.customer as { title?: string; vknTckn?: string } | null;
                     const s = INVOICE_STATUSES[inv.status] ?? { label: inv.status, tone: "draft" as const };
+                    const row = inv as unknown as InvoiceRow;
+                    const paid = paidByInvoice.get(inv.id) ?? 0;
+                    const remaining = Math.max(Number(inv.grand_total) - paid, 0);
+                    const payLabel = paid <= 0 ? "Ödenmedi" : remaining < 0.005 ? "Ödendi" : "Kısmi";
                     return (
                       <tr key={inv.id} className="border-b border-border/60 last:border-0">
                         <td className="py-3 pr-2">
@@ -231,10 +339,28 @@ function InvoicesPage() {
                             {s.label}
                           </Badge>
                         </td>
+                        <td className="py-3 pr-4">
+                          <Badge variant={payLabel === "Ödendi" ? "default" : "secondary"}>{payLabel}</Badge>
+                          {paid > 0 && remaining >= 0.005 ? (
+                            <span className="block text-xs text-muted-foreground">
+                              Kalan: {formatMoney(remaining, inv.currency)}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="py-3 text-right">
                           {inv.status === "TASLAK" ? (
-                            <Button size="sm" variant="outline" onClick={() => sign.mutate(inv.id)}>
+                            <Button size="sm" variant="outline" onClick={() => sign.mutate(row)}>
                               GİB'e Gönder
+                            </Button>
+                          ) : null}
+                          {inv.status === "ONAYLANDI" && remaining >= 0.005 ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={collect.isPending}
+                              onClick={() => collect.mutate({ inv: row, amount: remaining })}
+                            >
+                              Tahsilat
                             </Button>
                           ) : null}
                           {inv.status !== "IPTAL" ? (
