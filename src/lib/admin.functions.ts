@@ -98,9 +98,10 @@ export const adminUpdateSubscription = createServerFn({ method: "POST" })
     if (data.action === "RENEW") {
       const period = data.period ?? "1_MONTH";
       const base = new Date(`${current.end_date}T00:00:00Z`);
-      const from = base.getTime() >= Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
-        ? base
-        : new Date(`${todayIso}T00:00:00Z`);
+      const from =
+        base.getTime() >= Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+          ? base
+          : new Date(`${todayIso}T00:00:00Z`);
       const next = new Date(from);
       if (period === "1_YEAR") next.setUTCFullYear(next.getUTCFullYear() + 1);
       else next.setUTCMonth(next.getUTCMonth() + 1);
@@ -141,7 +142,9 @@ export const adminListLegalVersions = createServerFn({ method: "GET" })
     await assertAdmin(context.supabase, context.userId);
     const { data, error } = await context.supabase
       .from("legal_documents")
-      .select("id, doc_type, version, title, content, published_at, is_published, requires_reacceptance")
+      .select(
+        "id, doc_type, version, title, content, published_at, is_published, requires_reacceptance",
+      )
       .order("published_at", { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []).map((d) => ({

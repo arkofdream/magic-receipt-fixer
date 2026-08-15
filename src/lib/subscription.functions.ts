@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { daysBetween, effectiveStatus, type SubscriptionStatus, type SubscriptionView } from "@/lib/subscription";
+import {
+  daysBetween,
+  effectiveStatus,
+  type SubscriptionStatus,
+  type SubscriptionView,
+} from "@/lib/subscription";
 
 /** Subscription of the signed-in user only (user id comes from the bearer token). */
 export const getMySubscription = createServerFn({ method: "GET" })

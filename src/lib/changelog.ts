@@ -22,9 +22,18 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Fatura GİB'e gönderildiğinde cari borç kaydı ve stok çıkışı otomatik oluşuyor; fatura arşivinde ödeme takibi başladı.",
     changes: [
       { type: "Yeni", text: "Fatura kesme ekranında kayıtlı cari ve depo seçimi." },
-      { type: "Yeni", text: "GİB'e gönderilen faturalar için otomatik cari hareketi ve stok çıkışı." },
-      { type: "Yeni", text: "Fatura arşivinde Ödendi / Kısmi / Ödenmedi durumu ve tek tıkla tahsilat." },
-      { type: "İyileştirme", text: "Cari, stok ve ürün ekranları fatura sonrası anında güncelleniyor." },
+      {
+        type: "Yeni",
+        text: "GİB'e gönderilen faturalar için otomatik cari hareketi ve stok çıkışı.",
+      },
+      {
+        type: "Yeni",
+        text: "Fatura arşivinde Ödendi / Kısmi / Ödenmedi durumu ve tek tıkla tahsilat.",
+      },
+      {
+        type: "İyileştirme",
+        text: "Cari, stok ve ürün ekranları fatura sonrası anında güncelleniyor.",
+      },
     ],
   },
   {
@@ -48,8 +57,14 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Yapılan tüm güncellemeleri tarihleriyle birlikte görebileceğiniz yeni bir ekran eklendi.",
     changes: [
       { type: "Yeni", text: "Sol menüye ve üst bara 'Güncellemeler' bölümü eklendi." },
-      { type: "Yeni", text: "Her sürüm tıklandığında detayları ve yapılış tarihi görüntülenebiliyor." },
-      { type: "İyileştirme", text: "Okunmamış güncellemeler için üst barda bildirim rozeti gösteriliyor." },
+      {
+        type: "Yeni",
+        text: "Her sürüm tıklandığında detayları ve yapılış tarihi görüntülenebiliyor.",
+      },
+      {
+        type: "İyileştirme",
+        text: "Okunmamış güncellemeler için üst barda bildirim rozeti gösteriliyor.",
+      },
     ],
   },
   {
@@ -60,8 +75,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     summary:
       "Fatura kesme ekranındaki ürün kataloğu listelenme sorunu giderildi, fotoğraftan fatura doldurma özelliği kaldırıldı.",
     changes: [
-      { type: "Düzeltme", text: "'Katalogdan Seç' listesi artık ürünleri doğru şekilde gösteriyor." },
-      { type: "İyileştirme", text: "Katalog için yükleniyor, hata ve boş liste durumları eklendi." },
+      {
+        type: "Düzeltme",
+        text: "'Katalogdan Seç' listesi artık ürünleri doğru şekilde gösteriyor.",
+      },
+      {
+        type: "İyileştirme",
+        text: "Katalog için yükleniyor, hata ve boş liste durumları eklendi.",
+      },
       { type: "Kaldırıldı", text: "Fotoğraftan fatura doldurma özelliği tamamen kaldırıldı." },
     ],
   },

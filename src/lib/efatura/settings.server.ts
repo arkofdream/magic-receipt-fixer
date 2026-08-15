@@ -1,7 +1,11 @@
 import type { Database } from "@/integrations/supabase/types";
 import { decryptSecret, encryptSecret } from "./crypto.server";
 import { getProvider, type ProviderId } from "./providers.server";
-import type { ActiveProvider, ConnectionSettingsView, ConnectionStatus } from "@/lib/efatura-settings.functions";
+import type {
+  ActiveProvider,
+  ConnectionSettingsView,
+  ConnectionStatus,
+} from "@/lib/efatura-settings.functions";
 
 type Row = Database["public"]["Tables"]["efatura_connection_settings"]["Row"];
 type Patch = Database["public"]["Tables"]["efatura_connection_settings"]["Update"];
@@ -87,7 +91,13 @@ export async function saveGib(
 
 export async function saveIntegrator(
   userId: string,
-  input: { enabled: boolean; provider: string; baseUrl: string; apiUsername: string; apiKey?: string | undefined },
+  input: {
+    enabled: boolean;
+    provider: string;
+    baseUrl: string;
+    apiUsername: string;
+    apiKey?: string | undefined;
+  },
 ): Promise<ConnectionSettingsView> {
   const patch: Patch = {
     integrator_enabled: input.enabled,
@@ -103,7 +113,10 @@ export async function saveIntegrator(
   return toView(await update(userId, patch));
 }
 
-export async function setActive(userId: string, activeProvider: ActiveProvider): Promise<ConnectionSettingsView> {
+export async function setActive(
+  userId: string,
+  activeProvider: ActiveProvider,
+): Promise<ConnectionSettingsView> {
   const patch: Patch = { active_provider: activeProvider };
   if (activeProvider === "GIB") {
     patch["gib_enabled"] = true;
@@ -130,7 +143,9 @@ export async function getActiveConnection(userId: string) {
     return {
       provider: "INTEGRATOR" as ProviderId,
       username: row.integrator_api_username,
-      secret: row.integrator_api_key_encrypted ? decryptSecret(row.integrator_api_key_encrypted) : "",
+      secret: row.integrator_api_key_encrypted
+        ? decryptSecret(row.integrator_api_key_encrypted)
+        : "",
       baseUrl: row.integrator_base_url,
       integratorName: row.integrator_provider,
     };
@@ -151,7 +166,9 @@ export async function runConnectionTest(userId: string, provider: ProviderId) {
       : {
           provider,
           username: row.integrator_api_username,
-          secret: row.integrator_api_key_encrypted ? decryptSecret(row.integrator_api_key_encrypted) : "",
+          secret: row.integrator_api_key_encrypted
+            ? decryptSecret(row.integrator_api_key_encrypted)
+            : "",
           baseUrl: row.integrator_base_url,
           integratorName: row.integrator_provider,
         };

@@ -1,9 +1,5 @@
 export type SubscriptionStatus =
-  | "ACTIVE"
-  | "UPCOMING_EXPIRY"
-  | "EXPIRED"
-  | "SUSPENDED"
-  | "CANCELLED";
+  "ACTIVE" | "UPCOMING_EXPIRY" | "EXPIRED" | "SUSPENDED" | "CANCELLED";
 
 export type SubscriptionView = {
   plan: string;

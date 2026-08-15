@@ -2,6 +2,13 @@ import * as XLSX from "xlsx";
 
 export type SheetRow = Record<string, string>;
 
+export type RowValidationResult<T> = {
+  valid: boolean;
+  rowNumber: number;
+  data?: T;
+  error?: string;
+};
+
 /** Excel/CSV dosyasını okuyup ilk sayfayı satır nesnelerine çevirir. */
 export async function readSheetRows(file: File): Promise<SheetRow[]> {
   const buffer = await file.arrayBuffer();
@@ -38,7 +45,8 @@ export function downloadWorkbook(
 export function normalizeHeader(value: string) {
   return value
     .toLocaleLowerCase("tr-TR")
-    .replace(/[ıi̇]/g, "i")
+    .replace(/ı/g, "i")
+    .replace(/i/g, "i")
     .replace(/ş/g, "s")
     .replace(/ğ/g, "g")
     .replace(/ü/g, "u")
@@ -55,9 +63,38 @@ export function pickColumn(row: SheetRow, candidates: string[]): string {
   return "";
 }
 
-export function parseNumber(value: string): number {
+/**
+ * Türkçe ve uluslararası para/sayı formatlarını (1.250,50 TL, 1,250.50, 500) güvenle sayıya çevirir.
+ */
+export function parseNumber(value: string | number | null | undefined): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (!value) return 0;
-  const cleaned = value.replace(/\s|₺|TL/gi, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
-  const parsed = Number(cleaned);
+  const str = String(value)
+    .trim()
+    .replace(/\s|₺|TL|USD|\$|EUR|€|GBP|£/gi, "");
+  if (!str) return 0;
+
+  // Format: 1.250,50 (Turkish style)
+  if (str.includes(",") && str.includes(".")) {
+    if (str.lastIndexOf(",") > str.lastIndexOf(".")) {
+      // 1.250,50 -> 1250.50
+      const cleaned = str.replace(/\./g, "").replace(",", ".");
+      const parsed = parseFloat(cleaned);
+      return Number.isFinite(parsed) ? parsed : 0;
+    } else {
+      // 1,250.50 -> 1250.50
+      const cleaned = str.replace(/,/g, "");
+      const parsed = parseFloat(cleaned);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
+
+  if (str.includes(",")) {
+    const cleaned = str.replace(",", ".");
+    const parsed = parseFloat(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const parsed = parseFloat(str);
   return Number.isFinite(parsed) ? parsed : 0;
 }

@@ -22,7 +22,9 @@ async function getJson<T>(url: string): Promise<T> {
 
 export async function fetchProvinces(): Promise<ProvinceSummary[]> {
   if (provincesCache) return provincesCache;
-  const json = await getJson<{ data: { id: number; name: string }[] }>(`${BASE}/provinces?fields=id,name`);
+  const json = await getJson<{ data: { id: number; name: string }[] }>(
+    `${BASE}/provinces?fields=id,name`,
+  );
   provincesCache = json.data.map((p) => ({ id: p.id, name: p.name }));
   return provincesCache;
 }
@@ -34,7 +36,11 @@ export async function fetchProvinceDetail(provinceId: number): Promise<ProvinceD
     data: {
       id: number;
       name: string;
-      districts: { name: string; neighborhoods?: { name: string }[]; villages?: { name: string }[] }[];
+      districts: {
+        name: string;
+        neighborhoods?: { name: string }[];
+        villages?: { name: string }[];
+      }[];
     };
   }>(`${BASE}/provinces/${provinceId}?extend=true`);
 

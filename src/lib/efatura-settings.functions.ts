@@ -82,7 +82,10 @@ export const testConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => testSchema.parse(data))
   .handler(
-    async ({ data, context }): Promise<{ ok: boolean; message: string; settings: ConnectionSettingsView }> => {
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: boolean; message: string; settings: ConnectionSettingsView }> => {
       const { runConnectionTest } = await import("@/lib/efatura/settings.server");
       return runConnectionTest(context.userId, data.provider);
     },

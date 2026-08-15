@@ -130,7 +130,9 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
       ["Vergi Dairesi", customer.taxOffice ?? "-"],
       [
         "Adres",
-        [customer.address, customer.neighborhood, customer.district, customer.city].filter(Boolean).join(", ") || "-",
+        [customer.address, customer.neighborhood, customer.district, customer.city]
+          .filter(Boolean)
+          .join(", ") || "-",
       ],
       ["İletişim", [customer.email, customer.phone].filter(Boolean).join(" · ") || "-"],
     ],
@@ -187,12 +189,15 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
 }
 
 /** Seçili faturaları TEK bir PDF dosyası olarak indirir (zip yok, her fatura ayrı sayfa). */
-export async function downloadInvoicesPdf(invoices: InvoiceRecord[], seller: SellerInfo, filename?: string) {
+export async function downloadInvoicesPdf(
+  invoices: InvoiceRecord[],
+  seller: SellerInfo,
+  filename?: string,
+) {
   if (invoices.length === 0) throw new Error("İndirilecek fatura seçilmedi.");
   const doc = await createDoc();
   for (let i = 0; i < invoices.length; i += 1) {
     if (i > 0) doc.addPage();
-    // eslint-disable-next-line no-await-in-loop
     await renderInvoice(doc, invoices[i]!, seller);
   }
   const total = doc.getNumberOfPages();
@@ -256,7 +261,11 @@ export async function downloadZReportPdf(data: ZReportData, seller: SellerInfo) 
   await autoTable(doc, {
     startY: lastY(doc, 300) + 16,
     head: [["KDV Oranı", "Matrah", "KDV Tutarı"]],
-    body: data.vatBreakdown.map((row) => [`%${row.rate}`, formatMoney(row.taxable), formatMoney(row.vat)]),
+    body: data.vatBreakdown.map((row) => [
+      `%${row.rate}`,
+      formatMoney(row.taxable),
+      formatMoney(row.vat),
+    ]),
     theme: "grid",
     columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
   });
