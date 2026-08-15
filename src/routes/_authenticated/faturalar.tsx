@@ -27,6 +27,21 @@ export const Route = createFileRoute("/_authenticated/faturalar")({
   component: InvoicesPage,
 });
 
+type InvoiceRow = {
+  id: string;
+  user_id: string;
+  invoice_number: string;
+  invoice_date: string;
+  type: string;
+  status: string;
+  currency: string;
+  grand_total: number;
+  customer_id: string | null;
+  warehouse_id: string | null;
+  posted: boolean;
+  items: unknown;
+};
+
 function InvoicesPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("ALL");
