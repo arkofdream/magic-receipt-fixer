@@ -124,9 +124,10 @@ function NewInvoicePage() {
     });
   }
 
-  function applyCustomer(customerId: string) {
-    const c = customers.find((x) => x.id === customerId);
+  function applyCustomer(selectedId: string) {
+    const c = customers.find((x) => x.id === selectedId);
     if (!c) return;
+    setCustomerId(c.id);
     setCustomer({
       vknTckn: c.vkn_tckn,
       title: c.title,
