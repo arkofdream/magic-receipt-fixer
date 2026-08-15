@@ -22,6 +22,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CHANGELOG_SEEN_KEY, LATEST_CHANGELOG_ID } from "@/lib/changelog";
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/download";
 import { getMyAccountFlags } from "@/lib/subscription.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -136,7 +137,7 @@ export function AppShell({
             size="sm"
             className="w-full justify-start gap-3 text-xs text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+            <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
               <Download className="size-4 text-primary" />
               Windows Uygulaması (İndir)
             </a>
@@ -160,7 +161,7 @@ export function AppShell({
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm" className="hidden gap-2 sm:inline-flex">
-              <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+              <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
                 <Download className="size-4" />
                 Windows App
               </a>
