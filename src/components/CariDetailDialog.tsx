@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadWorkbook } from "@/lib/excel";
@@ -79,8 +85,11 @@ export function CariDetailDialog({
   }, [rows, opening]);
 
   const totals = useMemo(() => {
-    const debit = rows.filter((r) => isDebit(r.txn_type)).reduce((s, r) => s + Number(r.amount), 0) + opening;
-    const credit = rows.filter((r) => !isDebit(r.txn_type)).reduce((s, r) => s + Number(r.amount), 0);
+    const debit =
+      rows.filter((r) => isDebit(r.txn_type)).reduce((s, r) => s + Number(r.amount), 0) + opening;
+    const credit = rows
+      .filter((r) => !isDebit(r.txn_type))
+      .reduce((s, r) => s + Number(r.amount), 0);
     return { debit, credit, balance: debit - credit };
   }, [rows, opening]);
 
@@ -204,8 +213,12 @@ export function CariDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {customer?.title}
-            <Badge variant="outline">{customer?.partner_type === "TEDARIKCI" ? "Tedarikçi" : "Müşteri"}</Badge>
-            {customer?.code ? <span className="text-xs text-muted-foreground">#{customer.code}</span> : null}
+            <Badge variant="outline">
+              {customer?.partner_type === "TEDARIKCI" ? "Tedarikçi" : "Müşteri"}
+            </Badge>
+            {customer?.code ? (
+              <span className="text-xs text-muted-foreground">#{customer.code}</span>
+            ) : null}
           </DialogTitle>
         </DialogHeader>
 
@@ -231,13 +244,23 @@ export function CariDetailDialog({
             <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
                 <Label htmlFor="from">Başlangıç</Label>
-                <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                <Input
+                  id="from"
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="to">Bitiş</Label>
                 <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
               </div>
-              <Button variant="outline" className="gap-2" onClick={exportStatement} disabled={ledger.length === 0}>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={exportStatement}
+                disabled={ledger.length === 0}
+              >
                 <Download className="size-4" />
                 Ekstreyi Aktar
               </Button>
@@ -266,23 +289,39 @@ export function CariDetailDialog({
                     {ledger.map((r) => (
                       <tr key={r.id} className="border-b border-border/60 last:border-0">
                         <td className="py-2 pr-3 whitespace-nowrap">{formatDate(r.txn_date)}</td>
-                        <td className="py-2 pr-3">{TXN_LABELS[r.txn_type as TxnType] ?? r.txn_type}</td>
+                        <td className="py-2 pr-3">
+                          {TXN_LABELS[r.txn_type as TxnType] ?? r.txn_type}
+                        </td>
                         <td className="py-2 pr-3">
                           {r.description || "-"}
-                          {r.document_no ? <span className="text-muted-foreground"> · {r.document_no}</span> : null}
+                          {r.document_no ? (
+                            <span className="text-muted-foreground"> · {r.document_no}</span>
+                          ) : null}
                         </td>
                         <td className="py-2 pr-3 whitespace-nowrap">
                           {r.due_date ? (
-                            <span className={r.due_date < today() && isDebit(r.txn_type) ? "text-destructive" : ""}>
+                            <span
+                              className={
+                                r.due_date < today() && isDebit(r.txn_type)
+                                  ? "text-destructive"
+                                  : ""
+                              }
+                            >
                               {formatDate(r.due_date)}
                             </span>
                           ) : (
                             "-"
                           )}
                         </td>
-                        <td className="py-2 pr-3 text-right">{isDebit(r.txn_type) ? formatMoney(Number(r.amount)) : "-"}</td>
-                        <td className="py-2 pr-3 text-right">{isDebit(r.txn_type) ? "-" : formatMoney(Number(r.amount))}</td>
-                        <td className="py-2 pr-3 text-right font-medium">{formatMoney(r.running)}</td>
+                        <td className="py-2 pr-3 text-right">
+                          {isDebit(r.txn_type) ? formatMoney(Number(r.amount)) : "-"}
+                        </td>
+                        <td className="py-2 pr-3 text-right">
+                          {isDebit(r.txn_type) ? "-" : formatMoney(Number(r.amount))}
+                        </td>
+                        <td className="py-2 pr-3 text-right font-medium">
+                          {formatMoney(r.running)}
+                        </td>
                         <td className="py-2 text-right">
                           <Button variant="ghost" size="sm" onClick={() => removeTxn.mutate(r.id)}>
                             Sil
@@ -306,7 +345,10 @@ export function CariDetailDialog({
             >
               <div className="space-y-1">
                 <Label>Hareket Türü</Label>
-                <Select value={form.txnType} onValueChange={(v) => setForm({ ...form, txnType: v as TxnType })}>
+                <Select
+                  value={form.txnType}
+                  onValueChange={(v) => setForm({ ...form, txnType: v as TxnType })}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -385,7 +427,10 @@ export function CariDetailDialog({
             >
               <div className="space-y-1 sm:col-span-2">
                 <Label>Karşı Cari</Label>
-                <Select value={virman.targetId} onValueChange={(v) => setVirman({ ...virman, targetId: v })}>
+                <Select
+                  value={virman.targetId}
+                  onValueChange={(v) => setVirman({ ...virman, targetId: v })}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Cari seçin" />
                   </SelectTrigger>

@@ -5,7 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 
 /** Minimal, dependency-free renderer for the "## Heading" + paragraph legal text format. */
 export function LegalContent({ content }: { content: string }) {
-  const blocks = content.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  const blocks = content
+    .split(/\n{2,}/)
+    .map((b) => b.trim())
+    .filter(Boolean);
   return (
     <div className="space-y-4">
       {blocks.map((block, i) =>

@@ -7,7 +7,6 @@ import {
   Users,
   Package,
   Boxes,
-
   BarChart3,
   CreditCard,
   Settings,
@@ -15,6 +14,8 @@ import {
   LogOut,
   BadgeCheck,
   ShieldCheck,
+  Download,
+  Monitor,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -57,10 +58,6 @@ function useHasUnseenChangelog() {
   return unseen;
 }
 
-
-
-
-
 export function AppShell({
   title,
   subtitle,
@@ -76,8 +73,11 @@ export function AppShell({
   const queryClient = useQueryClient();
   const hasUnseenUpdates = useHasUnseenChangelog();
   const fetchFlags = useServerFn(getMyAccountFlags);
-  const flags = useQuery({ queryKey: ["account-flags"], queryFn: () => fetchFlags(), staleTime: 300_000 });
-
+  const flags = useQuery({
+    queryKey: ["account-flags"],
+    queryFn: () => fetchFlags(),
+    staleTime: 300_000,
+  });
 
   async function handleSignOut() {
     await queryClient.cancelQueries();
@@ -90,8 +90,8 @@ export function AppShell({
     <div className="flex min-h-screen bg-background">
       <aside className="hidden w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <div className="border-b border-sidebar-border px-6 py-6">
-          <p className="text-lg font-bold tracking-tight">e-Fatura Portalı</p>
-          <p className="mt-1 text-xs text-sidebar-foreground/60">GİB E-Fatura & E-Arşiv</p>
+          <p className="text-lg font-bold tracking-tight">Magic Receipt</p>
+          <p className="mt-1 text-xs text-sidebar-foreground/60">Ön Muhasebe & e-Fatura</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {nav.map((item) => (
@@ -107,10 +107,12 @@ export function AppShell({
               <item.icon className="size-4" />
               {item.label}
               {item.to === "/guncellemeler" && hasUnseenUpdates ? (
-                <span className="ml-auto size-2 rounded-full bg-primary" aria-label="Yeni güncelleme var" />
+                <span
+                  className="ml-auto size-2 rounded-full bg-primary"
+                  aria-label="Yeni güncelleme var"
+                />
               ) : null}
             </Link>
-
           ))}
           {flags.data?.isAdmin ? (
             <Link
@@ -126,7 +128,19 @@ export function AppShell({
             </Link>
           ) : null}
         </nav>
-        <div className="border-t border-sidebar-border p-3">
+
+        <div className="space-y-1 border-t border-sidebar-border p-3">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-3 text-xs text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+              <Download className="size-4 text-primary" />
+              Windows Uygulaması (İndir)
+            </a>
+          </Button>
           <Button
             variant="ghost"
             className="w-full justify-start gap-3 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -145,37 +159,29 @@ export function AppShell({
             {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
           </div>
           <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="hidden gap-2 sm:inline-flex">
+              <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+                <Download className="size-4" />
+                Windows App
+              </a>
+            </Button>
             <Button asChild variant="outline" size="sm" className="relative gap-2">
               <Link to="/guncellemeler">
                 <Sparkles className="size-4" />
                 Güncellemeler
                 {hasUnseenUpdates ? (
-                  <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-primary ring-2 ring-card" />
+                  <span
+                    className="absolute -top-1 -right-1 size-2 rounded-full bg-primary"
+                    aria-label="Yeni güncelleme var"
+                  />
                 ) : null}
               </Link>
             </Button>
             {actions}
           </div>
-
         </header>
 
-        <div className="flex gap-1 overflow-x-auto border-b border-border bg-card px-3 py-2 md:hidden">
-          {nav.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground"
-              activeProps={{
-                className:
-                  "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold bg-primary text-primary-foreground",
-              }}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
-
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
   );

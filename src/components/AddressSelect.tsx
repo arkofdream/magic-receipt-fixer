@@ -5,7 +5,13 @@ import { useMemo } from "react";
 import { getProvinceDetail, listProvinces } from "@/lib/address.functions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export type AddressValue = { city: string; district: string; neighborhood: string };
 
@@ -33,7 +39,9 @@ export function AddressSelect({
   });
 
   const provinces = provincesQuery.data ?? [];
-  const selectedProvince = provinces.find((p) => p.name.localeCompare(value.city, "tr", { sensitivity: "base" }) === 0);
+  const selectedProvince = provinces.find(
+    (p) => p.name.localeCompare(value.city, "tr", { sensitivity: "base" }) === 0,
+  );
 
   const detailQuery = useQuery({
     queryKey: ["address", "province", selectedProvince?.id],
@@ -43,7 +51,7 @@ export function AddressSelect({
     retry: 1,
   });
 
-  const districts = detailQuery.data?.districts ?? [];
+  const districts = useMemo(() => detailQuery.data?.districts ?? [], [detailQuery.data?.districts]);
   const neighborhoods = useMemo(() => {
     const match = districts.find(
       (d) => d.district.localeCompare(value.district, "tr", { sensitivity: "base" }) === 0,
@@ -54,7 +62,12 @@ export function AddressSelect({
   if (provincesQuery.isError) {
     return (
       <>
-        <TextField label="İl" value={value.city} onChange={(city) => onChange({ ...value, city })} disabled={disabled ?? false} />
+        <TextField
+          label="İl"
+          value={value.city}
+          onChange={(city) => onChange({ ...value, city })}
+          disabled={disabled ?? false}
+        />
         <TextField
           label="İlçe"
           value={value.district}
@@ -101,7 +114,15 @@ export function AddressSelect({
           onValueChange={(district) => onChange({ ...value, district, neighborhood: "" })}
         >
           <SelectTrigger>
-            <SelectValue placeholder={!selectedProvince ? "Önce il seçin" : detailQuery.isLoading ? "Yükleniyor…" : "İlçe seçin"} />
+            <SelectValue
+              placeholder={
+                !selectedProvince
+                  ? "Önce il seçin"
+                  : detailQuery.isLoading
+                    ? "Yükleniyor…"
+                    : "İlçe seçin"
+              }
+            />
           </SelectTrigger>
           <SelectContent className="max-h-72">
             {districts.map((d) => (
@@ -121,7 +142,9 @@ export function AddressSelect({
           onValueChange={(neighborhood) => onChange({ ...value, neighborhood })}
         >
           <SelectTrigger>
-            <SelectValue placeholder={neighborhoods.length === 0 ? "Önce ilçe seçin" : "Mahalle seçin"} />
+            <SelectValue
+              placeholder={neighborhoods.length === 0 ? "Önce ilçe seçin" : "Mahalle seçin"}
+            />
           </SelectTrigger>
           <SelectContent className="max-h-72">
             {neighborhoods.map((n) => (
@@ -150,7 +173,11 @@ function TextField({
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input value={value} disabled={disabled ?? false} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        value={value}
+        disabled={disabled ?? false}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
