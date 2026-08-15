@@ -5,7 +5,7 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -13,8 +13,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "desktop:build-electron": "tsc -p electron/tsconfig.json",
-    "desktop:build": "npm run build && npm run desktop:build-electron",
+    "desktop:build-electron": "node scripts/build-electron.mjs",
+    "desktop:build": "node scripts/build-desktop.mjs",
     "desktop:dev": "concurrently \"vite dev\" \"wait-on http://localhost:5173 && electron .\"",
     "dist:win": "npm run desktop:build && electron-builder --win nsis --x64",
     "desktop:dist": "npm run dist:win"
@@ -22,6 +22,15 @@
   "build": {
     "appId": "com.magicreceipt.app",
     "productName": "Magic Receipt",
+    "compression": "maximum",
+    "electronLanguages": [
+      "tr",
+      "en-US"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      ".output/**/*"
+    ],
     "directories": {
       "output": "release"
     },
@@ -29,7 +38,11 @@
       ".output/**/*",
       "dist-electron/**/*",
       "package.json",
-      "public/**/*"
+      "public/**/*",
+      "!public/downloads/**/*",
+      "!.output/public/downloads/**/*",
+      "!**/*.map",
+      "!**/*.md"
     ],
     "win": {
       "target": [
@@ -49,7 +62,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Magic Receipt",
       "uninstallDisplayName": "Magic Receipt Ön Muhasebe",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": false
     }
   },
   "dependencies": {
