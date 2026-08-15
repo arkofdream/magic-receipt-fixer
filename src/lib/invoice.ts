@@ -1,5 +1,6 @@
 export type InvoiceItem = {
   id: string;
+  productId?: string;
   name: string;
   unit: string;
   quantity: number;
