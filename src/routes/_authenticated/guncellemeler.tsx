@@ -19,10 +19,14 @@ export const Route = createFileRoute("/_authenticated/guncellemeler")({
       { title: "Güncellemeler | e-Fatura Portalı" },
       {
         name: "description",
-        content: "Uygulamaya eklenen yenilikleri, iyileştirmeleri ve düzeltmeleri tarihleriyle inceleyin.",
+        content:
+          "Uygulamaya eklenen yenilikleri, iyileştirmeleri ve düzeltmeleri tarihleriyle inceleyin.",
       },
       { property: "og:title", content: "Güncellemeler | e-Fatura Portalı" },
-      { property: "og:description", content: "Sürüm notları ve yapılan değişikliklerin tarihçesi." },
+      {
+        property: "og:description",
+        content: "Sürüm notları ve yapılan değişikliklerin tarihçesi.",
+      },
     ],
   }),
   component: ChangelogPage,

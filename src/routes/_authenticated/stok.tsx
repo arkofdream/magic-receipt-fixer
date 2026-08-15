@@ -10,8 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadWorkbook } from "@/lib/excel";
@@ -24,7 +36,8 @@ export const Route = createFileRoute("/_authenticated/stok")({
       { title: "Stok Yönetimi | e-Fatura Portalı" },
       {
         name: "description",
-        content: "Depo tanımlayın, stok giriş-çıkış ve transfer hareketlerini kaydedin, kritik stokları izleyin.",
+        content:
+          "Depo tanımlayın, stok giriş-çıkış ve transfer hareketlerini kaydedin, kritik stokları izleyin.",
       },
       { property: "og:title", content: "Stok Yönetimi | e-Fatura Portalı" },
       { property: "og:description", content: "Depo, stok hareketi ve kritik stok takibi." },
@@ -53,7 +66,11 @@ function StockPage() {
   const [warehouseOpen, setWarehouseOpen] = useState(false);
   const [form, setForm] = useState(emptyMovement);
   const [warehouseForm, setWarehouseForm] = useState({ name: "", address: "" });
-  const [filters, setFilters] = useState({ productId: "ALL", from: addDaysISO(today(), -90), to: today() });
+  const [filters, setFilters] = useState({
+    productId: "ALL",
+    from: addDaysISO(today(), -90),
+    to: today(),
+  });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "stock"],
@@ -108,7 +125,10 @@ function StockPage() {
   }, [stocks]);
 
   const critical = useMemo(
-    () => products.filter((p) => Number(p.min_stock ?? 0) > 0 && (stockMap.get(p.id) ?? 0) <= Number(p.min_stock)),
+    () =>
+      products.filter(
+        (p) => Number(p.min_stock ?? 0) > 0 && (stockMap.get(p.id) ?? 0) <= Number(p.min_stock),
+      ),
     [products, stockMap],
   );
 
@@ -165,7 +185,11 @@ function StockPage() {
 
       // Transfer, kaynak depodan çıkış + hedef depoya giriş olarak iki hareket yazar.
       if (form.movementType === "TRANSFER") {
-        if (!form.warehouseId || !form.targetWarehouseId || form.warehouseId === form.targetWarehouseId) {
+        if (
+          !form.warehouseId ||
+          !form.targetWarehouseId ||
+          form.warehouseId === form.targetWarehouseId
+        ) {
           throw new Error("Farklı kaynak ve hedef depo seçin.");
         }
         const base = {
@@ -179,7 +203,12 @@ function StockPage() {
           source: "TRANSFER",
         };
         const { error } = await supabase.from("stock_movements").insert([
-          { ...base, movement_type: "CIKIS", warehouse_id: form.warehouseId, target_warehouse_id: form.targetWarehouseId },
+          {
+            ...base,
+            movement_type: "CIKIS",
+            warehouse_id: form.warehouseId,
+            target_warehouse_id: form.targetWarehouseId,
+          },
           { ...base, movement_type: "GIRIS", warehouse_id: form.targetWarehouseId },
         ]);
         if (error) throw error;
@@ -273,7 +302,9 @@ function StockPage() {
                   <Input
                     id="waddress"
                     value={warehouseForm.address}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, address: e.target.value })}
+                    onChange={(e) =>
+                      setWarehouseForm({ ...warehouseForm, address: e.target.value })
+                    }
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={addWarehouse.isPending}>
@@ -300,9 +331,14 @@ function StockPage() {
               >
                 <div className="space-y-1 sm:col-span-2">
                   <Label>Ürün</Label>
-                  <Select value={form.productId} onValueChange={(v) => setForm({ ...form, productId: v })}>
+                  <Select
+                    value={form.productId}
+                    onValueChange={(v) => setForm({ ...form, productId: v })}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder={products.length ? "Ürün seçin" : "Önce ürün kartı ekleyin"} />
+                      <SelectValue
+                        placeholder={products.length ? "Ürün seçin" : "Önce ürün kartı ekleyin"}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {products.map((p) => (
@@ -318,7 +354,9 @@ function StockPage() {
                   <Label>Hareket Türü</Label>
                   <Select
                     value={form.movementType}
-                    onValueChange={(v) => setForm({ ...form, movementType: v as StockMovementType })}
+                    onValueChange={(v) =>
+                      setForm({ ...form, movementType: v as StockMovementType })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -347,9 +385,14 @@ function StockPage() {
                 </div>
                 <div className="space-y-1">
                   <Label>{form.movementType === "TRANSFER" ? "Kaynak Depo" : "Depo"}</Label>
-                  <Select value={form.warehouseId} onValueChange={(v) => setForm({ ...form, warehouseId: v })}>
+                  <Select
+                    value={form.warehouseId}
+                    onValueChange={(v) => setForm({ ...form, warehouseId: v })}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder={warehouses.length ? "Depo seçin" : "Önce depo tanımlayın"} />
+                      <SelectValue
+                        placeholder={warehouses.length ? "Depo seçin" : "Önce depo tanımlayın"}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses.map((w) => (
@@ -444,7 +487,10 @@ function StockPage() {
             <CardContent className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
                 <Label>Ürün</Label>
-                <Select value={filters.productId} onValueChange={(v) => setFilters({ ...filters, productId: v })}>
+                <Select
+                  value={filters.productId}
+                  onValueChange={(v) => setFilters({ ...filters, productId: v })}
+                >
                   <SelectTrigger className="w-56">
                     <SelectValue />
                   </SelectTrigger>
@@ -476,7 +522,12 @@ function StockPage() {
                   onChange={(e) => setFilters({ ...filters, to: e.target.value })}
                 />
               </div>
-              <Button variant="outline" className="gap-2" onClick={exportMovements} disabled={movements.length === 0}>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={exportMovements}
+                disabled={movements.length === 0}
+              >
                 <Download className="size-4" />
                 Excel'e Aktar
               </Button>
@@ -510,20 +561,32 @@ function StockPage() {
                     <tbody>
                       {movements.map((m) => (
                         <tr key={m.id} className="border-b border-border/60 last:border-0">
-                          <td className="py-3 pr-4 whitespace-nowrap">{formatDate(m.movement_date)}</td>
-                          <td className="py-3 pr-4 font-medium">{productMap.get(m.product_id)?.name ?? "-"}</td>
+                          <td className="py-3 pr-4 whitespace-nowrap">
+                            {formatDate(m.movement_date)}
+                          </td>
+                          <td className="py-3 pr-4 font-medium">
+                            {productMap.get(m.product_id)?.name ?? "-"}
+                          </td>
                           <td className="py-3 pr-4">
                             {STOCK_LABELS[m.movement_type as StockMovementType] ?? m.movement_type}
                           </td>
-                          <td className="py-3 pr-4">{m.warehouse_id ? warehouseMap.get(m.warehouse_id)?.name : "-"}</td>
+                          <td className="py-3 pr-4">
+                            {m.warehouse_id ? warehouseMap.get(m.warehouse_id)?.name : "-"}
+                          </td>
                           <td className="py-3 pr-4 text-right">
                             {m.movement_type === "CIKIS" ? "-" : "+"}
                             {Number(m.quantity)}
                           </td>
-                          <td className="py-3 pr-4 text-right">{formatMoney(Number(m.unit_price))}</td>
+                          <td className="py-3 pr-4 text-right">
+                            {formatMoney(Number(m.unit_price))}
+                          </td>
                           <td className="py-3 pr-4">{m.description || m.document_no || "-"}</td>
                           <td className="py-3 text-right">
-                            <Button variant="ghost" size="sm" onClick={() => removeMovement.mutate(m.id)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMovement.mutate(m.id)}
+                            >
                               Sil
                             </Button>
                           </td>
@@ -562,7 +625,8 @@ function StockPage() {
                     <tbody>
                       {products.map((p) => {
                         const qty = stockMap.get(p.id) ?? 0;
-                        const isCritical = Number(p.min_stock ?? 0) > 0 && qty <= Number(p.min_stock);
+                        const isCritical =
+                          Number(p.min_stock ?? 0) > 0 && qty <= Number(p.min_stock);
                         return (
                           <tr key={p.id} className="border-b border-border/60 last:border-0">
                             <td className="py-3 pr-4 font-medium">{p.name}</td>
@@ -615,7 +679,11 @@ function StockPage() {
                           </td>
                           <td className="py-3 pr-4">{w.address || "-"}</td>
                           <td className="py-3 text-right">
-                            <Button variant="ghost" size="sm" onClick={() => removeWarehouse.mutate(w.id)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeWarehouse.mutate(w.id)}
+                            >
                               Sil
                             </Button>
                           </td>

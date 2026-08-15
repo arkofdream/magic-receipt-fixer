@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -41,7 +42,9 @@ function AuthPage() {
   const [versions, setVersions] = useState({ membership_terms: "v1.0", kvkk_notice: "v1.0" });
 
   useEffect(() => {
-    getCurrentLegalVersions().then(setVersions).catch(() => undefined);
+    getCurrentLegalVersions()
+      .then(setVersions)
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -113,19 +116,24 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-secondary px-4 py-10">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-6 block text-center text-sm text-muted-foreground hover:text-foreground">
+        <Link
+          to="/"
+          className="mb-6 block text-center text-sm text-muted-foreground hover:text-foreground"
+        >
           ← Ana sayfaya dön
         </Link>
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">e-Fatura Portalı</CardTitle>
-            <CardDescription>GİB E-Fatura & E-Arşiv işlemleri için hesabınıza girin</CardDescription>
+            <CardDescription>
+              GİB E-Fatura & E-Arşiv işlemleri için hesabınıza girin
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {pendingConfirm ? (
               <p className="rounded-md bg-accent p-4 text-sm text-accent-foreground">
-                <strong>{email}</strong> adresine doğrulama bağlantısı gönderdik. Bağlantıya tıkladıktan
-                sonra buradan giriş yapabilirsiniz.
+                <strong>{email}</strong> adresine doğrulama bağlantısı gönderdik. Bağlantıya
+                tıkladıktan sonra buradan giriş yapabilirsiniz.
               </p>
             ) : null}
 
@@ -203,11 +211,19 @@ function AuthPage() {
                         onCheckedChange={(c) => setAcceptTerms(c === true)}
                       />
                       <span>
-                        <Link to="/uyelik-sozlesmesi" target="_blank" className="font-medium underline">
+                        <Link
+                          to="/uyelik-sozlesmesi"
+                          target="_blank"
+                          className="font-medium underline"
+                        >
                           Üyelik ve Kullanım Sözleşmesi
                         </Link>
                         'ni okudum ve kabul ediyorum. Kişisel verilerime ilişkin{" "}
-                        <Link to="/kvkk-aydinlatma" target="_blank" className="font-medium underline">
+                        <Link
+                          to="/kvkk-aydinlatma"
+                          target="_blank"
+                          className="font-medium underline"
+                        >
                           KVKK Aydınlatma Metni
                         </Link>
                         'ni okudum.
@@ -232,6 +248,18 @@ function AuthPage() {
             </Tabs>
           </CardContent>
         </Card>
+
+        <div className="mt-4 rounded-lg border border-border bg-card/60 p-4 text-center">
+          <p className="text-xs text-muted-foreground">
+            Windows masaüstü uygulamasını bilgisayarınıza kurmak ister misiniz?
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-2.5 w-full gap-2">
+            <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+              <Download className="size-4" />
+              Windows Masaüstü Sürümünü İndir (.exe)
+            </a>
+          </Button>
+        </div>
       </div>
     </div>
   );

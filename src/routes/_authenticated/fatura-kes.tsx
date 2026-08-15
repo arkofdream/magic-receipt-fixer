@@ -1,13 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
 import { AddressSelect } from "@/components/AddressSelect";
-
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,9 +25,13 @@ import {
   generateEttn,
   generateInvoiceNumber,
   INVOICE_TYPES,
+  TEVKIFAT_RATES,
+  CURRENCY_OPTIONS,
   invoiceTotals,
   itemTotals,
   newItem,
+  roundMoney,
+  isValidVknTckn,
   type InvoiceCustomer,
   type InvoiceItem,
 } from "@/lib/invoice";
@@ -38,7 +40,11 @@ export const Route = createFileRoute("/_authenticated/fatura-kes")({
   head: () => ({
     meta: [
       { title: "Fatura Kes | e-Fatura Portalı" },
-      { name: "description", content: "Alıcı bilgileri ve kalemlerle e-arşiv/e-fatura hazırlayın, KDV ve tevkifatı otomatik hesaplayın." },
+      {
+        name: "description",
+        content:
+          "Alıcı bilgileri ve kalemlerle e-arşiv/e-fatura hazırlayın, KDV ve tevkifatı otomatik hesaplayın.",
+      },
       { property: "og:title", content: "Fatura Kes | e-Fatura Portalı" },
       { property: "og:description", content: "Yeni e-arşiv veya e-fatura oluşturun." },
     ],
@@ -66,7 +72,7 @@ function NewInvoicePage() {
     queryFn: async () => {
       const { data, error } = await supabase.from("customers").select("*").order("title");
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 
@@ -85,7 +91,6 @@ function NewInvoicePage() {
     refetchOnMount: "always",
   });
 
-
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses"],
     queryFn: async () => {
@@ -98,18 +103,34 @@ function NewInvoicePage() {
   const { data: invoiceCount = 0 } = useQuery({
     queryKey: ["invoice-count"],
     queryFn: async () => {
-      const { count, error } = await supabase.from("invoices").select("id", { count: "exact", head: true });
+      const { count, error } = await supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true });
       if (error) throw error;
       return count ?? 0;
     },
   });
 
-  const totals = invoiceTotals(items);
-  const totalTevkifat = (totals.totalVat * (Number(tevkifatRate) || 0)) / 100;
-  const grandTotal = totals.grandTotal - totalTevkifat;
+  const isTevkifatli = type === "TEVKIFAT";
+  const activeTevkifatRate = isTevkifatli ? Number(tevkifatRate) || 0 : 0;
+  const totals = invoiceTotals(items, activeTevkifatRate);
 
   function updateItem(id: string, patch: Partial<InvoiceItem>) {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const updated = { ...i, ...patch };
+        if (updated.quantity !== undefined)
+          updated.quantity = Math.max(0, Number(updated.quantity) || 0);
+        if (updated.unitPrice !== undefined)
+          updated.unitPrice = Math.max(0, Number(updated.unitPrice) || 0);
+        if (updated.discountRate !== undefined)
+          updated.discountRate = Math.min(100, Math.max(0, Number(updated.discountRate) || 0));
+        if (updated.vatRate !== undefined)
+          updated.vatRate = Math.max(0, Number(updated.vatRate) || 0);
+        return updated;
+      }),
+    );
   }
 
   function applyProduct(id: string, productId: string) {
@@ -119,8 +140,8 @@ function NewInvoicePage() {
       productId: p.id,
       name: p.name,
       unit: p.unit,
-      unitPrice: Number(p.unit_price),
-      vatRate: Number(p.vat_rate),
+      unitPrice: Number(p.unit_price) || 0,
+      vatRate: Number(p.vat_rate) || 20,
     });
   }
 
@@ -129,71 +150,84 @@ function NewInvoicePage() {
     if (!c) return;
     setCustomerId(c.id);
     setCustomer({
-      vknTckn: c.vkn_tckn,
-      title: c.title,
-      taxOffice: c.tax_office,
-      address: c.address,
-      city: c.city,
-      district: c.district,
+      vknTckn: c.vkn_tckn || "",
+      title: c.title || "",
+      taxOffice: c.tax_office || "",
+      address: c.address || "",
+      city: c.city || "",
+      district: c.district || "",
       neighborhood: c.neighborhood ?? "",
-      email: c.email,
-      phone: c.phone,
+      email: c.email || "",
+      phone: c.phone || "",
     });
   }
 
   const saveInvoice = useMutation({
     mutationFn: async (newStatus: "TASLAK" | "ONAYLANDI" = "TASLAK") => {
-      if (!customer.vknTckn || !customer.title) throw new Error("Alıcı VKN/TCKN ve unvan zorunludur.");
-      if (items.length === 0 || items.some((i) => !i.name)) throw new Error("En az bir dolu kalem girmelisiniz.");
+      if (!customer.vknTckn.trim() || !customer.title.trim()) {
+        throw new Error("Alıcı VKN/TCKN ve unvan bilgileri zorunludur.");
+      }
+      if (items.length === 0 || items.some((i) => !i.name.trim())) {
+        throw new Error("En az bir geçerli açıklamayla fatura kalemi girmelisiniz.");
+      }
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
-      if (!userId) throw new Error("Oturum bulunamadı.");
+      if (!userId) throw new Error("Oturum bulunamadı. Lütfen yeniden giriş yapınız.");
 
       const shouldPost = newStatus === "ONAYLANDI";
-      const { data: inserted, error } = await supabase.from("invoices").insert({
-        user_id: userId,
-        customer_id: customerId || null,
-        warehouse_id: warehouseId || null,
-        posted: shouldPost,
-        ettn: generateEttn(),
-        invoice_number: generateInvoiceNumber(invoiceCount),
-        type,
-        status: newStatus,
-        gib_approval_date: newStatus === "ONAYLANDI" ? new Date().toISOString() : null,
-        invoice_date: date,
-        currency,
-        exchange_rate: 1,
-        customer: JSON.parse(JSON.stringify(customer)),
-        items: JSON.parse(JSON.stringify(items)),
-        subtotal: totals.subtotal,
-        total_discount: totals.totalDiscount,
-        taxable_amount: totals.taxableAmount,
-        total_vat: totals.totalVat,
-        total_tevkifat: totalTevkifat,
-        grand_total: grandTotal,
-        notes,
-        payment_info: paymentInfo,
-      }).select("id, invoice_number").single();
+      const invoiceNumber = generateInvoiceNumber(invoiceCount);
+
+      const { data: inserted, error } = await supabase
+        .from("invoices")
+        .insert({
+          user_id: userId,
+          customer_id: customerId || null,
+          warehouse_id: warehouseId || null,
+          posted: shouldPost,
+          ettn: generateEttn(),
+          invoice_number: invoiceNumber,
+          type,
+          status: newStatus,
+          gib_approval_date: shouldPost ? new Date().toISOString() : null,
+          invoice_date: date,
+          currency,
+          exchange_rate: 1,
+          customer: JSON.parse(JSON.stringify(customer)),
+          items: JSON.parse(JSON.stringify(items)),
+          subtotal: totals.subtotal,
+          total_discount: totals.totalDiscount,
+          taxable_amount: totals.taxableAmount,
+          total_vat: totals.totalVat,
+          total_tevkifat: totals.totalTevkifat,
+          grand_total: totals.grandTotal,
+          notes: notes.trim(),
+          payment_info: paymentInfo.trim(),
+        })
+        .select("id, invoice_number")
+        .single();
+
       if (error) throw error;
 
       if (shouldPost && inserted) {
         const isReturn = type === "IADE";
 
+        // Cari hesap hareketi
         if (customerId) {
           const { error: txnError } = await supabase.from("account_transactions").insert({
             user_id: userId,
             customer_id: customerId,
             txn_date: date,
             txn_type: isReturn ? "ALACAK" : "BORC",
-            amount: grandTotal,
+            amount: totals.grandTotal,
             document_no: inserted.invoice_number,
-            description: isReturn ? "İade faturası" : "Satış faturası",
+            description: isReturn ? "İade faturası kaydı" : "Satış faturası borç kaydı",
             source: "FATURA",
             source_id: inserted.id,
           });
           if (txnError) throw txnError;
         }
 
+        // Stok hareketleri
         const stockRows = items
           .filter((i) => i.productId)
           .map((i) => ({
@@ -203,13 +237,16 @@ function NewInvoicePage() {
             customer_id: customerId || null,
             movement_date: date,
             movement_type: isReturn ? "GIRIS" : "CIKIS",
-            quantity: i.quantity,
-            unit_price: i.unitPrice,
+            quantity: Math.max(0, Number(i.quantity) || 0),
+            unit_price: roundMoney(Number(i.unitPrice) || 0),
             document_no: inserted.invoice_number,
-            description: "Fatura kaynaklı stok hareketi",
+            description: isReturn
+              ? "Fatura kaynaklı stok iade girişi"
+              : "Fatura kaynaklı stok çıkışı",
             source: "FATURA",
             source_id: inserted.id,
           }));
+
         if (stockRows.length > 0) {
           const { error: stockError } = await supabase.from("stock_movements").insert(stockRows);
           if (stockError) throw stockError;
@@ -219,8 +256,8 @@ function NewInvoicePage() {
     onSuccess: (_data, newStatus) => {
       toast.success(
         newStatus === "ONAYLANDI"
-          ? "Fatura GİB'e gönderildi; cari ve stok hareketleri oluşturuldu."
-          : "Fatura taslak olarak kaydedildi.",
+          ? "Fatura GİB'e iletildi; cari ve stok hareketleri işlendi."
+          : "Fatura taslak olarak başarıyla kaydedildi.",
       );
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-count"] });
@@ -232,22 +269,26 @@ function NewInvoicePage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const vknWarning = customer.vknTckn.trim() && !isValidVknTckn(customer.vknTckn);
+
   return (
     <AppShell
       title="Fatura Kes"
-      subtitle="E-Arşiv / E-Fatura düzenle"
+      subtitle="E-Arşiv / E-Fatura düzenleyin, KDV ve tevkifatı otomatik hesaplayın."
       actions={
-        <>
-          <Button variant="outline" onClick={() => saveInvoice.mutate("TASLAK")} disabled={saveInvoice.isPending}>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => saveInvoice.mutate("TASLAK")}
+            disabled={saveInvoice.isPending}
+          >
             Taslak Olarak Kaydet
           </Button>
           <Button onClick={() => saveInvoice.mutate("ONAYLANDI")} disabled={saveInvoice.isPending}>
             GİB'e Gönder
           </Button>
-        </>
+        </div>
       }
-
-
     >
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -273,7 +314,12 @@ function NewInvoicePage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date">Düzenleme Tarihi</Label>
-                <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <Input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Para Birimi</Label>
@@ -282,9 +328,9 @@ function NewInvoicePage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["TRY", "USD", "EUR", "GBP"].map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
+                    {CURRENCY_OPTIONS.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -296,7 +342,9 @@ function NewInvoicePage() {
                   <SelectTrigger>
                     <SelectValue
                       placeholder={
-                        warehouses.length === 0 ? "Depo tanımlı değil (opsiyonel)" : "Depo seçin (opsiyonel)"
+                        warehouses.length === 0
+                          ? "Depo tanımlı değil (opsiyonel)"
+                          : "Depo seçin (opsiyonel)"
                       }
                     />
                   </SelectTrigger>
@@ -309,8 +357,8 @@ function NewInvoicePage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Fatura GİB'e gönderildiğinde katalogdan seçilen kalemler için stok çıkışı ve cari borç kaydı
-                  otomatik oluşturulur.
+                  Fatura onaylandığında katalogdan seçilen kalemler için stok çıkışı ve cari borç
+                  kaydı otomatik oluşturulur.
                 </p>
               </div>
             </CardContent>
@@ -325,7 +373,7 @@ function NewInvoicePage() {
                 <Label>Kayıtlı Cariden Seç</Label>
                 <Select onValueChange={applyCustomer}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Cari seçin (opsiyonel)" />
+                    <SelectValue placeholder="Kayıtlı carilerden seçin (opsiyonel)" />
                   </SelectTrigger>
                   <SelectContent>
                     {customers.map((c) => (
@@ -336,27 +384,69 @@ function NewInvoicePage() {
                   </SelectContent>
                 </Select>
               </div>
-              {(
-                [
-                  ["vknTckn", "VKN / TCKN"],
-                  ["title", "Unvan / Ad Soyad"],
-                  ["taxOffice", "Vergi Dairesi"],
-                  ["email", "E-posta"],
-                  ["phone", "Telefon"],
-                ] as [keyof InvoiceCustomer, string][]
-              ).map(([key, label]) => (
-                <div key={key} className="space-y-2">
-                  <Label htmlFor={`c-${key}`}>{label}</Label>
-                  <Input
-                    id={`c-${key}`}
-                    value={customer[key]}
-                    onChange={(e) => setCustomer({ ...customer, [key]: e.target.value })}
-                  />
-                </div>
-              ))}
+
+              <div className="space-y-2">
+                <Label htmlFor="c-vknTckn">VKN / TCKN *</Label>
+                <Input
+                  id="c-vknTckn"
+                  value={customer.vknTckn}
+                  onChange={(e) => setCustomer({ ...customer, vknTckn: e.target.value })}
+                  placeholder="10 veya 11 haneli numara"
+                />
+                {vknWarning ? (
+                  <p className="flex items-center gap-1 text-xs text-amber-600">
+                    <AlertCircle className="size-3.5" /> Geçersiz VKN/TCKN formatı
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="c-title">Unvan / Ad Soyad *</Label>
+                <Input
+                  id="c-title"
+                  value={customer.title}
+                  onChange={(e) => setCustomer({ ...customer, title: e.target.value })}
+                  placeholder="Müşteri veya firma unvanı"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="c-taxOffice">Vergi Dairesi</Label>
+                <Input
+                  id="c-taxOffice"
+                  value={customer.taxOffice}
+                  onChange={(e) => setCustomer({ ...customer, taxOffice: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="c-phone">Telefon</Label>
+                <Input
+                  id="c-phone"
+                  value={customer.phone}
+                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="c-email">E-posta</Label>
+                <Input
+                  id="c-email"
+                  type="email"
+                  value={customer.email}
+                  onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+                />
+              </div>
+
               <AddressSelect
-                value={{ city: customer.city, district: customer.district, neighborhood: customer.neighborhood }}
-                onChange={(v: { city: string; district: string; neighborhood: string }) => setCustomer({ ...customer, ...v })}
+                value={{
+                  city: customer.city,
+                  district: customer.district,
+                  neighborhood: customer.neighborhood,
+                }}
+                onChange={(v: { city: string; district: string; neighborhood: string }) =>
+                  setCustomer({ ...customer, ...v })
+                }
               />
 
               <div className="space-y-2 sm:col-span-2">
@@ -386,13 +476,15 @@ function NewInvoicePage() {
                       <span className="text-xs font-semibold uppercase text-muted-foreground">
                         Kalem {index + 1}
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setItems(items.filter((i) => i.id !== item.id))}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      {items.length > 1 ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setItems(items.filter((i) => i.id !== item.id))}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      ) : null}
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2 sm:col-span-2">
@@ -432,54 +524,74 @@ function NewInvoicePage() {
                       </div>
 
                       <div className="space-y-2 sm:col-span-2">
-                        <Label>Açıklama</Label>
-                        <Input value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
+                        <Label>Kalem Açıklaması *</Label>
+                        <Input
+                          value={item.name}
+                          onChange={(e) => updateItem(item.id, { name: e.target.value })}
+                          placeholder="Ürün veya hizmet açıklaması"
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-5">
                         <div className="space-y-2">
                           <Label>Miktar</Label>
                           <Input
                             type="number"
+                            min="0.01"
                             step="0.01"
                             value={item.quantity}
-                            onChange={(e) => updateItem(item.id, { quantity: Number(e.target.value) })}
+                            onChange={(e) =>
+                              updateItem(item.id, { quantity: Number(e.target.value) })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>Birim</Label>
-                          <Input value={item.unit} onChange={(e) => updateItem(item.id, { unit: e.target.value })} />
+                          <Input
+                            value={item.unit}
+                            onChange={(e) => updateItem(item.id, { unit: e.target.value })}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Birim Fiyat</Label>
                           <Input
                             type="number"
+                            min="0"
                             step="0.01"
                             value={item.unitPrice}
-                            onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })}
+                            onChange={(e) =>
+                              updateItem(item.id, { unitPrice: Number(e.target.value) })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>İskonto %</Label>
                           <Input
                             type="number"
+                            min="0"
+                            max="100"
                             step="0.01"
                             value={item.discountRate}
-                            onChange={(e) => updateItem(item.id, { discountRate: Number(e.target.value) })}
+                            onChange={(e) =>
+                              updateItem(item.id, { discountRate: Number(e.target.value) })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>KDV %</Label>
                           <Input
                             type="number"
+                            min="0"
                             step="1"
                             value={item.vatRate}
-                            onChange={(e) => updateItem(item.id, { vatRate: Number(e.target.value) })}
+                            onChange={(e) =>
+                              updateItem(item.id, { vatRate: Number(e.target.value) })
+                            }
                           />
                         </div>
                       </div>
                     </div>
-                    <p className="mt-3 text-right text-sm font-medium">
-                      Kalem Toplamı: {formatMoney(t.total, currency)}
+                    <p className="mt-3 text-right text-sm font-semibold">
+                      Kalem Tutarı: {formatMoney(t.total, currency)}
                     </p>
                   </div>
                 );
@@ -489,16 +601,26 @@ function NewInvoicePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Notlar</CardTitle>
+              <CardTitle className="text-base">Ek Bilgiler & Notlar</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="notes">Fatura Notu</Label>
-                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Fatura üzerinde görünecek notlar"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="payment">Ödeme Bilgisi</Label>
-                <Textarea id="payment" value={paymentInfo} onChange={(e) => setPaymentInfo(e.target.value)} />
+                <Label htmlFor="payment">Banka / Ödeme Bilgileri</Label>
+                <Textarea
+                  id="payment"
+                  value={paymentInfo}
+                  onChange={(e) => setPaymentInfo(e.target.value)}
+                  placeholder="IBAN, banka hesap bilgileri"
+                />
               </div>
             </CardContent>
           </Card>
@@ -507,39 +629,58 @@ function NewInvoicePage() {
         <div>
           <Card className="lg:sticky lg:top-6">
             <CardHeader>
-              <CardTitle className="text-base">Özet</CardTitle>
+              <CardTitle className="text-base">Fatura Özeti</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Row label="Ara Toplam" value={formatMoney(totals.subtotal, currency)} />
               <Row label="Toplam İskonto" value={formatMoney(totals.totalDiscount, currency)} />
               <Row label="KDV Matrahı" value={formatMoney(totals.taxableAmount, currency)} />
               <Row label="Hesaplanan KDV" value={formatMoney(totals.totalVat, currency)} />
-              <div className="space-y-2 pt-2">
-                <Label htmlFor="tevkifat">Tevkifat Oranı (%)</Label>
-                <Input
-                  id="tevkifat"
-                  type="number"
-                  step="1"
-                  value={tevkifatRate}
-                  onChange={(e) => setTevkifatRate(e.target.value)}
-                />
-              </div>
-              <Row label="Tevkifat" value={`- ${formatMoney(totalTevkifat, currency)}`} />
+
+              {isTevkifatli ? (
+                <div className="space-y-2 rounded-md bg-muted/50 p-3">
+                  <Label htmlFor="tevkifat">Tevkifat Oranı</Label>
+                  <Select value={tevkifatRate} onValueChange={setTevkifatRate}>
+                    <SelectTrigger id="tevkifat">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEVKIFAT_RATES.map((rate) => (
+                        <SelectItem key={rate.value} value={rate.value}>
+                          {rate.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Row
+                    label="Tevkifat Tutarı"
+                    value={`- ${formatMoney(totals.totalTevkifat, currency)}`}
+                  />
+                </div>
+              ) : null}
+
               <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-base font-bold">
-                <span>Genel Toplam</span>
-                <span>{formatMoney(grandTotal, currency)}</span>
+                <span>Ödenecek Tutar</span>
+                <span className="text-primary">{formatMoney(totals.grandTotal, currency)}</span>
               </div>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => saveInvoice.mutate("TASLAK")}
-                disabled={saveInvoice.isPending}
-              >
-                Faturayı Kaydet
-              </Button>
-              <Button className="w-full" onClick={() => saveInvoice.mutate("ONAYLANDI")} disabled={saveInvoice.isPending}>
-                GİB'e Gönder
-              </Button>
+
+              <div className="space-y-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => saveInvoice.mutate("TASLAK")}
+                  disabled={saveInvoice.isPending}
+                >
+                  {saveInvoice.isPending ? "Kaydediliyor…" : "Taslak Olarak Kaydet"}
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={() => saveInvoice.mutate("ONAYLANDI")}
+                  disabled={saveInvoice.isPending}
+                >
+                  {saveInvoice.isPending ? "İşleniyor…" : "GİB'e Gönder"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -21,7 +21,10 @@ export const Route = createFileRoute("/_authenticated/abonelik")({
           "Abonelik planınızı, başlangıç ve bitiş tarihlerinizi, yenileme ücretinizi ve kabul ettiğiniz sözleşme onaylarını görüntüleyin.",
       },
       { property: "og:title", content: "Aboneliğim ve Onaylarım" },
-      { property: "og:description", content: "Abonelik durumu, yenileme bilgisi ve sözleşme onay kayıtları." },
+      {
+        property: "og:description",
+        content: "Abonelik durumu, yenileme bilgisi ve sözleşme onay kayıtları.",
+      },
     ],
   }),
   component: SubscriptionPage,
@@ -37,13 +40,19 @@ function SubscriptionPage() {
   const fetchSubscription = useServerFn(getMySubscription);
   const fetchConsents = useServerFn(getMyConsents);
 
-  const subscription = useQuery({ queryKey: ["my-subscription"], queryFn: () => fetchSubscription() });
+  const subscription = useQuery({
+    queryKey: ["my-subscription"],
+    queryFn: () => fetchSubscription(),
+  });
   const consents = useQuery({ queryKey: ["my-consents"], queryFn: () => fetchConsents() });
 
   const sub = subscription.data;
 
   return (
-    <AppShell title="Aboneliğim" subtitle="Abonelik durumunuz, yenileme bilgileri ve onay kayıtlarınız">
+    <AppShell
+      title="Aboneliğim"
+      subtitle="Abonelik durumunuz, yenileme bilgileri ve onay kayıtlarınız"
+    >
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -81,16 +90,16 @@ function SubscriptionPage() {
                 <Separator />
                 {sub.isPaidAccessAllowed ? null : (
                   <p className="rounded-md bg-destructive/10 p-3 text-destructive">
-                    Aboneliğiniz sona ermiştir. Hizmeti kullanmaya devam etmek için aboneliğinizi yenileyin.
-                    Kayıtlı verileriniz silinmez.
+                    Aboneliğiniz sona ermiştir. Hizmeti kullanmaya devam etmek için aboneliğinizi
+                    yenileyin. Kayıtlı verileriniz silinmez.
                   </p>
                 )}
                 <div className="rounded-md bg-muted p-3 text-muted-foreground">
                   <p className="font-medium text-foreground">Aboneliğimi Yenile</p>
                   <p className="mt-1">
-                    Platformda otomatik tahsilat bulunmamaktadır. Yenileme işlemi için bizimle iletişime
-                    geçin: [E-POSTA] · [TELEFON]. Ödemeniz doğrulandıktan sonra aboneliğiniz yetkili
-                    yönetici tarafından yenilenir.
+                    Platformda otomatik tahsilat bulunmamaktadır. Yenileme işlemi için bizimle
+                    iletişime geçin: [E-POSTA] · [TELEFON]. Ödemeniz doğrulandıktan sonra
+                    aboneliğiniz yetkili yönetici tarafından yenilenir.
                   </p>
                 </div>
               </>

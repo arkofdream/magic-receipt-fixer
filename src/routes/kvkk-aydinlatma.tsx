@@ -16,7 +16,8 @@ export const Route = createFileRoute("/kvkk-aydinlatma")({
       { property: "og:title", content: "KVKK Aydınlatma Metni" },
       {
         property: "og:description",
-        content: "İşlenen kişisel veriler, amaçlar, saklama süresi ve KVKK m.11 kapsamındaki haklarınız.",
+        content:
+          "İşlenen kişisel veriler, amaçlar, saklama süresi ve KVKK m.11 kapsamındaki haklarınız.",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },

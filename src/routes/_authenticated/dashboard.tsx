@@ -12,7 +12,10 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Kontrol Paneli | e-Fatura Portalı" },
-      { name: "description", content: "Kesilen fatura sayısı, toplam tutar ve KDV özetinizi görüntüleyin." },
+      {
+        name: "description",
+        content: "Kesilen fatura sayısı, toplam tutar ve KDV özetinizi görüntüleyin.",
+      },
       { property: "og:title", content: "Kontrol Paneli | e-Fatura Portalı" },
       { property: "og:description", content: "Fatura özetiniz ve son kesilen faturalar." },
     ],
@@ -97,15 +100,28 @@ function Dashboard() {
                 <tbody>
                   {invoices.slice(0, 5).map((inv) => {
                     const customer = inv.customer as { title?: string } | null;
-                    const status = INVOICE_STATUSES[inv.status] ?? { label: inv.status, tone: "draft" };
+                    const status = INVOICE_STATUSES[inv.status] ?? {
+                      label: inv.status,
+                      tone: "draft",
+                    };
                     return (
                       <tr key={inv.id} className="border-b border-border/60 last:border-0">
                         <td className="py-3 pr-4 font-medium">{inv.invoice_number}</td>
                         <td className="py-3 pr-4">{customer?.title ?? "-"}</td>
                         <td className="py-3 pr-4">{formatDate(inv.invoice_date)}</td>
-                        <td className="py-3 pr-4">{formatMoney(Number(inv.grand_total), inv.currency)}</td>
+                        <td className="py-3 pr-4">
+                          {formatMoney(Number(inv.grand_total), inv.currency)}
+                        </td>
                         <td className="py-3">
-                          <Badge variant={status.tone === "cancel" ? "destructive" : status.tone === "sent" ? "default" : "secondary"}>
+                          <Badge
+                            variant={
+                              status.tone === "cancel"
+                                ? "destructive"
+                                : status.tone === "sent"
+                                  ? "default"
+                                  : "secondary"
+                            }
+                          >
                             {status.label}
                           </Badge>
                         </td>

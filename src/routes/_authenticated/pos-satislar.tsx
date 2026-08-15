@@ -10,8 +10,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import { formatMoney } from "@/lib/invoice";
@@ -22,7 +34,8 @@ export const Route = createFileRoute("/_authenticated/pos-satislar")({
       { title: "POS Satışları | e-Fatura Portalı" },
       {
         name: "description",
-        content: "Vergi dairesine bildirilecek POS ve kasa satışlarını tarih aralığına göre görüntüleyin, elle veya Excel ile ekleyin.",
+        content:
+          "Vergi dairesine bildirilecek POS ve kasa satışlarını tarih aralığına göre görüntüleyin, elle veya Excel ile ekleyin.",
       },
       { property: "og:title", content: "POS Satışları | e-Fatura Portalı" },
       { property: "og:description", content: "POS ve kasa satışlarınızın KDV kırılımlı dökümü." },
@@ -171,7 +184,16 @@ function PosSalesPage() {
 
   function exportSales() {
     downloadWorkbook(
-      ["Tarih", "Açıklama", "Belge No", "Ödeme Tipi", "KDV Oranı", "Matrah", "KDV", "Tutar (KDV Dahil)"],
+      [
+        "Tarih",
+        "Açıklama",
+        "Belge No",
+        "Ödeme Tipi",
+        "KDV Oranı",
+        "Matrah",
+        "KDV",
+        "Tutar (KDV Dahil)",
+      ],
       sales.map((s) => [
         s.sale_date,
         s.description,
@@ -220,7 +242,12 @@ function PosSalesPage() {
       subtitle="Faturasız kasa ve POS satışlarınızın KDV kırılımlı dökümü"
       actions={
         <>
-          <Button variant="ghost" className="gap-2" onClick={exportSales} disabled={sales.length === 0}>
+          <Button
+            variant="ghost"
+            className="gap-2"
+            onClick={exportSales}
+            disabled={sales.length === 0}
+          >
             <Download className="size-4" />
             Excel'e Aktar
           </Button>
@@ -229,19 +256,28 @@ function PosSalesPage() {
             templateName="pos-satis-sablonu.xlsx"
             columns={IMPORT_COLUMNS}
             mapRow={(row: SheetRow) => {
-              const gross = parseNumber(pickColumn(row, ["Tutar (KDV Dahil)", "Tutar", "Toplam", "Brüt"]));
-              if (!gross) return null;
+              const gross = parseNumber(
+                pickColumn(row, ["Tutar (KDV Dahil)", "Tutar", "Toplam", "Brüt", "Tutar (TL)"]),
+              );
+              const hasAnyData = Object.values(row).some((v) => v && v.trim());
+              if (!hasAnyData) return null;
+              if (gross <= 0)
+                return { error: "Geçerli bir satış tutarı (KDV dahil) girilmelidir." };
               const rawDate = pickColumn(row, ["Tarih"]);
               const parsedDate = rawDate.includes(".")
                 ? rawDate.split(".").reverse().join("-")
                 : rawDate || todayIso();
               return {
-                sale_date: parsedDate.slice(0, 10),
-                description: pickColumn(row, ["Açıklama", "Aciklama"]),
-                document_no: pickColumn(row, ["Belge No", "Fiş No", "Fis No"]),
-                payment_type: normalizePaymentType(pickColumn(row, ["Ödeme Tipi", "Ödeme", "Odeme"])),
-                vat_rate: parseNumber(pickColumn(row, ["KDV Oranı", "KDV"])) || 20,
-                gross_amount: gross,
+                data: {
+                  sale_date: parsedDate.slice(0, 10),
+                  description: pickColumn(row, ["Açıklama", "Aciklama"]),
+                  document_no: pickColumn(row, ["Belge No", "Fiş No", "Fis No"]),
+                  payment_type: normalizePaymentType(
+                    pickColumn(row, ["Ödeme Tipi", "Ödeme", "Odeme"]),
+                  ),
+                  vat_rate: parseNumber(pickColumn(row, ["KDV Oranı", "KDV"])) || 20,
+                  gross_amount: gross,
+                },
               };
             }}
             onImport={importSales}
@@ -289,7 +325,10 @@ function PosSalesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Ödeme Tipi</Label>
-                  <Select value={form.payment_type} onValueChange={(v) => setForm({ ...form, payment_type: v })}>
+                  <Select
+                    value={form.payment_type}
+                    onValueChange={(v) => setForm({ ...form, payment_type: v })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -344,7 +383,12 @@ function PosSalesPage() {
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="start">Başlangıç</Label>
-              <Input id="start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              <Input
+                id="start"
+                type="date"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="end">Bitiş</Label>
@@ -444,11 +488,14 @@ function PosSalesPage() {
                         <td className="py-3 pr-4">{s.description || "-"}</td>
                         <td className="py-3 pr-4">{s.document_no || "-"}</td>
                         <td className="py-3 pr-4">
-                          {PAYMENT_TYPES.find((p) => p.value === s.payment_type)?.label ?? s.payment_type}
+                          {PAYMENT_TYPES.find((p) => p.value === s.payment_type)?.label ??
+                            s.payment_type}
                         </td>
                         <td className="py-3 pr-4">%{Number(s.vat_rate)}</td>
                         <td className="py-3 pr-4">{formatMoney(Number(s.net_amount))}</td>
-                        <td className="py-3 pr-4 font-medium">{formatMoney(Number(s.gross_amount))}</td>
+                        <td className="py-3 pr-4 font-medium">
+                          {formatMoney(Number(s.gross_amount))}
+                        </td>
                         <td className="py-3 text-right">
                           <Button variant="ghost" size="sm" onClick={() => removeSale.mutate(s.id)}>
                             Sil

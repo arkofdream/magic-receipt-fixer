@@ -13,7 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
@@ -26,10 +32,14 @@ export const Route = createFileRoute("/_authenticated/cariler")({
       { title: "Cari Hesaplar | e-Fatura Portalı" },
       {
         name: "description",
-        content: "Müşteri ve tedarikçi cari hesaplarınızı bakiye, borç, alacak ve ekstre takibiyle yönetin.",
+        content:
+          "Müşteri ve tedarikçi cari hesaplarınızı bakiye, borç, alacak ve ekstre takibiyle yönetin.",
       },
       { property: "og:title", content: "Cari Hesaplar | e-Fatura Portalı" },
-      { property: "og:description", content: "Müşteri ve tedarikçi cari hesaplarınızı tek yerden yönetin." },
+      {
+        property: "og:description",
+        content: "Müşteri ve tedarikçi cari hesaplarınızı tek yerden yönetin.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -90,7 +100,10 @@ function CustomersPage() {
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -203,7 +216,9 @@ function CustomersPage() {
 
   async function importCustomers(rows: ImportedCustomer[]) {
     const userId = await currentUserId();
-    const { error } = await supabase.from("customers").insert(rows.map((r) => toRow(userId, r, tab)));
+    const { error } = await supabase
+      .from("customers")
+      .insert(rows.map((r) => toRow(userId, r, tab)));
     if (error) throw error;
     toast.success(`${rows.length} cari içe aktarıldı.`);
     queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -258,7 +273,12 @@ function CustomersPage() {
       subtitle="Müşteri ve tedarikçi kartları, bakiye ve ekstre takibi"
       actions={
         <>
-          <Button variant="ghost" className="gap-2" onClick={exportCustomers} disabled={visible.length === 0}>
+          <Button
+            variant="ghost"
+            className="gap-2"
+            onClick={exportCustomers}
+            disabled={visible.length === 0}
+          >
             <Download className="size-4" />
             Excel'e Aktar
           </Button>
@@ -267,26 +287,36 @@ function CustomersPage() {
             templateName="cari-sablonu.xlsx"
             columns={IMPORT_COLUMNS}
             mapRow={(row: SheetRow) => {
-              const vknTckn = pickColumn(row, ["VKN/TCKN", "VKN", "TCKN", "Vergi No"]);
-              const title = pickColumn(row, ["Unvan", "Unvan / Ad Soyad", "Ad Soyad", "Müşteri"]);
+              const vknTckn = pickColumn(row, ["VKN/TCKN", "VKN", "TCKN", "Vergi No", "TC"]).trim();
+              const title = pickColumn(row, [
+                "Unvan",
+                "Unvan / Ad Soyad",
+                "Ad Soyad",
+                "Müşteri",
+                "Firma",
+              ]).trim();
               if (!vknTckn && !title) return null;
+              if (!title) return { error: "Unvan / Firma Adı alanı boş olamaz." };
+              if (!vknTckn) return { error: "VKN / TCKN alanı boş olamaz." };
               return {
-                vknTckn,
-                title,
-                taxOffice: pickColumn(row, ["Vergi Dairesi"]),
-                address: pickColumn(row, ["Adres"]),
-                city: pickColumn(row, ["İl", "Şehir"]),
-                district: pickColumn(row, ["İlçe"]),
-                neighborhood: pickColumn(row, ["Mahalle", "Mahalle / Köy"]),
-                email: pickColumn(row, ["E-posta", "Email", "Mail"]),
-                phone: pickColumn(row, ["Telefon", "Tel", "GSM"]),
-                code: pickColumn(row, ["Cari Kod", "Kod"]),
-                contactName: pickColumn(row, ["Yetkili", "Ad Soyad"]),
-                partnerGroup: pickColumn(row, ["Grup", "Müşteri Grubu", "Tedarikçi Grubu"]),
-                paymentTermDays: parseNumber(pickColumn(row, ["Vade (Gün)", "Vade"])),
-                riskLimit: parseNumber(pickColumn(row, ["Risk Limiti", "Risk"])),
-                openingBalance: parseNumber(pickColumn(row, ["Açılış Bakiyesi", "Bakiye"])),
-                note: pickColumn(row, ["Açıklama", "Not"]),
+                data: {
+                  vknTckn,
+                  title,
+                  taxOffice: pickColumn(row, ["Vergi Dairesi"]),
+                  address: pickColumn(row, ["Adres"]),
+                  city: pickColumn(row, ["İl", "Şehir"]),
+                  district: pickColumn(row, ["İlçe"]),
+                  neighborhood: pickColumn(row, ["Mahalle", "Mahalle / Köy"]),
+                  email: pickColumn(row, ["E-posta", "Email", "Mail"]),
+                  phone: pickColumn(row, ["Telefon", "Tel", "GSM"]),
+                  code: pickColumn(row, ["Cari Kod", "Kod"]),
+                  contactName: pickColumn(row, ["Yetkili", "Ad Soyad"]),
+                  partnerGroup: pickColumn(row, ["Grup", "Müşteri Grubu", "Tedarikçi Grubu"]),
+                  paymentTermDays: parseNumber(pickColumn(row, ["Vade (Gün)", "Vade"])),
+                  riskLimit: parseNumber(pickColumn(row, ["Risk Limiti", "Risk"])),
+                  openingBalance: parseNumber(pickColumn(row, ["Açılış Bakiyesi", "Bakiye"])),
+                  note: pickColumn(row, ["Açıklama", "Not"]),
+                },
               };
             }}
             onImport={importCustomers}
@@ -318,14 +348,19 @@ function CustomersPage() {
                       onChange={(e) =>
                         setForm({
                           ...form,
-                          [f.key]: f.type === "number" ? Number(e.target.value) || 0 : e.target.value,
+                          [f.key]:
+                            f.type === "number" ? Number(e.target.value) || 0 : e.target.value,
                         })
                       }
                     />
                   </div>
                 ))}
                 <AddressSelect
-                  value={{ city: form.city, district: form.district, neighborhood: form.neighborhood }}
+                  value={{
+                    city: form.city,
+                    district: form.district,
+                    neighborhood: form.neighborhood,
+                  }}
                   onChange={(v) => setForm({ ...form, ...v })}
                 />
                 <div className="space-y-2 sm:col-span-2">
@@ -338,7 +373,11 @@ function CustomersPage() {
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="note">Açıklama / Not</Label>
-                  <Input id="note" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+                  <Input
+                    id="note"
+                    value={form.note}
+                    onChange={(e) => setForm({ ...form, note: e.target.value })}
+                  />
                 </div>
                 <div className="sm:col-span-2">
                   <Button type="submit" className="w-full" disabled={createCustomer.isPending}>
@@ -409,7 +448,8 @@ function CustomersPage() {
                 <tbody>
                   {visible.map((c) => {
                     const b = balanceMap.get(c.id) ?? { debit: 0, credit: 0, balance: 0 };
-                    const overLimit = Number(c.risk_limit ?? 0) > 0 && b.balance > Number(c.risk_limit);
+                    const overLimit =
+                      Number(c.risk_limit ?? 0) > 0 && b.balance > Number(c.risk_limit);
                     return (
                       <tr key={c.id} className="border-b border-border/60 last:border-0">
                         <td className="py-3 pr-4">
@@ -441,7 +481,11 @@ function CustomersPage() {
                           <Button variant="outline" size="sm" onClick={() => setDetailId(c.id)}>
                             Ekstre
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => removeCustomer.mutate(c.id)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeCustomer.mutate(c.id)}
+                          >
                             Sil
                           </Button>
                         </td>

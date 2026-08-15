@@ -11,7 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import { formatMoney } from "@/lib/invoice";
@@ -22,7 +28,8 @@ export const Route = createFileRoute("/_authenticated/urunler")({
       { title: "Ürün & Stok Kartları | e-Fatura Portalı" },
       {
         name: "description",
-        content: "Ürün kartlarını kod, barkod, alış/satış fiyatı, KDV ve kritik stok seviyesiyle yönetin.",
+        content:
+          "Ürün kartlarını kod, barkod, alış/satış fiyatı, KDV ve kritik stok seviyesiyle yönetin.",
       },
       { property: "og:title", content: "Ürün & Stok Kartları | e-Fatura Portalı" },
       { property: "og:description", content: "Ürün kartlarınızı ve stok seviyelerinizi yönetin." },
@@ -82,7 +89,10 @@ function ProductsPage() {
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -115,7 +125,9 @@ function ProductsPage() {
 
   const criticalCount = useMemo(
     () =>
-      products.filter((p) => Number(p.min_stock ?? 0) > 0 && (stockMap.get(p.id) ?? 0) <= Number(p.min_stock)).length,
+      products.filter(
+        (p) => Number(p.min_stock ?? 0) > 0 && (stockMap.get(p.id) ?? 0) <= Number(p.min_stock),
+      ).length,
     [products, stockMap],
   );
 
@@ -224,7 +236,12 @@ function ProductsPage() {
       subtitle="Fiyat, KDV, barkod ve kritik stok bilgileriyle katalog"
       actions={
         <>
-          <Button variant="ghost" className="gap-2" onClick={exportProducts} disabled={visible.length === 0}>
+          <Button
+            variant="ghost"
+            className="gap-2"
+            onClick={exportProducts}
+            disabled={visible.length === 0}
+          >
             <Download className="size-4" />
             Excel'e Aktar
           </Button>
@@ -233,19 +250,30 @@ function ProductsPage() {
             templateName="urun-sablonu.xlsx"
             columns={PRODUCT_COLUMNS}
             mapRow={(row: SheetRow) => {
-              const name = pickColumn(row, ["Ad", "Ürün", "Hizmet", "Ürün / Hizmet Adı", "Açıklama"]);
-              if (!name) return null;
+              const name = pickColumn(row, [
+                "Ad",
+                "Ürün",
+                "Hizmet",
+                "Ürün / Hizmet Adı",
+                "Açıklama",
+                "Adı",
+              ]).trim();
+              const hasAnyData = Object.values(row).some((v) => v && v.trim());
+              if (!hasAnyData) return null;
+              if (!name) return { error: "Ürün veya hizmet adı boş olamaz." };
               return {
-                name,
-                code: pickColumn(row, ["Ürün Kodu", "Kod"]),
-                barcode: pickColumn(row, ["Barkod"]),
-                category: pickColumn(row, ["Kategori"]),
-                unit: pickColumn(row, ["Birim"]) || "Adet",
-                purchasePrice: parseNumber(pickColumn(row, ["Alış Fiyatı", "Alis Fiyati"])),
-                unitPrice: parseNumber(pickColumn(row, ["Satış Fiyatı", "Birim Fiyat", "Fiyat"])),
-                vatRate: parseNumber(pickColumn(row, ["KDV %", "KDV", "KDV Oranı"])),
-                discountRate: parseNumber(pickColumn(row, ["İskonto %", "İskonto"])),
-                minStock: parseNumber(pickColumn(row, ["Min. Stok", "Minimum Stok"])),
+                data: {
+                  name,
+                  code: pickColumn(row, ["Ürün Kodu", "Kod"]),
+                  barcode: pickColumn(row, ["Barkod"]),
+                  category: pickColumn(row, ["Kategori"]),
+                  unit: pickColumn(row, ["Birim"]) || "Adet",
+                  purchasePrice: parseNumber(pickColumn(row, ["Alış Fiyatı", "Alis Fiyati"])),
+                  unitPrice: parseNumber(pickColumn(row, ["Satış Fiyatı", "Birim Fiyat", "Fiyat"])),
+                  vatRate: parseNumber(pickColumn(row, ["KDV %", "KDV", "KDV Oranı"])) || 20,
+                  discountRate: parseNumber(pickColumn(row, ["İskonto %", "İskonto"])),
+                  minStock: parseNumber(pickColumn(row, ["Min. Stok", "Minimum Stok"])),
+                },
               };
             }}
             onImport={importProducts}
@@ -268,7 +296,11 @@ function ProductsPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="code">Ürün Kodu</Label>
-                    <Input id="code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+                    <Input
+                      id="code"
+                      value={form.code}
+                      onChange={(e) => setForm({ ...form, code: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="barcode">Barkod</Label>
@@ -281,7 +313,12 @@ function ProductsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Ürün / Hizmet Adı</Label>
-                  <Input id="name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <Input
+                    id="name"
+                    required
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="space-y-2">
@@ -294,7 +331,11 @@ function ProductsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="unit">Birim</Label>
-                    <Input id="unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+                    <Input
+                      id="unit"
+                      value={form.unit}
+                      onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description">Açıklama</Label>
@@ -331,7 +372,9 @@ function ProductsPage() {
       {criticalCount > 0 ? (
         <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
           <span className="font-medium">{criticalCount} üründe kritik stok seviyesi.</span>{" "}
-          <span className="text-muted-foreground">Stok Yönetimi ekranından giriş yapabilirsiniz.</span>
+          <span className="text-muted-foreground">
+            Stok Yönetimi ekranından giriş yapabilirsiniz.
+          </span>
         </div>
       ) : null}
 
@@ -381,8 +424,12 @@ function ProductsPage() {
                         <td className="py-3 pr-4 font-medium">{p.name}</td>
                         <td className="py-3 pr-4">{p.category || "-"}</td>
                         <td className="py-3 pr-4">{p.unit}</td>
-                        <td className="py-3 pr-4 text-right">{formatMoney(Number(p.purchase_price ?? 0))}</td>
-                        <td className="py-3 pr-4 text-right">{formatMoney(Number(p.unit_price))}</td>
+                        <td className="py-3 pr-4 text-right">
+                          {formatMoney(Number(p.purchase_price ?? 0))}
+                        </td>
+                        <td className="py-3 pr-4 text-right">
+                          {formatMoney(Number(p.unit_price))}
+                        </td>
                         <td className="py-3 pr-4">%{Number(p.vat_rate)}</td>
                         <td className="py-3 pr-4 text-right">
                           <span className="font-medium">{stock}</span>
@@ -393,7 +440,11 @@ function ProductsPage() {
                           ) : null}
                         </td>
                         <td className="py-3 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => removeProduct.mutate(p.id)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeProduct.mutate(p.id)}
+                          >
                             Sil
                           </Button>
                         </td>

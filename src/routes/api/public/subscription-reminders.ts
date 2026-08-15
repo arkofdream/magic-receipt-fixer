@@ -77,7 +77,12 @@ async function runReminders() {
           .eq("user_id", sub.user_id)
           .eq("end_date", sub.end_date)
           .eq("threshold_days", target.days);
-        results.push({ email: to, days: target.days, ok: false, error: `${response.status}: ${body}` });
+        results.push({
+          email: to,
+          days: target.days,
+          ok: false,
+          error: `${response.status}: ${body}`,
+        });
         continue;
       }
       results.push({ email: to, days: target.days, ok: true });
@@ -100,7 +105,8 @@ export const Route = createFileRoute("/api/public/subscription-reminders")({
           return Response.json({ ok: false, error: message }, { status: 500 });
         }
       },
-      GET: async () => Response.json({ ok: true, info: "Abonelik hatırlatma görevi. POST ile tetiklenir." }),
+      GET: async () =>
+        Response.json({ ok: true, info: "Abonelik hatırlatma görevi. POST ile tetiklenir." }),
     },
   },
 });

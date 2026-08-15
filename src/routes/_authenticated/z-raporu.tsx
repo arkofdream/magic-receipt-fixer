@@ -19,7 +19,8 @@ export const Route = createFileRoute("/_authenticated/z-raporu")({
       { title: "Günlük Z Raporu | e-Fatura Portalı" },
       {
         name: "description",
-        content: "Seçilen güne ait fatura adedi, KDV kırılımı ve toplam ciroyu görün, Z raporunu PDF olarak indirin.",
+        content:
+          "Seçilen güne ait fatura adedi, KDV kırılımı ve toplam ciroyu görün, Z raporunu PDF olarak indirin.",
       },
       { property: "og:title", content: "Günlük Z Raporu | e-Fatura Portalı" },
       { property: "og:description", content: "Günlük ciro ve KDV özeti." },
@@ -59,7 +60,10 @@ function ZReportPage() {
       for (const item of items) {
         const t = itemTotals(item);
         const current = breakdown.get(item.vatRate) ?? { taxable: 0, vat: 0 };
-        breakdown.set(item.vatRate, { taxable: current.taxable + t.taxable, vat: current.vat + t.vat });
+        breakdown.set(item.vatRate, {
+          taxable: current.taxable + t.taxable,
+          vat: current.vat + t.vat,
+        });
       }
     }
     const sum = (key: keyof (typeof active)[number]) =>
@@ -119,8 +123,7 @@ function ZReportPage() {
             }
           }}
         >
-          <FileDown className="size-4" />
-          Z Raporunu İndir (PDF)
+          <FileDown className="size-4" />Z Raporunu İndir (PDF)
         </Button>
       }
     >
@@ -132,7 +135,12 @@ function ZReportPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="z-date">Rapor Tarihi</Label>
-              <Input id="z-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input
+                id="z-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="z-pos">POS / Yazarkasa Tahsilatı (opsiyonel)</Label>

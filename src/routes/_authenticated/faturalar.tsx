@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { FileDown } from "lucide-react";
+import { Download, FileDown, Trash2, Ban, CheckCircle2, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -12,14 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDate, formatMoney, INVOICE_STATUSES } from "@/lib/invoice";
+import { formatDate, formatMoney, INVOICE_STATUSES, roundMoney } from "@/lib/invoice";
 import { downloadInvoicesPdf, type InvoiceRecord, type SellerInfo } from "@/lib/pdf/invoice-pdf";
 
 export const Route = createFileRoute("/_authenticated/faturalar")({
   head: () => ({
     meta: [
       { title: "Fatura Arşivi | e-Fatura Portalı" },
-      { name: "description", content: "Kesilen tüm e-arşiv ve e-fatura kayıtlarınızı arayın ve durumlarını takip edin." },
+      {
+        name: "description",
+        content: "Kesilen tüm e-arşiv ve e-fatura kayıtlarınızı arayın ve durumlarını takip edin.",
+      },
       { property: "og:title", content: "Fatura Arşivi | e-Fatura Portalı" },
       { property: "og:description", content: "Tüm faturalarınız tek listede." },
     ],
@@ -61,9 +64,12 @@ function InvoicesPage() {
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 
@@ -104,14 +110,16 @@ function InvoicesPage() {
           txn_type: isReturn ? "ALACAK" : "BORC",
           amount: Number(inv.grand_total),
           document_no: inv.invoice_number,
-          description: isReturn ? "İade faturası" : "Satış faturası",
+          description: isReturn ? "İade faturası kaydı" : "Satış faturası borç kaydı",
           source: "FATURA",
           source_id: inv.id,
         });
         if (txnError) throw txnError;
       }
 
-      const invItems = (inv.items as unknown as { productId?: string; quantity: number; unitPrice: number }[]) ?? [];
+      const invItems =
+        (inv.items as unknown as { productId?: string; quantity: number; unitPrice: number }[]) ??
+        [];
       const stockRows = invItems
         .filter((i) => i.productId)
         .map((i) => ({
@@ -121,10 +129,12 @@ function InvoicesPage() {
           customer_id: inv.customer_id,
           movement_date: inv.invoice_date,
           movement_type: isReturn ? "GIRIS" : "CIKIS",
-          quantity: Number(i.quantity),
-          unit_price: Number(i.unitPrice),
+          quantity: Math.max(0, Number(i.quantity) || 0),
+          unit_price: roundMoney(Number(i.unitPrice) || 0),
           document_no: inv.invoice_number,
-          description: "Fatura kaynaklı stok hareketi",
+          description: isReturn
+            ? "Fatura kaynaklı stok iade girişi"
+            : "Fatura kaynaklı stok çıkışı",
           source: "FATURA",
           source_id: inv.id,
         }));
@@ -146,14 +156,17 @@ function InvoicesPage() {
 
   const collect = useMutation({
     mutationFn: async ({ inv, amount }: { inv: InvoiceRow; amount: number }) => {
-      if (!inv.customer_id) throw new Error("Bu fatura bir cari karta bağlı değil. Tahsilatı Cariler ekranından girin.");
+      if (!inv.customer_id)
+        throw new Error(
+          "Bu fatura bir cari karta bağlı değil. Tahsilatı Cariler ekranından girin.",
+        );
       if (amount <= 0) throw new Error("Tahsil edilecek tutar kalmadı.");
       const { error } = await supabase.from("account_transactions").insert({
         user_id: inv.user_id,
         customer_id: inv.customer_id,
         txn_date: new Date().toISOString().slice(0, 10),
         txn_type: "TAHSILAT",
-        amount,
+        amount: roundMoney(amount),
         document_no: inv.invoice_number,
         description: "Fatura tahsilatı",
         source: "FATURA_TAHSILAT",
@@ -162,7 +175,7 @@ function InvoicesPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Tahsilat kaydedildi.");
+      toast.success("Tahsilat başarıyla kaydedildi.");
       queryClient.invalidateQueries({ queryKey: ["invoice-payments"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
@@ -171,16 +184,39 @@ function InvoicesPage() {
   });
 
   const cancel = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (inv: InvoiceRow) => {
       const { error } = await supabase
         .from("invoices")
         .update({ status: "IPTAL", cancel_date: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", inv.id);
+      if (error) throw error;
+
+      if (inv.posted) {
+        // İlgili otomatik hareketleri temizle
+        await supabase.from("account_transactions").delete().eq("source_id", inv.id);
+        await supabase.from("stock_movements").delete().eq("source_id", inv.id);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Fatura iptal edildi; ilgili cari ve stok kayıtları dengelendi.");
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteDraft = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Fatura iptal edildi.");
+      toast.success("Taslak fatura silindi.");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-count"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -198,18 +234,20 @@ function InvoicesPage() {
   });
 
   const seller: SellerInfo = {
-    companyTitle: profile?.company_title ?? "",
-    vknTckn: profile?.vkn_tckn ?? "",
-    taxOffice: profile?.tax_office ?? "",
-    address: profile?.address ?? "",
-    phone: profile?.phone ?? "",
-    email: profile?.email ?? "",
+    companyTitle: profile?.company_title || "",
+    vknTckn: profile?.vkn_tckn || "",
+    taxOffice: profile?.tax_office || "",
+    address: profile?.address || "",
+    phone: profile?.phone || "",
+    email: profile?.email || "",
   };
 
   const allSelected = filtered.length > 0 && filtered.every((inv) => selected.includes(inv.id));
 
   async function downloadSelected() {
-    const records = invoices.filter((inv) => selected.includes(inv.id)) as unknown as InvoiceRecord[];
+    const records = invoices.filter((inv) =>
+      selected.includes(inv.id),
+    ) as unknown as InvoiceRecord[];
     if (records.length === 0) {
       toast.error("Önce fatura seçin.");
       return;
@@ -225,12 +263,25 @@ function InvoicesPage() {
     }
   }
 
+  async function downloadSingle(inv: unknown) {
+    try {
+      await downloadInvoicesPdf(
+        [inv as InvoiceRecord],
+        seller,
+        `fatura-${(inv as InvoiceRecord).invoice_number}.pdf`,
+      );
+      toast.success("Fatura PDF olarak indirildi.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "PDF indirilemedi.");
+    }
+  }
+
   return (
     <AppShell
       title="Fatura Arşivi"
-      subtitle="Kesilen faturalarınızın tamamı"
+      subtitle="Kesilen tüm faturalarınız ve tahsilat takibi"
       actions={
-        <>
+        <div className="flex gap-2">
           <Button
             variant="outline"
             className="gap-2"
@@ -243,7 +294,7 @@ function InvoicesPage() {
           <Button asChild>
             <Link to="/fatura-kes">Yeni Fatura</Link>
           </Button>
-        </>
+        </div>
       }
     >
       <Card>
@@ -259,7 +310,7 @@ function InvoicesPage() {
               </TabsList>
             </Tabs>
             <Input
-              placeholder="Fatura no, unvan veya VKN ara"
+              placeholder="Fatura no, unvan veya VKN ara…"
               className="w-64"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -293,25 +344,35 @@ function InvoicesPage() {
                     <th className="py-2 pr-4">Toplam</th>
                     <th className="py-2 pr-4">Durum</th>
                     <th className="py-2 pr-4">Ödeme</th>
-                    <th className="py-2" />
+                    <th className="py-2 text-right">İşlemler</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((inv) => {
                     const customer = inv.customer as { title?: string; vknTckn?: string } | null;
-                    const s = INVOICE_STATUSES[inv.status] ?? { label: inv.status, tone: "draft" as const };
+                    const s = INVOICE_STATUSES[inv.status] ?? {
+                      label: inv.status,
+                      tone: "draft" as const,
+                    };
                     const row = inv as unknown as InvoiceRow;
                     const paid = paidByInvoice.get(inv.id) ?? 0;
                     const remaining = Math.max(Number(inv.grand_total) - paid, 0);
-                    const payLabel = paid <= 0 ? "Ödenmedi" : remaining < 0.005 ? "Ödendi" : "Kısmi";
+                    const payLabel =
+                      paid <= 0 ? "Ödenmedi" : remaining < 0.005 ? "Ödendi" : "Kısmi";
+
                     return (
-                      <tr key={inv.id} className="border-b border-border/60 last:border-0">
+                      <tr
+                        key={inv.id}
+                        className="border-b border-border/60 hover:bg-muted/40 last:border-0"
+                      >
                         <td className="py-3 pr-2">
                           <Checkbox
                             checked={selected.includes(inv.id)}
                             onCheckedChange={(checked) =>
                               setSelected((prev) =>
-                                checked === true ? [...prev, inv.id] : prev.filter((id) => id !== inv.id),
+                                checked === true
+                                  ? [...prev, inv.id]
+                                  : prev.filter((id) => id !== inv.id),
                               )
                             }
                             aria-label={`${inv.invoice_number} seç`}
@@ -322,25 +383,37 @@ function InvoicesPage() {
                           {inv.ettn.slice(0, 8)}…
                         </td>
                         <td className="py-3 pr-4">
-                          {customer?.title ?? "-"}
-                          <span className="block text-xs text-muted-foreground">{customer?.vknTckn}</span>
+                          <span className="font-medium">{customer?.title ?? "-"}</span>
+                          {customer?.vknTckn ? (
+                            <span className="block text-xs text-muted-foreground">
+                              {customer.vknTckn}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="py-3 pr-4">{formatDate(inv.invoice_date)}</td>
-                        <td className="py-3 pr-4">{formatMoney(Number(inv.total_vat), inv.currency)}</td>
+                        <td className="py-3 pr-4">
+                          {formatMoney(Number(inv.total_vat), inv.currency)}
+                        </td>
                         <td className="py-3 pr-4 font-semibold">
                           {formatMoney(Number(inv.grand_total), inv.currency)}
                         </td>
                         <td className="py-3 pr-4">
                           <Badge
                             variant={
-                              s.tone === "cancel" ? "destructive" : s.tone === "sent" ? "default" : "secondary"
+                              s.tone === "cancel"
+                                ? "destructive"
+                                : s.tone === "sent"
+                                  ? "default"
+                                  : "secondary"
                             }
                           >
                             {s.label}
                           </Badge>
                         </td>
                         <td className="py-3 pr-4">
-                          <Badge variant={payLabel === "Ödendi" ? "default" : "secondary"}>{payLabel}</Badge>
+                          <Badge variant={payLabel === "Ödendi" ? "default" : "secondary"}>
+                            {payLabel}
+                          </Badge>
                           {paid > 0 && remaining >= 0.005 ? (
                             <span className="block text-xs text-muted-foreground">
                               Kalan: {formatMoney(remaining, inv.currency)}
@@ -348,26 +421,75 @@ function InvoicesPage() {
                           ) : null}
                         </td>
                         <td className="py-3 text-right">
-                          {inv.status === "TASLAK" ? (
-                            <Button size="sm" variant="outline" onClick={() => sign.mutate(row)}>
-                              GİB'e Gönder
-                            </Button>
-                          ) : null}
-                          {inv.status === "ONAYLANDI" && remaining >= 0.005 ? (
+                          <div className="flex items-center justify-end gap-1">
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="ghost"
-                              disabled={collect.isPending}
-                              onClick={() => collect.mutate({ inv: row, amount: remaining })}
+                              title="PDF İndir"
+                              onClick={() => downloadSingle(inv)}
                             >
-                              Tahsilat
+                              <Download className="size-4" />
                             </Button>
-                          ) : null}
-                          {inv.status !== "IPTAL" ? (
-                            <Button size="sm" variant="ghost" onClick={() => cancel.mutate(inv.id)}>
-                              İptal
-                            </Button>
-                          ) : null}
+
+                            {inv.status === "TASLAK" ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => sign.mutate(row)}
+                                  disabled={sign.isPending}
+                                >
+                                  GİB'e Gönder
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  title="Taslağı Sil"
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        "Bu taslak faturayı silmek istediğinize emin misiniz?",
+                                      )
+                                    ) {
+                                      deleteDraft.mutate(inv.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="size-4 text-destructive" />
+                                </Button>
+                              </>
+                            ) : null}
+
+                            {inv.status === "ONAYLANDI" && remaining >= 0.005 ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={collect.isPending}
+                                onClick={() => collect.mutate({ inv: row, amount: remaining })}
+                              >
+                                Tahsilat
+                              </Button>
+                            ) : null}
+
+                            {inv.status !== "IPTAL" && inv.status !== "TASLAK" ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      "Bu faturayı iptal etmek istediğinize emin misiniz? Stok ve cari hareketleri dengelenecektir.",
+                                    )
+                                  ) {
+                                    cancel.mutate(row);
+                                  }
+                                }}
+                              >
+                                İptal
+                              </Button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     );

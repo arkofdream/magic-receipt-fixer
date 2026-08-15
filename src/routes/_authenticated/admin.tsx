@@ -42,7 +42,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
     meta: [
       { title: "Yönetim Paneli | e-Fatura Portalı" },
-      { name: "description", content: "Abonelik yönetimi, sözleşme versiyonları ve onay kayıtları." },
+      {
+        name: "description",
+        content: "Abonelik yönetimi, sözleşme versiyonları ve onay kayıtları.",
+      },
       { property: "og:title", content: "Yönetim Paneli" },
       { property: "og:description", content: "Abonelik ve sözleşme yönetimi." },
     ],
@@ -162,7 +165,9 @@ function SubscriptionsTab() {
                   <Label className="text-xs">Süre</Label>
                   <Select
                     value={p}
-                    onValueChange={(v) => setPeriod((s2) => ({ ...s2, [s.userId]: v as "1_MONTH" | "1_YEAR" }))}
+                    onValueChange={(v) =>
+                      setPeriod((s2) => ({ ...s2, [s.userId]: v as "1_MONTH" | "1_YEAR" }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -178,7 +183,9 @@ function SubscriptionsTab() {
                   <Input
                     inputMode="decimal"
                     placeholder="Örn. 0,00"
-                    value={price[s.userId] ?? (s.renewalPrice === null ? "" : String(s.renewalPrice))}
+                    value={
+                      price[s.userId] ?? (s.renewalPrice === null ? "" : String(s.renewalPrice))
+                    }
                     onChange={(e) => setPrice((st) => ({ ...st, [s.userId]: e.target.value }))}
                   />
                 </div>
@@ -199,7 +206,8 @@ function SubscriptionsTab() {
                   disabled={mutation.isPending}
                   onClick={() => {
                     const raw = price[s.userId];
-                    const parsed = raw === undefined || raw.trim() === "" ? null : Number(raw.replace(",", "."));
+                    const parsed =
+                      raw === undefined || raw.trim() === "" ? null : Number(raw.replace(",", "."));
                     if (parsed !== null && Number.isNaN(parsed)) {
                       toast.error("Geçerli bir yenileme ücreti girin.");
                       return;
@@ -261,8 +269,7 @@ function LegalTab() {
   const [requiresReacceptance, setRequiresReacceptance] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      create({ data: { docType, version, title, content, requiresReacceptance } }),
+    mutationFn: () => create({ data: { docType, version, title, content, requiresReacceptance } }),
     onSuccess: () => {
       toast.success("Yeni sözleşme versiyonu yayımlandı.");
       setVersion("");
@@ -296,7 +303,11 @@ function LegalTab() {
           </div>
           <div>
             <Label className="text-xs">Versiyon</Label>
-            <Input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="v1.1" />
+            <Input
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              placeholder="v1.1"
+            />
           </div>
           <div>
             <Label className="text-xs">Başlık</Label>

@@ -16,7 +16,8 @@ export const Route = createFileRoute("/uyelik-sozlesmesi")({
       { property: "og:title", content: "Üyelik ve Yazılım Hizmeti Kullanım Sözleşmesi" },
       {
         property: "og:description",
-        content: "Abonelik, yenileme, veri saklama ve sorumluluk koşullarını içeren üyelik sözleşmesi.",
+        content:
+          "Abonelik, yenileme, veri saklama ve sorumluluk koşullarını içeren üyelik sözleşmesi.",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
