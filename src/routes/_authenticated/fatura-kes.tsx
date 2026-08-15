@@ -86,6 +86,15 @@ function NewInvoicePage() {
   });
 
 
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("warehouses").select("*").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: invoiceCount = 0 } = useQuery({
     queryKey: ["invoice-count"],
     queryFn: async () => {
