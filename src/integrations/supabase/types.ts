@@ -265,6 +265,7 @@ export type Database = {
           created_at: string
           currency: string
           customer: Json
+          customer_id: string | null
           ettn: string
           exchange_rate: number
           gib_approval_date: string | null
@@ -275,6 +276,7 @@ export type Database = {
           items: Json
           notes: string
           payment_info: string
+          posted: boolean
           status: string
           subtotal: number
           taxable_amount: number
@@ -284,12 +286,14 @@ export type Database = {
           type: string
           updated_at: string
           user_id: string
+          warehouse_id: string | null
         }
         Insert: {
           cancel_date?: string | null
           created_at?: string
           currency?: string
           customer?: Json
+          customer_id?: string | null
           ettn: string
           exchange_rate?: number
           gib_approval_date?: string | null
@@ -300,6 +304,7 @@ export type Database = {
           items?: Json
           notes?: string
           payment_info?: string
+          posted?: boolean
           status?: string
           subtotal?: number
           taxable_amount?: number
@@ -309,12 +314,14 @@ export type Database = {
           type?: string
           updated_at?: string
           user_id: string
+          warehouse_id?: string | null
         }
         Update: {
           cancel_date?: string | null
           created_at?: string
           currency?: string
           customer?: Json
+          customer_id?: string | null
           ettn?: string
           exchange_rate?: number
           gib_approval_date?: string | null
@@ -325,6 +332,7 @@ export type Database = {
           items?: Json
           notes?: string
           payment_info?: string
+          posted?: boolean
           status?: string
           subtotal?: number
           taxable_amount?: number
@@ -334,8 +342,31 @@ export type Database = {
           type?: string
           updated_at?: string
           user_id?: string
+          warehouse_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_balances"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       legal_documents: {
         Row: {
