@@ -292,6 +292,7 @@ function InvoicesPage() {
                     <th className="py-2 pr-4">KDV</th>
                     <th className="py-2 pr-4">Toplam</th>
                     <th className="py-2 pr-4">Durum</th>
+                    <th className="py-2 pr-4">Ödeme</th>
                     <th className="py-2" />
                   </tr>
                 </thead>
@@ -299,6 +300,10 @@ function InvoicesPage() {
                   {filtered.map((inv) => {
                     const customer = inv.customer as { title?: string; vknTckn?: string } | null;
                     const s = INVOICE_STATUSES[inv.status] ?? { label: inv.status, tone: "draft" as const };
+                    const row = inv as unknown as InvoiceRow;
+                    const paid = paidByInvoice.get(inv.id) ?? 0;
+                    const remaining = Math.max(Number(inv.grand_total) - paid, 0);
+                    const payLabel = paid <= 0 ? "Ödenmedi" : remaining < 0.005 ? "Ödendi" : "Kısmi";
                     return (
                       <tr key={inv.id} className="border-b border-border/60 last:border-0">
                         <td className="py-3 pr-2">
