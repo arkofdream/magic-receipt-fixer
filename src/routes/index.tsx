@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { FileCheck2, ShieldCheck, Users, Package, Download, Monitor } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/download";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -54,7 +55,7 @@ function Landing() {
         <span className="text-lg font-bold tracking-tight text-foreground">Magic Receipt</span>
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" size="sm" className="gap-2">
-            <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+            <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
               <Download className="size-4" />
               Windows İçin İndir (.exe)
             </a>
@@ -81,7 +82,7 @@ function Landing() {
             <Link to="/auth">Web'den Hemen Başla</Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="gap-2">
-            <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+            <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
               <Download className="size-4" />
               Windows Uygulamasını İndir (.exe)
             </a>

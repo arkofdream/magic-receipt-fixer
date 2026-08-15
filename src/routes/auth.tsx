@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
+import { DESKTOP_DOWNLOAD_URL } from "@/lib/download";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getCurrentLegalVersions, recordSignupConsents } from "@/lib/legal.functions";
@@ -254,7 +256,7 @@ function AuthPage() {
             Windows masaüstü uygulamasını bilgisayarınıza kurmak ister misiniz?
           </p>
           <Button asChild variant="outline" size="sm" className="mt-2.5 w-full gap-2">
-            <a href="/downloads/MagicReceiptSetup.exe" download="MagicReceiptSetup.exe">
+            <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
               <Download className="size-4" />
               Windows Masaüstü Sürümünü İndir (.exe)
             </a>
