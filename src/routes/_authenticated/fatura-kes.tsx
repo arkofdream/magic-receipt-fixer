@@ -54,6 +54,8 @@ function NewInvoicePage() {
   const [currency, setCurrency] = useState("TRY");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [customer, setCustomer] = useState<InvoiceCustomer>(emptyCustomer);
+  const [customerId, setCustomerId] = useState<string>("");
+  const [warehouseId, setWarehouseId] = useState<string>("");
   const [items, setItems] = useState<InvoiceItem[]>([newItem()]);
   const [tevkifatRate, setTevkifatRate] = useState("0");
   const [notes, setNotes] = useState("");
