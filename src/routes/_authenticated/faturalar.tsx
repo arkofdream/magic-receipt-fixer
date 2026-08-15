@@ -339,10 +339,28 @@ function InvoicesPage() {
                             {s.label}
                           </Badge>
                         </td>
+                        <td className="py-3 pr-4">
+                          <Badge variant={payLabel === "Ödendi" ? "default" : "secondary"}>{payLabel}</Badge>
+                          {paid > 0 && remaining >= 0.005 ? (
+                            <span className="block text-xs text-muted-foreground">
+                              Kalan: {formatMoney(remaining, inv.currency)}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="py-3 text-right">
                           {inv.status === "TASLAK" ? (
-                            <Button size="sm" variant="outline" onClick={() => sign.mutate(inv.id)}>
+                            <Button size="sm" variant="outline" onClick={() => sign.mutate(row)}>
                               GİB'e Gönder
+                            </Button>
+                          ) : null}
+                          {inv.status === "ONAYLANDI" && remaining >= 0.005 ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={collect.isPending}
+                              onClick={() => collect.mutate({ inv: row, amount: remaining })}
+                            >
+                              Tahsilat
                             </Button>
                           ) : null}
                           {inv.status !== "IPTAL" ? (
