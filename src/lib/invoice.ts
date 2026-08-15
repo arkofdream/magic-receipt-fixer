@@ -49,6 +49,7 @@ export const INVOICE_STATUSES: Record<string, { label: string; tone: "draft" | "
 export function newItem(): InvoiceItem {
   return {
     id: crypto.randomUUID(),
+    productId: "",
     name: "",
     unit: "Adet",
     quantity: 1,
