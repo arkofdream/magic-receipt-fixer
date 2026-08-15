@@ -116,6 +116,7 @@ function NewInvoicePage() {
     const p = products.find((x) => x.id === productId);
     if (!p) return;
     updateItem(id, {
+      productId: p.id,
       name: p.name,
       unit: p.unit,
       unitPrice: Number(p.unit_price),
