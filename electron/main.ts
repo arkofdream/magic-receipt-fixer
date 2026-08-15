@@ -1,75 +1,18 @@
-import { app, BrowserWindow, shell, ipcMain } from "electron";
+import { app, BrowserWindow, shell } from "electron";
 import * as path from "node:path";
-import * as http from "node:http";
-import * as net from "node:net";
-import { fork, ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 
 let mainWindow: BrowserWindow | null = null;
-let serverProcess: ChildProcess | null = null;
 
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
-const DEFAULT_PORT = 34567;
-
-function getAvailablePort(startingPort: number): Promise<number> {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.listen(startingPort, "127.0.0.1", () => {
-      server.once("close", () => resolve(startingPort));
-      server.close();
-    });
-    server.on("error", () => {
-      resolve(getAvailablePort(startingPort + 1));
-    });
-  });
-}
-
-function waitForServer(url: string, timeoutMs = 25000): Promise<void> {
-  const start = Date.now();
-  return new Promise((resolve, reject) => {
-    const check = () => {
-      const req = http.get(url, (res) => {
-        if (res.statusCode && res.statusCode < 500) {
-          resolve();
-        } else {
-          setTimeout(check, 300);
-        }
-      });
-      req.on("error", () => {
-        if (Date.now() - start > timeoutMs) {
-          reject(new Error("Server startup timed out"));
-        } else {
-          setTimeout(check, 300);
-        }
-      });
-      req.end();
-    };
-    check();
-  });
-}
-
-async function startProductionServer(port: number): Promise<void> {
-  const serverScript = path.join(__dirname, "..", ".output", "server", "index.mjs");
-
-  serverProcess = fork(serverScript, [], {
-    env: {
-      ...process.env,
-      PORT: String(port),
-      HOST: "127.0.0.1",
-      NITRO_PORT: String(port),
-      NITRO_HOST: "127.0.0.1",
-      NODE_ENV: "production",
-    },
-    stdio: "pipe",
-  });
-
-  serverProcess.on("error", (err) => {
-    console.error("[Nitro Server Process Error]:", err);
-  });
-
-  await waitForServer(`http://127.0.0.1:${port}`);
-}
+const PRODUCTION_URL = "https://magic-receipt-fixer.vercel.app";
+const DEV_URL = "http://localhost:5173";
 
 async function createWindow() {
+  const preloadPath = existsSync(path.join(__dirname, "preload.cjs"))
+    ? path.join(__dirname, "preload.cjs")
+    : path.join(__dirname, "preload.js");
+
   mainWindow = new BrowserWindow({
     width: 1366,
     height: 850,
@@ -77,51 +20,65 @@ async function createWindow() {
     minHeight: 700,
     title: "Magic Receipt — Ön Muhasebe & e-Fatura",
     show: false,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#0f172a",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
-      allowRunningInsecureContent: false,
-      devTools: isDev,
+      devTools: true,
     },
   });
 
-  // Windows Menu bar
-  mainWindow.setMenuBarVisibility(isDev);
+  mainWindow.setMenuBarVisibility(false);
 
-  let targetUrl = "http://localhost:5173";
-
-  if (!isDev) {
-    try {
-      const port = await getAvailablePort(DEFAULT_PORT);
-      await startProductionServer(port);
-      targetUrl = `http://127.0.0.1:${port}`;
-    } catch (err) {
-      console.error("Failed to start local production server, loading fallback:", err);
-    }
-  }
-
-  // Load target URL
-  await mainWindow.loadURL(targetUrl);
+  const targetUrl = isDev ? DEV_URL : PRODUCTION_URL;
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
   });
 
-  // Security: Prevent arbitrary navigation inside the app
+  try {
+    await mainWindow.loadURL(targetUrl);
+  } catch {
+    await mainWindow.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Magic Receipt</title>
+<style>
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex;align-items:center;justify-content:center;height:100vh;
+    background:#0f172a;color:#f8fafc}
+  .card{text-align:center;padding:32px;background:#1e293b;border-radius:16px;
+    border:1px solid rgba(255,255,255,0.08);max-width:420px}
+  h1{font-size:20px;margin:0 0 12px}
+  p{font-size:14px;color:#94a3b8;margin:0 0 20px;line-height:1.6}
+  button{background:#3b82f6;color:#fff;border:none;padding:10px 24px;
+    border-radius:8px;font-size:14px;cursor:pointer}
+  button:hover{background:#2563eb}
+</style></head><body>
+<div class="card">
+  <h1>Bağlantı Kurulamadı</h1>
+  <p>İnternet bağlantınızı kontrol edip tekrar deneyin.</p>
+  <button onclick="location.reload()">Tekrar Dene</button>
+</div></body></html>`)}`,
+    );
+    mainWindow?.show();
+  }
+
   mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
-    const parsed = new URL(navigationUrl);
-    const current = new URL(targetUrl);
-    if (parsed.origin !== current.origin) {
-      event.preventDefault();
-      void shell.openExternal(navigationUrl);
+    try {
+      const parsed = new URL(navigationUrl);
+      const current = new URL(targetUrl);
+      if (parsed.origin !== current.origin) {
+        event.preventDefault();
+        void shell.openExternal(navigationUrl);
+      }
+    } catch {
+      /* ignore */
     }
   });
 
-  // Security: Open all external links in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: "deny" };
@@ -132,9 +89,7 @@ async function createWindow() {
   });
 }
 
-// App lifecycle
 const gotTheLock = app.requestSingleInstanceLock();
-
 if (!gotTheLock) {
   app.quit();
 } else {
@@ -147,26 +102,12 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     await createWindow();
-
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) void createWindow();
     });
   });
 
   app.on("window-all-closed", () => {
-    if (serverProcess) {
-      serverProcess.kill();
-      serverProcess = null;
-    }
-    if (process.platform !== "darwin") {
-      app.quit();
-    }
-  });
-
-  app.on("before-quit", () => {
-    if (serverProcess) {
-      serverProcess.kill();
-      serverProcess = null;
-    }
+    if (process.platform !== "darwin") app.quit();
   });
 }
