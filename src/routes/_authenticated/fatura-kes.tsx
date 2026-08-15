@@ -290,6 +290,29 @@ function NewInvoicePage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 sm:col-span-3">
+                <Label>Stok Çıkışı Yapılacak Depo</Label>
+                <Select value={warehouseId} onValueChange={setWarehouseId}>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        warehouses.length === 0 ? "Depo tanımlı değil (opsiyonel)" : "Depo seçin (opsiyonel)"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Fatura GİB'e gönderildiğinde katalogdan seçilen kalemler için stok çıkışı ve cari borç kaydı
+                  otomatik oluşturulur.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
