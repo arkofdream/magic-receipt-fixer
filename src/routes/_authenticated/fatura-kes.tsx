@@ -173,13 +173,60 @@ function NewInvoicePage() {
         grand_total: grandTotal,
         notes,
         payment_info: paymentInfo,
-      });
+      }).select("id, invoice_number").single();
       if (error) throw error;
+
+      if (shouldPost && inserted) {
+        const isReturn = type === "IADE";
+
+        if (customerId) {
+          const { error: txnError } = await supabase.from("account_transactions").insert({
+            user_id: userId,
+            customer_id: customerId,
+            txn_date: date,
+            txn_type: isReturn ? "ALACAK" : "BORC",
+            amount: grandTotal,
+            document_no: inserted.invoice_number,
+            description: isReturn ? "İade faturası" : "Satış faturası",
+            source: "FATURA",
+            source_id: inserted.id,
+          });
+          if (txnError) throw txnError;
+        }
+
+        const stockRows = items
+          .filter((i) => i.productId)
+          .map((i) => ({
+            user_id: userId,
+            product_id: i.productId as string,
+            warehouse_id: warehouseId || null,
+            customer_id: customerId || null,
+            movement_date: date,
+            movement_type: isReturn ? "GIRIS" : "CIKIS",
+            quantity: i.quantity,
+            unit_price: i.unitPrice,
+            document_no: inserted.invoice_number,
+            description: "Fatura kaynaklı stok hareketi",
+            source: "FATURA",
+            source_id: inserted.id,
+          }));
+        if (stockRows.length > 0) {
+          const { error: stockError } = await supabase.from("stock_movements").insert(stockRows);
+          if (stockError) throw stockError;
+        }
+      }
     },
     onSuccess: (_data, newStatus) => {
-      toast.success(newStatus === "ONAYLANDI" ? "Fatura kaydedildi ve GİB'e gönderildi." : "Fatura taslak olarak kaydedildi.");
+      toast.success(
+        newStatus === "ONAYLANDI"
+          ? "Fatura GİB'e gönderildi; cari ve stok hareketleri oluşturuldu."
+          : "Fatura taslak olarak kaydedildi.",
+      );
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-count"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
       navigate({ to: "/faturalar" });
     },
     onError: (e: Error) => toast.error(e.message),
