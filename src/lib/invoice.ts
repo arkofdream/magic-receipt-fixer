@@ -1,3 +1,5 @@
+import { validateTCKN, validateVKN, validateVknTckn } from "@/lib/validation";
+
 export type InvoiceItem = {
   id: string;
   productId?: string;
@@ -171,40 +173,14 @@ export function generateInvoiceNumber(count: number, prefix = "GIB") {
 
 /** Türkiye VKN (Vergi Kimlik Numarası) 10 hane algoritma kontrolü */
 export function isValidVKN(vkn: string): boolean {
-  const clean = vkn.replace(/\D/g, "");
-  if (clean.length !== 10) return false;
-  const digits = clean.split("").map(Number);
-  const lastDigit = digits[9];
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    const d = digits[i];
-    const c1 = (d + (9 - i)) % 10;
-    const c2 = (c1 * Math.pow(2, 9 - i)) % 9;
-    const c3 = c1 !== 0 && c2 === 0 ? 9 : c2;
-    sum += c3;
-  }
-  const check = (10 - (sum % 10)) % 10;
-  return check === lastDigit;
+  return validateVKN(vkn.replace(/\D/g, "")).isValid;
 }
 
 /** Türkiye TCKN (T.C. Kimlik Numarası) 11 hane algoritma kontrolü */
 export function isValidTCKN(tckn: string): boolean {
-  const clean = tckn.replace(/\D/g, "");
-  if (clean.length !== 11 || clean.startsWith("0")) return false;
-  const digits = clean.split("").map(Number);
-  const d10 =
-    ((digits[0] + digits[2] + digits[4] + digits[6] + digits[8]) * 7 -
-      (digits[1] + digits[3] + digits[5] + digits[7])) %
-    10;
-  const positiveD10 = (d10 + 10) % 10;
-  if (digits[9] !== positiveD10) return false;
-  const sum10 = digits.slice(0, 10).reduce((acc, curr) => acc + curr, 0);
-  return digits[10] === sum10 % 10;
+  return validateTCKN(tckn.replace(/\D/g, "")).isValid;
 }
 
 export function isValidVknTckn(val: string): boolean {
-  const clean = val.replace(/\D/g, "");
-  if (clean.length === 10) return isValidVKN(clean);
-  if (clean.length === 11) return isValidTCKN(clean);
-  return false;
+  return validateVknTckn(val.replace(/\D/g, "")).isValid;
 }
