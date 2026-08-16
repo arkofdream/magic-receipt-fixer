@@ -81,8 +81,8 @@ function SubscriptionPage() {
                   label="Yenileme ücreti"
                   value={
                     sub.renewalPrice === null
-                      ? "Yenileme ücreti için bizimle iletişime geçin"
-                      : `${sub.renewalPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL`
+                      ? "6.000,00 TL / Yıl (Güncel Liste Fiyatı)"
+                      : `${sub.renewalPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL / Yıl`
                   }
                 />
                 <Row label="Son ödeme tarihi" value={formatDate(sub.lastPaymentDate)} />
@@ -95,11 +95,12 @@ function SubscriptionPage() {
                   </p>
                 )}
                 <div className="rounded-md bg-muted p-3 text-muted-foreground">
-                  <p className="font-medium text-foreground">Aboneliğimi Yenile</p>
+                  <p className="font-medium text-foreground">Abonelik & Yenileme Bilgisi</p>
                   <p className="mt-1">
-                    Platformda otomatik tahsilat bulunmamaktadır. Yenileme işlemi için bizimle
-                    iletişime geçin: [E-POSTA] · [TELEFON]. Ödemeniz doğrulandıktan sonra
-                    aboneliğiniz yetkili yönetici tarafından yenilenir.
+                    Platform kullanım bedeli yıllık <strong>6.000 TL</strong>'dir. İlerleyen yıllarda platforma eklenecek büyük özellikler, altyapı geliştirmeleri ve mevzuat modülleri doğrultusunda yenileme dönemlerinde fiyat tarifesinde artış yapılabilir.
+                  </p>
+                  <p className="mt-2 text-xs">
+                    Platformda otomatik kart çekimi bulunmamaktadır. Yenileme talebiniz ve dekont onayınız sonrası aboneliğiniz anında uzatılır. İletişim: [E-POSTA] · [TELEFON]
                   </p>
                 </div>
               </>
