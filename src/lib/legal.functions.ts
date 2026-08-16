@@ -37,43 +37,141 @@ const docTypeSchema = z.object({
   docType: z.enum(["membership_terms", "kvkk_notice"]),
 });
 
+const FALLBACK_DOCUMENTS: Record<LegalDocType, LegalDocument> = {
+  membership_terms: {
+    id: "default-membership-terms",
+    docType: "membership_terms",
+    version: "v1.1",
+    title: "ÜYELİK VE YAZILIM HİZMETİ KULLANIM SÖZLEŞMESİ",
+    publishedAt: new Date().toISOString(),
+    requiresReacceptance: false,
+    content: `## 1. Taraflar
+İşbu sözleşme; bir tarafta [ŞİRKET UNVANI] (Adres: [ADRES], Vergi No: [VERGİ NUMARASI], E-posta: [E-POSTA], Telefon: [TELEFON]) ("Hizmet Sağlayıcı") ile diğer tarafta platforma kurumsal veya şahıs şirketi olarak gerçek/tüzel kişi firma bilgileriyle kayıt olan kullanıcı ("Kullanıcı") arasında elektronik ortamda akdedilmiştir.
+
+## 2. Sözleşmenin Konusu
+Sözleşmenin konusu; Hizmet Sağlayıcı tarafından sunulan bulut ve web tabanlı e-fatura/e-arşiv hazırlama, cari hesap yönetimi, stok takibi ve ön muhasebe yazılım hizmetinden Kullanıcı'nın abonelik karşılığında yararlanmasına ilişkin tarafların hak ve yükümlülüklerinin belirlenmesidir.
+
+## 3. Üyelik, Doğrulanabilir Firma Bilgileri ve Kullanıcı Hesabı
+3.1. Kullanıcı, kayıt esnasında sisteme girdiği firma unvanı, Vergi Kimlik Numarası (VKN) / T.C. Kimlik Numarası (TCKN), vergi dairesi, adres ve telefon bilgilerinin resmi kayıtlara uygun, gerçek ve eksiksiz olduğunu beyan ve taahhüt eder.
+3.2. Hizmet Sağlayıcı, sahte, geçersiz veya algoritma doğrulamasını karşılamayan mükellefiyet bilgileriyle yapılan kayıtları kabul etmeme, askıya alma veya sonlandırma hakkına sahiptir.
+3.3. Kayıt aşamasında bildirilen firma bilgileri, Kullanıcı'nın sistemdeki firma profili ve e-fatura düzenleme ayarlarına otomatik olarak işlenir.
+3.4. Hesap bilgilerinin ve şifrenin gizliliğinden Kullanıcı sorumludur. Hesap üzerinden gerçekleştirilen tüm işlemler Kullanıcı adına yapılmış sayılır.
+
+## 4. Yazılım Hizmeti ve Kapsamı
+Hizmet, "hizmet olarak yazılım" (SaaS) modeliyle sunulmaktadır. Kullanıcı'ya yazılımın mülkiyeti değil, abonelik süresi boyunca kullanım hakkı (lisansı) tanınır.
+
+## 5. E-Fatura, GİB ve Özel Entegratör İşlemleri
+5.1. Hizmet Sağlayıcı, platformun teknik işleyişinden ve yazılım kaynaklı teknik arızaların giderilmesinden sorumludur.
+5.2. Gelir İdaresi Başkanlığı (GİB) sistemlerinin erişilemez olması, bakımda bulunması veya GİB kaynaklı teknik sorunlar nedeniyle belgelerin iletilememesi Hizmet Sağlayıcı'nın kontrolü dışındadır.
+5.3. Kullanıcı'nın tercih ettiği özel entegratör sistemlerinden veya entegrasyon şifrelerinden kaynaklanan aksaklıklarda Hizmet Sağlayıcı sorumlu tutulamaz.
+5.4. Düzenlenen fatura ve resmi evrakların içeriğinden, vergi oranlarından ve yasal bildirim sürelerinden münhasıran Kullanıcı sorumludur.
+
+## 6. Abonelik Süresi, Yıllık Ücret ve Gelecek Dönem Fiyatlandırma Politikası
+6.1. Platformun yıllık kullanım ve lisans yenileme bedeli, işbu sözleşmenin yürürlük tarihi itibarıyla **yıllık 6.000 TL (Altı Bin Türk Lirası)**'dir.
+6.2. **Fiyat Güncelleme ve Büyük Özellik Değişiklikleri:** Hizmet Sağlayıcı; ilerleyen yıllarda ve dönemlerde sisteme eklenecek yeni modüller, yapay zekâ destekli otomasyonlar, gelişmiş entegrasyonlar, büyük çaplı özellik geliştirmeleri, sunucu ve altyapı maliyetleri ile ekonomik parametreler doğrultusunda yıllık abonelik ve yenileme fiyatlarında artış yapma ve fiyat tarifesini güncelleme hakkını saklı tutar.
+6.3. Fiyat güncellemeleri, mevcut aktif dönemi etkilemez; Kullanıcı'nın bir sonraki abonelik yenileme döneminden itibaren geçerli olur. Yenileme öncesinde güncel bedel Kullanıcı'ya bildirilir.
+
+## 7. Abonelik Yenileme ve Hizmetin Sürdürülmesi
+7.1. Kullanıcı'nın aboneliği, satın aldığı dönem boyunca aktiftir. Yeni dönemin başlaması için ilgili döneme ait yenileme bedelinin ödenmesi gerekir.
+7.2. Yenileme bedelinin ödenmemesi durumunda hesabın ücretli modülleri askıya alınabilir; ancak kayıtlı geçmiş veriler silinmez ve saklama süresince muhafaza edilir.
+7.3. Platformda otomatik habersiz kart çekimi (otomatik tahsilat) uygulanmamakta olup, yenileme işlemleri Kullanıcı'nın talebi ve ödeme onayı ile gerçekleştirilir.
+
+## 8. Hizmetin Askıya Alınması ve Fesih
+Mevzuata, kamu düzenine veya işbu sözleşme hükümlerine aykırı kullanım, üçüncü kişilerin haklarının ihlali veya sistem güvenliğini tehdit eden girişimlerin tespiti halinde Hizmet Sağlayıcı hizmeti tek taraflı askıya alabilir veya sözleşmeyi feshedebilir.
+
+## 9. Kullanıcı Tarafından Girilen Verilerin Mülkiyeti
+Kullanıcı tarafından sisteme girilen cari, fatura, stok ve muhasebe kayıtlarının mülkiyeti Kullanıcı'ya aittir. Hizmet Sağlayıcı bu verileri yalnızca sözleşme kapsamındaki hizmetin ifası ve mevzuat gereksinimleri çerçevesinde işler.
+
+## 10. Kişisel Verilerin Korunması (KVKK)
+Taraflar, 6698 sayılı Kişisel Verilerin Korunması Kanunu'na tam uyum sağlayacağını kabul eder. Kişisel ve ticari veriler yüksek güvenlikli şifreleme ve sunucu standartlarında korunur.
+
+## 11. Fikri Mülkiyet Hakları
+Yazılımın tüm kod, tasarım, algoritma, görsel ve marka hakları münhasıran Hizmet Sağlayıcı'ya aittir. Tersine mühendislik yapılması, kaynak kodların kopyalanması veya üçüncü kişilere satılması kesinlikle yasaktır.
+
+## 12. Yetkili Mahkeme ve Uygulanacak Hukuk
+İşbu sözleşmeye Türkiye Cumhuriyeti hukuku uygulanır. Sözleşmenin uygulanmasından doğabilecek uyuşmazlıklarda Hizmet Sağlayıcı'nın yerleşim yeri mahkemeleri ve icra müdürlükleri yetkilidir.
+
+## 13. Yürürlük
+İşbu sözleşme, Kullanıcı'nın kayıt sırasında elektronik onay kutusunu işaretlemesiyle birlikte yürürlüğe girer.`,
+  },
+  kvkk_notice: {
+    id: "default-kvkk-notice",
+    docType: "kvkk_notice",
+    version: "v1.0",
+    title: "KVKK AYDINLATMA METNİ",
+    publishedAt: new Date().toISOString(),
+    requiresReacceptance: false,
+    content: `## 1. Veri Sorumlusu
+6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca veri sorumlusu: [ŞİRKET UNVANI], Adres: [ADRES], Vergi No: [VERGİ NUMARASI], E-posta: [E-POSTA], Telefon: [TELEFON].
+
+## 2. İşlenen Kişisel Veriler
+Kimlik ve iletişim verileri (ad-soyad/unvan, vergi no/TCKN, e-posta, telefon, adres), müşteri işlem verileri (fatura, cari ve ürün kayıtları), işlem güvenliği verileri (giriş kayıtları, cihaz/tarayıcı bilgisi), abonelik ve lisans işlem verileri.
+
+## 3. Kişisel Verilerin İşlenme Amaçları
+Üyelik hesabının oluşturulması ve doğrulanması, firma profilinin tanımlanması, yazılım hizmetinin sunulması, e-fatura/e-arşiv süreçlerinin yürütülmesi, abonelik ve faturalandırma işlemleri, bilgi güvenliğinin sağlanması, mevzuattan doğan yasal yükümlülüklerin yerine getirilmesi.
+
+## 4. İşleme Hukuki Sebepleri
+Sözleşmenin kurulması veya ifası için gerekli olması, veri sorumlusunun hukuki yükümlülüğünü yerine getirmesi, bir hakkın tesisi veya korunması ve veri sorumlusunun meşru menfaati (KVKK m.5).
+
+## 5. Kişisel Verilerin Aktarılması
+Veriler; mevzuattan doğan yükümlülükler kapsamında yetkili kamu kurum ve kuruluşlarına (GİB vb.), hizmetin sunulması için gerekli olduğu ölçüde barındırma, altyapı ve entegrasyon hizmeti sağlayıcılarına aktarılabilir.
+
+## 6. Saklama Süresi ve Güvenlik
+Kişisel veriler, yasal saklama süreleri boyunca şifrelenmiş güvenli veritabanlarında saklanır; sürenin sonunda mevzuata uygun şekilde silinir, yok edilir veya anonim hale getirilir.
+
+## 7. İlgili Kişinin Hakları
+KVKK m.11 uyarınca; verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, düzeltilmesini/silinmesini isteme ve mevzuatın tanıdığı tüm hakları [E-POSTA] adresinden talep edebilirsiniz.`,
+  },
+};
+
 /** Public: latest published version of a legal document. */
 export const getActiveLegalDocument = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => docTypeSchema.parse(data))
   .handler(async ({ data }): Promise<LegalDocument | null> => {
-    const { data: rows, error } = await publicClient()
-      .from("legal_documents")
-      .select("id, doc_type, version, title, content, published_at, requires_reacceptance")
-      .eq("doc_type", data.docType)
-      .eq("is_published", true)
-      .order("published_at", { ascending: false })
-      .limit(1);
+    try {
+      const { data: rows, error } = await publicClient()
+        .from("legal_documents")
+        .select("id, doc_type, version, title, content, published_at, requires_reacceptance")
+        .eq("doc_type", data.docType)
+        .eq("is_published", true)
+        .order("published_at", { ascending: false })
+        .limit(1);
 
-    if (error) throw new Error(error.message);
-    const row = rows?.[0];
-    if (!row) return null;
-    return {
-      id: row.id,
-      docType: row.doc_type as LegalDocType,
-      version: row.version,
-      title: row.title,
-      content: row.content,
-      publishedAt: row.published_at,
-      requiresReacceptance: row.requires_reacceptance,
-    };
+      if (error) {
+        console.warn("Legal document read error, falling back to static version:", error.message);
+        return FALLBACK_DOCUMENTS[data.docType] ?? null;
+      }
+      const row = rows?.[0];
+      if (!row) return FALLBACK_DOCUMENTS[data.docType] ?? null;
+      return {
+        id: row.id,
+        docType: row.doc_type as LegalDocType,
+        version: row.version,
+        title: row.title,
+        content: row.content,
+        publishedAt: row.published_at,
+        requiresReacceptance: row.requires_reacceptance,
+      };
+    } catch {
+      return FALLBACK_DOCUMENTS[data.docType] ?? null;
+    }
   });
 
 /** Public: current versions of both documents, used by the signup form. */
 export const getCurrentLegalVersions = createServerFn({ method: "GET" }).handler(async () => {
-  const { data, error } = await publicClient()
-    .from("legal_documents")
-    .select("doc_type, version, published_at")
-    .eq("is_published", true)
-    .order("published_at", { ascending: false });
+  try {
+    const { data, error } = await publicClient()
+      .from("legal_documents")
+      .select("doc_type, version, published_at")
+      .eq("is_published", true)
+      .order("published_at", { ascending: false });
 
-  if (error) throw new Error(error.message);
-  const pick = (t: LegalDocType) => data?.find((d) => d.doc_type === t)?.version ?? "v1.0";
-  return { membership_terms: pick("membership_terms"), kvkk_notice: pick("kvkk_notice") };
+    if (error) throw new Error(error.message);
+    const pick = (t: LegalDocType) => data?.find((d) => d.doc_type === t)?.version ?? (t === "membership_terms" ? "v1.1" : "v1.0");
+    return { membership_terms: pick("membership_terms"), kvkk_notice: pick("kvkk_notice") };
+  } catch {
+    return { membership_terms: "v1.1", kvkk_notice: "v1.0" };
+  }
 });
 
 /**
