@@ -420,12 +420,14 @@ export function generateEttn() {
 }
 
 /**
- * Müşteriye özel veya özel seri ön eki ile fatura numarası üretimi (ör. GIB2026000000001, ABC2026000000001)
+ * Müşteriye özel seri ön eki ile fatura numarası üretimi (ör. EAR2026000000001, ABC2026000000001)
+ * Not: GİB öneki sadece Gelir İdaresi Portalına aittir, entegratör/özel programlarda firmaya özel veya EAR kullanılır.
  */
-export function generateInvoiceNumber(count: number, prefix = "GIB") {
+export function generateInvoiceNumber(count: number, prefix = "EAR") {
   const year = new Date().getFullYear();
-  const cleanPrefix = (prefix || "GIB").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-  const safePrefix = (cleanPrefix.length >= 3 ? cleanPrefix.slice(0, 3) : cleanPrefix.padEnd(3, "X"));
+  let cleanPrefix = (prefix || "EAR").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  if (cleanPrefix === "GIB") cleanPrefix = "EAR";
+  const safePrefix = (cleanPrefix.length >= 3 ? cleanPrefix.slice(0, 3) : cleanPrefix.padEnd(3, "E"));
   return `${safePrefix}${year}${String(Math.max(1, count + 1)).padStart(9, "0")}`;
 }
 
