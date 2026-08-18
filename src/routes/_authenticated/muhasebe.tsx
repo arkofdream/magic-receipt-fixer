@@ -110,104 +110,9 @@ type BankMovement = {
   description: string;
 };
 
-const INITIAL_BANKS: BankAccount[] = [
-  {
-    id: "bank-1",
-    bank_name: "Kuveyt Türk Katılım Bankası",
-    account_name: "Ticari TL Hesabı",
-    iban: "TR12 0020 5000 0012 3456 7890 01",
-    currency: "TRY",
-    balance: 45250.0,
-  },
-  {
-    id: "bank-2",
-    bank_name: "Akbank T.A.Ş.",
-    account_name: "Şirket Ana Vadesiz",
-    iban: "TR54 0004 6000 0088 1234 5678 01",
-    currency: "TRY",
-    balance: 82100.0,
-  },
-  {
-    id: "bank-3",
-    bank_name: "Garanti BBVA",
-    account_name: "POS & Ticari Hesap",
-    iban: "TR88 0006 2000 0044 9876 5432 01",
-    currency: "TRY",
-    balance: 28400.0,
-  },
-];
-
-const INITIAL_JOURNAL: JournalEntry[] = [
-  {
-    id: "j-1",
-    entry_number: "YEV-2026-001",
-    entry_date: "2026-08-01",
-    voucher_type: "TAHSIL",
-    description: "Kasa nakit perakende tahsilat kaydı",
-    debit_account: "100",
-    credit_account: "600",
-    amount: 14500,
-  },
-  {
-    id: "j-2",
-    entry_number: "YEV-2026-002",
-    entry_date: "2026-08-05",
-    voucher_type: "MAHSUP",
-    description: "Satış faturası ve KDV tahakkuku",
-    debit_account: "120",
-    credit_account: "391",
-    amount: 3200,
-  },
-  {
-    id: "j-3",
-    entry_number: "YEV-2026-003",
-    entry_date: "2026-08-10",
-    voucher_type: "TEDIYE",
-    description: "Kira ve ofis gider ödemesi",
-    debit_account: "770",
-    credit_account: "102",
-    amount: 8500,
-  },
-];
-
-const INITIAL_BANK_MOVEMENTS: BankMovement[] = [
-  {
-    id: "bm-1",
-    bank_id: "bank-1",
-    date: "2026-08-15",
-    movement_type: "GELEN_HAVALE",
-    amount: 18500,
-    direction: "IN",
-    description: "Cari Müşteri Fatura Ödemesi",
-  },
-  {
-    id: "bm-2",
-    bank_id: "bank-3",
-    date: "2026-08-14",
-    movement_type: "BLOKE_COZUMU",
-    amount: 14200,
-    direction: "IN",
-    description: "Garanti BBVA POS 30 Günlük Valör Bloke Çözümü",
-  },
-  {
-    id: "bm-3",
-    bank_id: "bank-2",
-    date: "2026-08-12",
-    movement_type: "EFT",
-    amount: 6500,
-    direction: "OUT",
-    description: "Tedarikçi Mal Alımı EFT Transferi",
-  },
-  {
-    id: "bm-4",
-    bank_id: "bank-2",
-    date: "2026-08-12",
-    movement_type: "MASRAF",
-    amount: 45,
-    direction: "OUT",
-    description: "EFT İşlem Ücreti ve BSMV",
-  },
-];
+const INITIAL_BANKS: BankAccount[] = [];
+const INITIAL_JOURNAL: JournalEntry[] = [];
+const INITIAL_BANK_MOVEMENTS: BankMovement[] = [];
 
 function AccountingPage() {
   const queryClient = useQueryClient();
@@ -795,35 +700,41 @@ function AccountingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {journal.map((j) => (
-                      <tr key={j.id} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
-                        <td className="py-3 pr-4 font-mono font-semibold text-xs">{j.entry_number}</td>
-                        <td className="py-3 pr-4 whitespace-nowrap">{formatDate(j.entry_date)}</td>
-                        <td className="py-3 pr-4">
-                          <Badge
-                            variant={
-                              j.voucher_type === "TAHSIL"
-                                ? "default"
-                                : j.voucher_type === "TEDIYE"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                          >
-                            {j.voucher_type} FİŞİ
-                          </Badge>
+                    {journal.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-muted-foreground text-xs">
+                          Henüz yevmiye fişi kaydı bulunmuyor. "Yeni Fiş Kaydı" butonuyla ekleyebilirsiniz.
                         </td>
-                        <td className="py-3 pr-4 font-mono text-xs">
-                          {j.debit_account} - {STANDARD_ACCOUNTS.find((a) => a.code === j.debit_account)?.name}
-                        </td>
-                        <td className="py-3 pr-4 font-mono text-xs">
-                          {j.credit_account} - {STANDARD_ACCOUNTS.find((a) => a.code === j.credit_account)?.name}
-                        </td>
-                        <td className="py-3 pr-4 text-right font-bold font-mono text-primary">
-                          {formatMoney(j.amount)}
-                        </td>
-                        <td className="py-3 text-xs text-muted-foreground">{j.description}</td>
                       </tr>
-                    ))}
+                    ) : (
+                      journal.map((j) => (
+                        <tr key={j.id} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
+                          <td className="py-3 pr-4 font-mono font-semibold text-xs">{j.entry_number}</td>
+                          <td className="py-3 pr-4 whitespace-nowrap">{formatDate(j.entry_date)}</td>
+                          <td className="py-3 pr-4">
+                            <Badge
+                              variant={
+                                j.voucher_type === "TAHSIL"
+                                  ? "default"
+                                  : j.voucher_type === "TEDIYE"
+                                    ? "destructive"
+                                    : "secondary"
+                              }
+                            >
+                              {j.voucher_type === "TAHSIL"
+                                ? "Tahsil Fişi"
+                                : j.voucher_type === "TEDIYE"
+                                  ? "Tediye Fişi"
+                                  : "Mahsup Fişi"}
+                            </Badge>
+                          </td>
+                          <td className="py-3 pr-4 font-mono text-xs text-primary font-semibold">{j.debit_account}</td>
+                          <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{j.credit_account}</td>
+                          <td className="py-3 pr-4 text-right font-mono font-bold">{formatMoney(j.amount)}</td>
+                          <td className="py-3 text-xs text-muted-foreground">{j.description}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1173,26 +1084,36 @@ function AccountingPage() {
           </div>
 
           {/* BANKA KARTLARI */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            {banks.map((b) => (
-              <Card key={b.id} className="border-l-4 border-l-primary">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-semibold">{b.bank_name}</CardTitle>
-                    <Building2 className="size-4 text-primary" />
-                  </div>
-                  <CardDescription className="text-xs">{b.account_name}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="font-mono text-xs text-muted-foreground">{b.iban}</div>
-                  <div className="pt-2 border-t border-border flex justify-between items-baseline">
-                    <span className="text-xs text-muted-foreground">Kullanılabilir Bakiye:</span>
-                    <span className="text-lg font-bold text-primary font-mono">{formatMoney(b.balance, b.currency)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {banks.length === 0 ? (
+            <Card className="border-dashed p-8 text-center text-muted-foreground">
+              <Building2 className="mx-auto size-8 text-muted-foreground/60 mb-2" />
+              <p className="text-sm font-medium">Tanımlı Banka Hesabı Bulunmuyor</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Kuveyt Türk, Akbank, Garanti vb. ticari banka hesaplarınızı "Yeni Banka Hesabı Ekle" butonuyla tanımlayabilirsiniz.
+              </p>
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {banks.map((b) => (
+                <Card key={b.id} className="border-l-4 border-l-primary">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold">{b.bank_name}</CardTitle>
+                      <Building2 className="size-4 text-primary" />
+                    </div>
+                    <CardDescription className="text-xs">{b.account_name}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="font-mono text-xs text-muted-foreground">{b.iban}</div>
+                    <div className="pt-2 border-t border-border flex justify-between items-baseline">
+                      <span className="text-xs text-muted-foreground">Kullanılabilir Bakiye:</span>
+                      <span className="text-lg font-bold text-primary font-mono">{formatMoney(b.balance, b.currency)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {/* BANKA HAREKETLERİ LİSTESİ */}
           <Card>
@@ -1213,40 +1134,48 @@ function AccountingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {bankMovements.map((bm) => {
-                      const bank = banks.find((b) => b.id === bm.bank_id);
-                      return (
-                        <tr key={bm.id} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
-                          <td className="py-3 pr-4 whitespace-nowrap">{formatDate(bm.date)}</td>
-                          <td className="py-3 pr-4 font-medium">{bank ? `${bank.bank_name}` : "Banka"}</td>
-                          <td className="py-3 pr-4">
-                            <Badge
-                              variant={
-                                bm.movement_type === "BLOKE_COZUMU" || bm.movement_type === "GELEN_HAVALE"
-                                  ? "default"
-                                  : bm.movement_type === "MASRAF"
-                                    ? "destructive"
-                                    : "secondary"
-                              }
-                            >
-                              {bm.movement_type === "BLOKE_COZUMU"
-                                ? "POS Bloke Çözümü"
-                                : bm.movement_type === "GELEN_HAVALE"
-                                  ? "Gelen Havale"
-                                  : bm.movement_type === "HAVALE"
-                                    ? "Giden Havale"
-                                    : bm.movement_type === "EFT"
-                                      ? "Giden EFT"
-                                      : "Banka Masrafı"}
-                            </Badge>
-                          </td>
-                          <td className="py-3 pr-4 text-xs text-muted-foreground">{bm.description}</td>
-                          <td className={`py-3 text-right font-mono font-bold ${bm.direction === "IN" ? "text-emerald-600" : "text-destructive"}`}>
-                            {bm.direction === "IN" ? "+" : "-"} {formatMoney(bm.amount)}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {bankMovements.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground text-xs">
+                          Henüz banka hareketi (havale, EFT, masraf) kaydı bulunmuyor.
+                        </td>
+                      </tr>
+                    ) : (
+                      bankMovements.map((bm) => {
+                        const bank = banks.find((b) => b.id === bm.bank_id);
+                        return (
+                          <tr key={bm.id} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
+                            <td className="py-3 pr-4 whitespace-nowrap">{formatDate(bm.date)}</td>
+                            <td className="py-3 pr-4 font-medium">{bank ? `${bank.bank_name}` : "Banka"}</td>
+                            <td className="py-3 pr-4">
+                              <Badge
+                                variant={
+                                  bm.movement_type === "BLOKE_COZUMU" || bm.movement_type === "GELEN_HAVALE"
+                                    ? "default"
+                                    : bm.movement_type === "MASRAF"
+                                      ? "destructive"
+                                      : "secondary"
+                                }
+                              >
+                                {bm.movement_type === "BLOKE_COZUMU"
+                                  ? "POS Bloke Çözümü"
+                                  : bm.movement_type === "GELEN_HAVALE"
+                                    ? "Gelen Havale"
+                                    : bm.movement_type === "HAVALE"
+                                      ? "Giden Havale"
+                                      : bm.movement_type === "EFT"
+                                        ? "Giden EFT"
+                                        : "Banka Masrafı"}
+                              </Badge>
+                            </td>
+                            <td className="py-3 pr-4 text-xs text-muted-foreground">{bm.description}</td>
+                            <td className={`py-3 text-right font-mono font-bold ${bm.direction === "IN" ? "text-emerald-600" : "text-destructive"}`}>
+                              {bm.direction === "IN" ? "+" : "-"} {formatMoney(bm.amount)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
