@@ -297,8 +297,8 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
       discRate > 0 ? `%${discRate}` : "-",
       discRate > 0 ? formatMoney(discAmount, currency) : "0,00",
       `%${Number(it.vatRate)}`,
-      formatMoney(t.vatAmount, currency),
-      formatMoney(t.lineTotal, currency),
+      formatMoney(t.vat, currency),
+      formatMoney(t.total, currency),
     ];
   });
 
@@ -358,8 +358,8 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
     const t = itemTotals(it);
     const r = Number(it.vatRate) || 0;
     const cur = vatBreakdownMap.get(r) || { taxable: 0, vat: 0 };
-    cur.taxable += t.taxableAmount;
-    cur.vat += t.vatAmount;
+    cur.taxable += t.taxable;
+    cur.vat += t.vat;
     vatBreakdownMap.set(r, cur);
   }
 
