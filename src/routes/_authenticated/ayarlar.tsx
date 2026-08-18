@@ -34,7 +34,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   getConnectionSettings,
-  saveGibSettings,
   saveIntegratorSettings,
   setActiveProvider,
   testConnection,
@@ -45,14 +44,11 @@ import { getMyCompanyProfile, updateMyCompanyProfile } from "@/lib/profile.funct
 export const Route = createFileRoute("/_authenticated/ayarlar")({
   head: () => ({
     meta: [
-      { title: "Ayarlar ve Entegrasyon | e-Fatura Portalı" },
+      { title: "Ayarlar & e-Fatura Bağlantıları | e-Fatura Portalı" },
       {
         name: "description",
-        content:
-          "Firma profil bilgilerinizi, GİB ve özel entegratör e-fatura bağlantı ayarlarınızı yönetin.",
+        content: "Firma bilgileri, özel entegratör ve Banka API anahtarı ayarları.",
       },
-      { property: "og:title", content: "Ayarlar ve Entegrasyon | e-Fatura Portalı" },
-      { property: "og:description", content: "Firma ve e-Fatura entegrasyon ayarları." },
     ],
   }),
   component: SettingsPage,
@@ -60,27 +56,30 @@ export const Route = createFileRoute("/_authenticated/ayarlar")({
 
 const INTEGRATORS = [
   "Uyumsoft",
+  "EDM Bilişim",
   "Foriba (Sovos)",
+  "Logo İşbaşı / e-Logo",
   "QNB e-Finans",
-  "Logo (e-Logo)",
-  "Nes Bilgi",
+  "KolayBi",
   "Digital Planet",
   "İzibiz",
+  "Nes Bilgi",
+  "Trendyol / Pazaryeri Entegrasyonu",
   "Diğer (Özel Entegratör)",
 ];
 
 function StatusBadge({ status }: { status: ConnectionSettingsView["gib"]["status"] }) {
   if (status === "CONNECTED") {
     return (
-      <Badge className="gap-1 bg-emerald-600 text-emerald-50 hover:bg-emerald-600">
-        <CheckCircle2 className="size-3.5" /> Bağlı
+      <Badge variant="default" className="gap-1 bg-emerald-600 hover:bg-emerald-700">
+        <CheckCircle2 className="size-3.5" /> Bağlantı Başarılı
       </Badge>
     );
   }
   if (status === "FAILED") {
     return (
       <Badge variant="destructive" className="gap-1">
-        <XCircle className="size-3.5" /> Bağlantı başarısız
+        <XCircle className="size-3.5" /> Bağlantı Hatası
       </Badge>
     );
   }
@@ -94,7 +93,6 @@ function StatusBadge({ status }: { status: ConnectionSettingsView["gib"]["status
 function SettingsPage() {
   const queryClient = useQueryClient();
   const fetchSettings = useServerFn(getConnectionSettings);
-  const saveGib = useServerFn(saveGibSettings);
   const saveIntegrator = useServerFn(saveIntegratorSettings);
   const chooseProvider = useServerFn(setActiveProvider);
   const runTest = useServerFn(testConnection);
@@ -118,13 +116,6 @@ function SettingsPage() {
     district: "",
     phone: "",
     email: "",
-  });
-
-  const [gibForm, setGibForm] = useState({
-    enabled: false,
-    environment: "TEST" as "TEST" | "PROD",
-    username: "",
-    password: "",
   });
 
   const [intForm, setIntForm] = useState({
@@ -152,12 +143,6 @@ function SettingsPage() {
 
   useEffect(() => {
     if (settings) {
-      setGibForm({
-        enabled: settings.gib.enabled,
-        environment: (settings.gib.environment === "PROD" ? "PROD" : "TEST") as "TEST" | "PROD",
-        username: settings.gib.username ?? "",
-        password: "",
-      });
       setIntForm({
         enabled: settings.integrator.enabled,
         provider: settings.integrator.provider ?? "Uyumsoft",
@@ -180,23 +165,6 @@ function SettingsPage() {
       toast.success("Firma bilgileri kaydedildi.");
     },
     onError: (error: Error) => toast.error(`Kayıt başarısız: ${error.message}`),
-  });
-
-  const saveGibMutation = useMutation({
-    mutationFn: () =>
-      saveGib({
-        data: {
-          enabled: gibForm.enabled,
-          environment: gibForm.environment,
-          username: gibForm.username,
-          password: gibForm.password || undefined,
-        },
-      }),
-    onSuccess: (next) => {
-      applySettings(next);
-      toast.success("GİB bağlantı bilgileri kaydedildi.");
-    },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   const saveIntMutation = useMutation({
@@ -371,9 +339,8 @@ function SettingsPage() {
               <CardContent className="flex flex-wrap gap-3">
                 {(
                   [
-                    { id: "GIB", label: "GİB Portalı (Doğrudan)" },
-                    { id: "INTEGRATOR", label: "Özel Entegratör" },
-                    { id: "NONE", label: "Entegrasyon Kullanma (Yalnızca Taslak / PDF)" },
+                    { id: "INTEGRATOR", label: "Özel Entegratör (Uyumsoft, EDM, Foriba, Logo vb.)" },
+                    { id: "NONE", label: "Entegrasyon Kullanma (Yalnızca Taslak / Resmi PDF)" },
                   ] as const
                 ).map((option) => (
                   <Button
@@ -385,107 +352,6 @@ function SettingsPage() {
                     {option.label}
                   </Button>
                 ))}
-              </CardContent>
-            </Card>
-
-            {/* GİB INTEGRATION CARD */}
-            <Card>
-              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-lg">GİB Portal Entegrasyonu</CardTitle>
-                  <CardDescription>
-                    Gelir İdaresi Başkanlığı e-Arşiv / e-Fatura portalı bağlantısı.
-                  </CardDescription>
-                </div>
-                <StatusBadge status={settings?.gib.status ?? "NOT_CONFIGURED"} />
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="flex items-center justify-between rounded-md border border-border p-3">
-                  <div>
-                    <p className="text-sm font-medium">GİB bağlantısını etkinleştir</p>
-                    <p className="text-xs text-muted-foreground">
-                      Aktif edildiğinde GİB portal kimlik bilgileri kullanılır.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={gibForm.enabled}
-                    onCheckedChange={(checked) => setGibForm((f) => ({ ...f, enabled: checked }))}
-                  />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label>Çalışma Ortamı</Label>
-                    <Select
-                      value={gibForm.environment}
-                      onValueChange={(value: "TEST" | "PROD") =>
-                        setGibForm((f) => ({ ...f, environment: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="TEST">Test Ortamı (GİB Test Portalı)</SelectItem>
-                        <SelectItem value="PROD">Canlı Ortam (GİB Canlı Portalı)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>GİB Kullanıcı Kodu / VKN</Label>
-                    <Input
-                      value={gibForm.username}
-                      onChange={(e) => setGibForm((f) => ({ ...f, username: e.target.value }))}
-                      placeholder="Örn: 1234567890"
-                    />
-                  </div>
-                  <div className="grid gap-2 md:col-span-2">
-                    <Label>GİB Portal Şifresi</Label>
-                    <Input
-                      type="password"
-                      value={gibForm.password}
-                      onChange={(e) => setGibForm((f) => ({ ...f, password: e.target.value }))}
-                      placeholder={
-                        settings?.gib.hasPassword
-                          ? "•••••••• (kayıtlı şifre korunuyor)"
-                          : "Şifrenizi girin"
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Şifreniz sunucu tarafında AES-256-GCM ile şifrelenir ve asla tarayıcıya
-                      gönderilmez.
-                    </p>
-                  </div>
-                </div>
-
-                {settings?.gib.lastError ? (
-                  <p className="text-xs text-destructive">
-                    Son test hatası: {settings.gib.lastError}
-                  </p>
-                ) : null}
-                {settings?.gib.lastTestedAt ? (
-                  <p className="text-xs text-muted-foreground">
-                    Son test tarihi: {new Date(settings.gib.lastTestedAt).toLocaleString("tr-TR")}
-                  </p>
-                ) : null}
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button
-                    onClick={() => saveGibMutation.mutate()}
-                    disabled={saveGibMutation.isPending}
-                  >
-                    {saveGibMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-                    GİB Ayarlarını Kaydet
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => testMutation.mutate("GIB")}
-                    disabled={testMutation.isPending}
-                  >
-                    {testMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-                    Bağlantıyı Test Et
-                  </Button>
-                </div>
               </CardContent>
             </Card>
 

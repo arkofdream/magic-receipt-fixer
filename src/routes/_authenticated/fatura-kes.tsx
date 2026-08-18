@@ -81,7 +81,7 @@ function NewInvoicePage() {
   const [customer, setCustomer] = useState<InvoiceCustomer>(emptyCustomer);
   const [customerId, setCustomerId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
-  const [serialPrefix, setSerialPrefix] = useState("GIB");
+  const [serialPrefix, setSerialPrefix] = useState("EAR");
   const [items, setItems] = useState<InvoiceItem[]>([newItem()]);
   const [selectedTevkifatCode, setSelectedTevkifatCode] = useState<string>("");
   const [selectedExemptionCode, setSelectedExemptionCode] = useState<string>("301");
@@ -534,7 +534,7 @@ function NewInvoicePage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="prefix">Fatura Seri / Ön Ek (Müşteriye Özel)</Label>
+                  <Label htmlFor="prefix">Fatura Seri / Ön Ek (Müşteriye/Firmaya Özel)</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="prefix"
@@ -542,10 +542,10 @@ function NewInvoicePage() {
                       maxLength={3}
                       value={serialPrefix}
                       onChange={(e) => setSerialPrefix(e.target.value.toUpperCase())}
-                      placeholder="GIB"
+                      placeholder="EAR"
                     />
                     <span className="text-xs text-muted-foreground font-mono">
-                      Örn No: {generateInvoiceNumber(invoiceCount, serialPrefix || "GIB")}
+                      Örn No: {generateInvoiceNumber(invoiceCount, serialPrefix || "EAR")}
                     </span>
                   </div>
                 </div>
