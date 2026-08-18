@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Download, FileDown, Trash2, Ban, CheckCircle2, DollarSign } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -9,22 +9,35 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDate, formatMoney, INVOICE_STATUSES, roundMoney } from "@/lib/invoice";
+import {
+  formatDate,
+  formatMoney,
+  INVOICE_STATUSES,
+  INVOICE_TYPES,
+  roundMoney,
+} from "@/lib/invoice";
 import { downloadInvoicesPdf, type InvoiceRecord, type SellerInfo } from "@/lib/pdf/invoice-pdf";
 
 export const Route = createFileRoute("/_authenticated/faturalar")({
   head: () => ({
     meta: [
-      { title: "Fatura Arşivi | e-Fatura Portalı" },
+      { title: "Fatura Arşivi & Gelen/Giden Faturalar | e-Fatura Portalı" },
       {
         name: "description",
-        content: "Kesilen tüm e-arşiv ve e-fatura kayıtlarınızı arayın ve durumlarını takip edin.",
+        content: "Kesilen tüm e-arşiv, gelen faturalar ve e-fatura kayıtlarınızı arayın, filtreleyin ve düzenleyin.",
       },
-      { property: "og:title", content: "Fatura Arşivi | e-Fatura Portalı" },
-      { property: "og:description", content: "Tüm faturalarınız tek listede." },
+      { property: "og:title", content: "Fatura Arşivi & Gelen/Giden Faturalar | e-Fatura Portalı" },
+      { property: "og:description", content: "Tüm faturalarınız ve filtreleme seçenekleri." },
     ],
   }),
   component: InvoicesPage,
@@ -39,16 +52,38 @@ type InvoiceRow = {
   status: string;
   currency: string;
   grand_total: number;
+  total_vat: number;
   customer_id: string | null;
   warehouse_id: string | null;
   posted: boolean;
   items: unknown;
+  customer: unknown;
+  ettn: string;
+};
+
+const TYPE_BADGE_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  SATIS: { label: "Satış", variant: "default" },
+  E_ARSIV: { label: "e-Arşiv", variant: "secondary" },
+  GELEN_FATURA: { label: "Gelen Fatura", variant: "outline" },
+  GELEN_E_ARSIV: { label: "Gelen e-Arşiv", variant: "outline" },
+  IADE: { label: "İade", variant: "destructive" },
+  TEVKIFAT: { label: "Tevkifatlı", variant: "default" },
+  ISTISNA: { label: "İstisna (%0)", variant: "secondary" },
 };
 
 function InvoicesPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState("ALL");
-  const [search, setSearch] = useState("");
+
+  // Filtreler
+  const [activeTab, setActiveTab] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [invoiceNoSearch, setInvoiceNoSearch] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const [selected, setSelected] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
 
@@ -85,11 +120,14 @@ function InvoicesPage() {
     },
   });
 
-  const paidByInvoice = new Map<string, number>();
-  for (const p of payments) {
-    if (!p.source_id) continue;
-    paidByInvoice.set(p.source_id, (paidByInvoice.get(p.source_id) ?? 0) + Number(p.amount));
-  }
+  const paidByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of payments) {
+      if (!p.source_id) continue;
+      map.set(p.source_id, (map.get(p.source_id) ?? 0) + Number(p.amount));
+    }
+    return map;
+  }, [payments]);
 
   const sign = useMutation({
     mutationFn: async (inv: InvoiceRow) => {
@@ -144,7 +182,7 @@ function InvoicesPage() {
       }
     },
     onSuccess: () => {
-      toast.success("Fatura GİB'e iletildi; cari ve stok hareketleri işlendi.");
+      toast.success("Fatura onaylandı; cari ve stok hareketleri işlendi.");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
@@ -192,7 +230,6 @@ function InvoicesPage() {
       if (error) throw error;
 
       if (inv.posted) {
-        // İlgili otomatik hareketleri temizle
         await supabase.from("account_transactions").delete().eq("source_id", inv.id);
         await supabase.from("stock_movements").delete().eq("source_id", inv.id);
       }
@@ -221,17 +258,57 @@ function InvoicesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const filtered = invoices.filter((inv) => {
-    if (status !== "ALL" && inv.status !== status) return false;
-    if (!search) return true;
-    const customer = inv.customer as { title?: string; vknTckn?: string } | null;
-    const q = search.toLowerCase();
-    return (
-      inv.invoice_number.toLowerCase().includes(q) ||
-      (customer?.title ?? "").toLowerCase().includes(q) ||
-      (customer?.vknTckn ?? "").includes(q)
-    );
-  });
+  // Filtreleme mantığı
+  const filtered = useMemo(() => {
+    return invoices.filter((inv) => {
+      // Tab filtre
+      if (activeTab === "OUTGOING" && (inv.type === "GELEN_FATURA" || inv.type === "GELEN_E_ARSIV"))
+        return false;
+      if (activeTab === "INCOMING" && inv.type !== "GELEN_FATURA" && inv.type !== "GELEN_E_ARSIV")
+        return false;
+      if (activeTab === "E_ARSIV" && inv.type !== "E_ARSIV" && inv.type !== "GELEN_E_ARSIV")
+        return false;
+      if (activeTab === "TEVKIFAT" && inv.type !== "TEVKIFAT") return false;
+      if (activeTab === "IADE" && inv.type !== "IADE") return false;
+
+      // Durum filtre
+      if (statusFilter !== "ALL" && inv.status !== statusFilter) return false;
+
+      // Fatura tipi filtre
+      if (typeFilter !== "ALL" && inv.type !== typeFilter) return false;
+
+      // Fatura No filtre
+      if (invoiceNoSearch) {
+        const q = invoiceNoSearch.toLowerCase();
+        if (!inv.invoice_number.toLowerCase().includes(q) && !inv.ettn.toLowerCase().includes(q))
+          return false;
+      }
+
+      // Müşteri / Cari filtre
+      if (customerSearch) {
+        const q = customerSearch.toLowerCase();
+        const customer = inv.customer as { title?: string; vknTckn?: string } | null;
+        const titleMatch = (customer?.title ?? "").toLowerCase().includes(q);
+        const vknMatch = (customer?.vknTckn ?? "").includes(q);
+        if (!titleMatch && !vknMatch) return false;
+      }
+
+      // Tarih filtre
+      if (startDate && inv.invoice_date < startDate) return false;
+      if (endDate && inv.invoice_date > endDate) return false;
+
+      return true;
+    });
+  }, [
+    invoices,
+    activeTab,
+    statusFilter,
+    typeFilter,
+    invoiceNoSearch,
+    customerSearch,
+    startDate,
+    endDate,
+  ]);
 
   const seller: SellerInfo = {
     companyTitle: profile?.company_title || "",
@@ -255,7 +332,7 @@ function InvoicesPage() {
     setDownloading(true);
     try {
       await downloadInvoicesPdf(records, seller);
-      toast.success(`${records.length} fatura tek PDF olarak indirildi.`);
+      toast.success(`${records.length} fatura resmi formatta tek PDF olarak indirildi.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "PDF oluşturulamadı.");
     } finally {
@@ -270,7 +347,7 @@ function InvoicesPage() {
         seller,
         `fatura-${(inv as InvoiceRecord).invoice_number}.pdf`,
       );
-      toast.success("Fatura PDF olarak indirildi.");
+      toast.success("Resmi fatura PDF olarak indirildi.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "PDF indirilemedi.");
     }
@@ -279,7 +356,7 @@ function InvoicesPage() {
   return (
     <AppShell
       title="Fatura Arşivi"
-      subtitle="Kesilen tüm faturalarınız ve tahsilat takibi"
+      subtitle="Kesilen e-arşiv, e-fatura, gelen alış faturaları ve tahsilat takibi"
       actions={
         <div className="flex gap-2">
           <Button
@@ -292,214 +369,333 @@ function InvoicesPage() {
             {downloading ? "Hazırlanıyor…" : `Seçilenleri İndir (${selected.length})`}
           </Button>
           <Button asChild>
-            <Link to="/fatura-kes">Yeni Fatura</Link>
+            <Link to="/fatura-kes">
+              <Plus className="mr-1 size-4" /> Yeni Fatura
+            </Link>
           </Button>
         </div>
       }
     >
-      <Card>
-        <CardHeader className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-base">Faturalar ({filtered.length})</CardTitle>
-          <div className="flex flex-wrap items-center gap-3">
-            <Tabs value={status} onValueChange={setStatus}>
-              <TabsList>
-                <TabsTrigger value="ALL">Tümü</TabsTrigger>
-                <TabsTrigger value="TASLAK">Taslak</TabsTrigger>
-                <TabsTrigger value="ONAYLANDI">İletildi</TabsTrigger>
-                <TabsTrigger value="IPTAL">İptal</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Input
-              placeholder="Fatura no, unvan veya VKN ara…"
-              className="w-64"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Yükleniyor…</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Kayıt bulunamadı.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                    <th className="w-10 py-2 pr-2">
-                      <Checkbox
-                        checked={allSelected}
-                        onCheckedChange={(checked) =>
-                          setSelected(checked === true ? filtered.map((inv) => inv.id) : [])
-                        }
-                        aria-label="Tümünü seç"
-                      />
-                    </th>
-                    <th className="py-2 pr-4">Fatura No</th>
-                    <th className="py-2 pr-4">ETTN</th>
-                    <th className="py-2 pr-4">Alıcı</th>
-                    <th className="py-2 pr-4">Tarih</th>
-                    <th className="py-2 pr-4">KDV</th>
-                    <th className="py-2 pr-4">Toplam</th>
-                    <th className="py-2 pr-4">Durum</th>
-                    <th className="py-2 pr-4">Ödeme</th>
-                    <th className="py-2 text-right">İşlemler</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((inv) => {
-                    const customer = inv.customer as { title?: string; vknTckn?: string } | null;
-                    const s = INVOICE_STATUSES[inv.status] ?? {
-                      label: inv.status,
-                      tone: "draft" as const,
-                    };
-                    const row = inv as unknown as InvoiceRow;
-                    const paid = paidByInvoice.get(inv.id) ?? 0;
-                    const remaining = Math.max(Number(inv.grand_total) - paid, 0);
-                    const payLabel =
-                      paid <= 0 ? "Ödenmedi" : remaining < 0.005 ? "Ödendi" : "Kısmi";
+      <div className="space-y-4">
+        {/* Kategori Sekmeleri */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid grid-cols-3 sm:flex sm:flex-wrap h-auto p-1 gap-1">
+            <TabsTrigger value="ALL">Tüm Faturalar</TabsTrigger>
+            <TabsTrigger value="OUTGOING">Giden Faturalar</TabsTrigger>
+            <TabsTrigger value="E_ARSIV">E-Arşiv</TabsTrigger>
+            <TabsTrigger value="INCOMING">Gelen Faturalar (Alış)</TabsTrigger>
+            <TabsTrigger value="TEVKIFAT">Tevkifatlı</TabsTrigger>
+            <TabsTrigger value="IADE">İade</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-                    return (
-                      <tr
-                        key={inv.id}
-                        className="border-b border-border/60 hover:bg-muted/40 last:border-0"
-                      >
-                        <td className="py-3 pr-2">
-                          <Checkbox
-                            checked={selected.includes(inv.id)}
-                            onCheckedChange={(checked) =>
-                              setSelected((prev) =>
-                                checked === true
-                                  ? [...prev, inv.id]
-                                  : prev.filter((id) => id !== inv.id),
-                              )
-                            }
-                            aria-label={`${inv.invoice_number} seç`}
-                          />
-                        </td>
-                        <td className="py-3 pr-4 font-medium">{inv.invoice_number}</td>
-                        <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">
-                          {inv.ettn.slice(0, 8)}…
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className="font-medium">{customer?.title ?? "-"}</span>
-                          {customer?.vknTckn ? (
-                            <span className="block text-xs text-muted-foreground">
-                              {customer.vknTckn}
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="py-3 pr-4">{formatDate(inv.invoice_date)}</td>
-                        <td className="py-3 pr-4">
-                          {formatMoney(Number(inv.total_vat), inv.currency)}
-                        </td>
-                        <td className="py-3 pr-4 font-semibold">
-                          {formatMoney(Number(inv.grand_total), inv.currency)}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <Badge
-                            variant={
-                              s.tone === "cancel"
-                                ? "destructive"
-                                : s.tone === "sent"
-                                  ? "default"
-                                  : "secondary"
-                            }
-                          >
-                            {s.label}
-                          </Badge>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <Badge variant={payLabel === "Ödendi" ? "default" : "secondary"}>
-                            {payLabel}
-                          </Badge>
-                          {paid > 0 && remaining >= 0.005 ? (
-                            <span className="block text-xs text-muted-foreground">
-                              Kalan: {formatMoney(remaining, inv.currency)}
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              title="PDF İndir"
-                              onClick={() => downloadSingle(inv)}
+        {/* Detaylı Filtreleme Kartı */}
+        <Card>
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Filter className="size-4 text-primary" /> Fatura Filtreleme
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 pt-0">
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 items-end">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Fatura Tipi</label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tüm Tipler</SelectItem>
+                    {INVOICE_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Fatura No / ETTN</label>
+                <Input
+                  placeholder="Fatura No veya ETTN..."
+                  className="h-8 text-xs"
+                  value={invoiceNoSearch}
+                  onChange={(e) => setInvoiceNoSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Müşteri Kaydı / VKN</label>
+                <Input
+                  placeholder="Firma Unvanı veya VKN..."
+                  className="h-8 text-xs"
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Durum</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tüm Durumlar</SelectItem>
+                    <SelectItem value="TASLAK">Taslak</SelectItem>
+                    <SelectItem value="ONAYLANDI">İletildi / Onaylı</SelectItem>
+                    <SelectItem value="IPTAL">İptal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Başlangıç Tarihi</label>
+                <Input
+                  type="date"
+                  className="h-8 text-xs"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Bitiş Tarihi</label>
+                <Input
+                  type="date"
+                  className="h-8 text-xs"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Fatura Listesi */}
+        <Card>
+          <CardHeader className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div>
+              <CardTitle className="text-base">Faturalar ({filtered.length})</CardTitle>
+              <CardDescription>Resmi şekil şartlarına uygun çıktılar ve durum takibi</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground py-4">Yükleniyor…</p>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm space-y-2">
+                <FileText className="size-8 mx-auto text-muted-foreground/50" />
+                <p>Seçilen filtrelere uygun fatura bulunamadı.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                      <th className="w-10 py-2 pr-2">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={(checked) =>
+                            setSelected(checked === true ? filtered.map((inv) => inv.id) : [])
+                          }
+                          aria-label="Tümünü seç"
+                        />
+                      </th>
+                      <th className="py-2 pr-4">Fatura No</th>
+                      <th className="py-2 pr-4">Tip</th>
+                      <th className="py-2 pr-4">Alıcı / Müşteri</th>
+                      <th className="py-2 pr-4">Tarih</th>
+                      <th className="py-2 pr-4">KDV</th>
+                      <th className="py-2 pr-4">Genel Toplam</th>
+                      <th className="py-2 pr-4">Durum</th>
+                      <th className="py-2 pr-4">Ödeme</th>
+                      <th className="py-2 text-right">İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((inv) => {
+                      const customer = inv.customer as { title?: string; vknTckn?: string } | null;
+                      const s = INVOICE_STATUSES[inv.status] ?? {
+                        label: inv.status,
+                        tone: "draft" as const,
+                      };
+                      const typeBadge = TYPE_BADGE_MAP[inv.type] || {
+                        label: inv.type,
+                        variant: "outline" as const,
+                      };
+                      const row = inv as unknown as InvoiceRow;
+                      const paid = paidByInvoice.get(inv.id) ?? 0;
+                      const remaining = Math.max(Number(inv.grand_total) - paid, 0);
+                      const payLabel =
+                        paid <= 0 ? "Ödenmedi" : remaining < 0.005 ? "Ödendi" : "Kısmi";
+
+                      return (
+                        <tr
+                          key={inv.id}
+                          className="border-b border-border/60 hover:bg-muted/40 last:border-0"
+                        >
+                          <td className="py-3 pr-2">
+                            <Checkbox
+                              checked={selected.includes(inv.id)}
+                              onCheckedChange={(checked) =>
+                                setSelected((prev) =>
+                                  checked === true
+                                    ? [...prev, inv.id]
+                                    : prev.filter((id) => id !== inv.id),
+                                )
+                              }
+                              aria-label={`${inv.invoice_number} seç`}
+                            />
+                          </td>
+                          <td className="py-3 pr-4 font-medium font-mono text-xs">
+                            {inv.invoice_number}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <Badge variant={typeBadge.variant} className="text-xs">
+                              {typeBadge.label}
+                            </Badge>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span className="font-medium">{customer?.title ?? "-"}</span>
+                            {customer?.vknTckn ? (
+                              <span className="block text-xs text-muted-foreground">
+                                {customer.vknTckn}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="py-3 pr-4 whitespace-nowrap">{formatDate(inv.invoice_date)}</td>
+                          <td className="py-3 pr-4">
+                            {formatMoney(Number(inv.total_vat), inv.currency)}
+                          </td>
+                          <td className="py-3 pr-4 font-semibold whitespace-nowrap">
+                            {formatMoney(Number(inv.grand_total), inv.currency)}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <Badge
+                              variant={
+                                s.tone === "cancel"
+                                  ? "destructive"
+                                  : s.tone === "sent"
+                                    ? "default"
+                                    : "secondary"
+                              }
                             >
-                              <Download className="size-4" />
-                            </Button>
+                              {s.label}
+                            </Badge>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <Badge variant={payLabel === "Ödendi" ? "default" : "secondary"}>
+                              {payLabel}
+                            </Badge>
+                            {paid > 0 && remaining >= 0.005 ? (
+                              <span className="block text-xs text-muted-foreground">
+                                Kalan: {formatMoney(remaining, inv.currency)}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              {/* Düzenle Butonu (Kaydedilen Fatura Düzenlenebilsin) */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1 px-2 text-xs"
+                                title="Faturayı Düzenle"
+                                onClick={() =>
+                                  navigate({
+                                    to: "/fatura-kes",
+                                    search: { editId: inv.id },
+                                  })
+                                }
+                              >
+                                <Edit className="size-3.5" /> Düzenle
+                              </Button>
 
-                            {inv.status === "TASLAK" ? (
-                              <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-8"
+                                title="Resmi Şekil Şartlarına Uygun PDF İndir"
+                                onClick={() => downloadSingle(inv)}
+                              >
+                                <Download className="size-4" />
+                              </Button>
+
+                              {inv.status === "TASLAK" ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs"
+                                    onClick={() => sign.mutate(row)}
+                                    disabled={sign.isPending}
+                                  >
+                                    Onayla
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="size-8"
+                                    title="Taslağı Sil"
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          "Bu taslak faturayı silmek istediğinize emin misiniz?",
+                                        )
+                                      ) {
+                                        deleteDraft.mutate(inv.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="size-4 text-destructive" />
+                                  </Button>
+                                </>
+                              ) : null}
+
+                              {inv.status === "ONAYLANDI" && remaining >= 0.005 ? (
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  onClick={() => sign.mutate(row)}
-                                  disabled={sign.isPending}
-                                >
-                                  GİB'e Gönder
-                                </Button>
-                                <Button
-                                  size="icon"
                                   variant="ghost"
-                                  title="Taslağı Sil"
+                                  className="h-8 text-xs"
+                                  disabled={collect.isPending}
+                                  onClick={() => collect.mutate({ inv: row, amount: remaining })}
+                                >
+                                  Tahsilat
+                                </Button>
+                              ) : null}
+
+                              {inv.status !== "IPTAL" && inv.status !== "TASLAK" ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
                                   onClick={() => {
                                     if (
                                       confirm(
-                                        "Bu taslak faturayı silmek istediğinize emin misiniz?",
+                                        "Bu faturayı iptal etmek istediğinize emin misiniz? Stok ve cari hareketleri dengelenecektir.",
                                       )
                                     ) {
-                                      deleteDraft.mutate(inv.id);
+                                      cancel.mutate(row);
                                     }
                                   }}
                                 >
-                                  <Trash2 className="size-4 text-destructive" />
+                                  İptal
                                 </Button>
-                              </>
-                            ) : null}
-
-                            {inv.status === "ONAYLANDI" && remaining >= 0.005 ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={collect.isPending}
-                                onClick={() => collect.mutate({ inv: row, amount: remaining })}
-                              >
-                                Tahsilat
-                              </Button>
-                            ) : null}
-
-                            {inv.status !== "IPTAL" && inv.status !== "TASLAK" ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      "Bu faturayı iptal etmek istediğinize emin misiniz? Stok ve cari hareketleri dengelenecektir.",
-                                    )
-                                  ) {
-                                    cancel.mutate(row);
-                                  }
-                                }}
-                              >
-                                İptal
-                              </Button>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </AppShell>
   );
 }

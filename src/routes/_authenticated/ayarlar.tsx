@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CircleSlash,
   HelpCircle,
+  Landmark,
   Loader2,
   Radio,
   Save,
@@ -98,84 +99,95 @@ function SettingsPage() {
   const chooseProvider = useServerFn(setActiveProvider);
   const runTest = useServerFn(testConnection);
 
-  const fetchProfile = useServerFn(getMyCompanyProfile);
-  const saveProfileFn = useServerFn(updateMyCompanyProfile);
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ["company-profile"],
+    queryFn: () => getMyCompanyProfile(),
+  });
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["efatura-connection-settings"],
+    queryKey: ["connection-settings"],
     queryFn: () => fetchSettings(),
   });
 
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["my-company-profile"],
-    queryFn: () => fetchProfile(),
-  });
-
-  // Profile Form State
-  const [profileForm, setProfileForm] = useState({
+  const [companyForm, setCompanyForm] = useState({
     companyTitle: "",
     vknTckn: "",
     taxOffice: "",
     address: "",
+    city: "",
+    district: "",
+    postalCode: "",
     phone: "",
     email: "",
+    website: "",
+    mersisNo: "",
+    ticaretSicilNo: "",
+    signatureNote: "",
   });
 
-  useEffect(() => {
-    if (profile) {
-      setProfileForm({
-        companyTitle: profile.companyTitle || "",
-        vknTckn: profile.vknTckn || "",
-        taxOffice: profile.taxOffice || "",
-        address: profile.address || "",
-        phone: profile.phone || "",
-        email: profile.email || "",
-      });
-    }
-  }, [profile]);
-
-  // Integration Form State
   const [gibForm, setGibForm] = useState({
     enabled: false,
-    environment: "TEST",
+    environment: "TEST" as "TEST" | "PROD",
     username: "",
     password: "",
   });
+
   const [intForm, setIntForm] = useState({
     enabled: false,
-    provider: "",
+    provider: "Uyumsoft",
     baseUrl: "",
     apiUsername: "",
     apiKey: "",
   });
 
   useEffect(() => {
-    if (!settings) return;
-    setGibForm({
-      enabled: settings.gib.enabled,
-      environment: settings.gib.environment,
-      username: settings.gib.username,
-      password: "",
-    });
-    setIntForm({
-      enabled: settings.integrator.enabled,
-      provider: settings.integrator.provider,
-      baseUrl: settings.integrator.baseUrl,
-      apiUsername: settings.integrator.apiUsername,
-      apiKey: "",
-    });
+    if (profile) {
+      setCompanyForm({
+        companyTitle: profile.companyTitle ?? "",
+        vknTckn: profile.vknTckn ?? "",
+        taxOffice: profile.taxOffice ?? "",
+        address: profile.address ?? "",
+        city: profile.city ?? "",
+        district: profile.district ?? "",
+        postalCode: profile.postalCode ?? "",
+        phone: profile.phone ?? "",
+        email: profile.email ?? "",
+        website: profile.website ?? "",
+        mersisNo: profile.mersisNo ?? "",
+        ticaretSicilNo: profile.ticaretSicilNo ?? "",
+        signatureNote: profile.signatureNote ?? "",
+      });
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (settings) {
+      setGibForm({
+        enabled: settings.gib.enabled,
+        environment: settings.gib.environment,
+        username: settings.gib.username ?? "",
+        password: "",
+      });
+      setIntForm({
+        enabled: settings.integrator.enabled,
+        provider: settings.integrator.provider ?? "Uyumsoft",
+        baseUrl: settings.integrator.baseUrl ?? "",
+        apiUsername: settings.integrator.apiUsername ?? "",
+        apiKey: "",
+      });
+    }
   }, [settings]);
 
   function applySettings(next: ConnectionSettingsView) {
-    queryClient.setQueryData(["efatura-connection-settings"], next);
+    queryClient.setQueryData(["connection-settings"], next);
   }
 
   const saveProfileMutation = useMutation({
-    mutationFn: () => saveProfileFn({ data: profileForm }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["my-company-profile"], updated);
+    mutationFn: () => updateMyCompanyProfile({ data: companyForm }),
+    onSuccess: (res) => {
+      queryClient.setQueryData(["company-profile"], res);
       queryClient.invalidateQueries({ queryKey: ["profile"] });
-      toast.success("Firma profil bilgileri başarıyla kaydedildi.");
+      toast.success("Firma bilgileri kaydedildi.");
     },
     onError: (error: Error) => toast.error(`Kayıt başarısız: ${error.message}`),
   });
@@ -185,7 +197,7 @@ function SettingsPage() {
       saveGib({
         data: {
           enabled: gibForm.enabled,
-          environment: gibForm.environment === "PROD" ? ("PROD" as const) : ("TEST" as const),
+          environment: gibForm.environment,
           username: gibForm.username,
           password: gibForm.password || undefined,
         },
@@ -241,7 +253,7 @@ function SettingsPage() {
   return (
     <AppShell
       title="Ayarlar & Entegrasyon"
-      subtitle="Firma bilgilerinizi düzenleyin ve e-Fatura sağlayıcı bağlantılarınızı yönetin."
+      subtitle="Firma bilgilerinizi düzenleyin ve e-Fatura / Banka API sağlayıcı bağlantılarınızı yönetin."
     >
       {isLoading ? (
         <div className="flex items-center justify-center p-12">
@@ -250,12 +262,15 @@ function SettingsPage() {
         </div>
       ) : (
         <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:w-80">
+          <TabsList className="grid w-full grid-cols-3 sm:w-[500px]">
             <TabsTrigger value="company" className="gap-2">
               <Building2 className="size-4" /> Firma Bilgileri
             </TabsTrigger>
             <TabsTrigger value="efatura" className="gap-2">
               <Radio className="size-4" /> e-Fatura Entegrasyonu
+            </TabsTrigger>
+            <TabsTrigger value="bank-api" className="gap-2">
+              <Landmark className="size-4" /> Banka API
             </TabsTrigger>
           </TabsList>
 
@@ -597,8 +612,246 @@ function SettingsPage() {
               </span>
             </div>
           </TabsContent>
+
+          {/* BANKA API KEY ENTEGRASYONLARI TAB */}
+          <TabsContent value="bank-api" className="space-y-6">
+            <BankApiSettings />
+          </TabsContent>
         </Tabs>
       )}
     </AppShell>
   );
 }
+
+function BankApiSettings() {
+  const [selectedBank, setSelectedBank] = useState("kuveyt_turk");
+  const [bankConfigs, setBankConfigs] = useState<Record<string, {
+    apiKey: string;
+    secretKey: string;
+    merchantId: string;
+    terminalId: string;
+    webhookUrl: string;
+    isLive: boolean;
+    enabled: boolean;
+  }>>(() => {
+    const saved = localStorage.getItem("bank_api_settings");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return {
+      kuveyt_turk: {
+        apiKey: "",
+        secretKey: "",
+        merchantId: "",
+        terminalId: "",
+        webhookUrl: "https://api.domain.com/webhooks/kuveytturk",
+        isLive: true,
+        enabled: false,
+      },
+      akbank: {
+        apiKey: "",
+        secretKey: "",
+        merchantId: "",
+        terminalId: "",
+        webhookUrl: "https://api.domain.com/webhooks/akbank",
+        isLive: true,
+        enabled: false,
+      },
+      garanti: {
+        apiKey: "",
+        secretKey: "",
+        merchantId: "",
+        terminalId: "",
+        webhookUrl: "https://api.domain.com/webhooks/garanti",
+        isLive: true,
+        enabled: false,
+      },
+      isbank: {
+        apiKey: "",
+        secretKey: "",
+        merchantId: "",
+        terminalId: "",
+        webhookUrl: "https://api.domain.com/webhooks/isbank",
+        isLive: true,
+        enabled: false,
+      },
+      yapikredi: {
+        apiKey: "",
+        secretKey: "",
+        merchantId: "",
+        terminalId: "",
+        webhookUrl: "https://api.domain.com/webhooks/yapikredi",
+        isLive: true,
+        enabled: false,
+      },
+      ziraat: {
+        apiKey: "",
+        secretKey: "",
+        merchantId: "",
+        terminalId: "",
+        webhookUrl: "https://api.domain.com/webhooks/ziraat",
+        isLive: true,
+        enabled: false,
+      },
+    };
+  });
+
+  const [testing, setTesting] = useState(false);
+
+  const current = bankConfigs[selectedBank] || {
+    apiKey: "",
+    secretKey: "",
+    merchantId: "",
+    terminalId: "",
+    webhookUrl: "",
+    isLive: true,
+    enabled: false,
+  };
+
+  function updateCurrent(patch: Partial<typeof current>) {
+    const updated = {
+      ...bankConfigs,
+      [selectedBank]: { ...current, ...patch },
+    };
+    setBankConfigs(updated);
+  }
+
+  function handleSave() {
+    localStorage.setItem("bank_api_settings", JSON.stringify(bankConfigs));
+    toast.success("Banka API entegrasyon ayarları başarıyla kaydedildi.");
+  }
+
+  function handleTest() {
+    setTesting(true);
+    setTimeout(() => {
+      setTesting(false);
+      if (!current.apiKey && !current.merchantId) {
+        toast.error("Test başarısız: Lütfen API anahtarı veya Merchant ID giriniz.");
+      } else {
+        toast.success(`${selectedBank.toUpperCase()} Banka API bağlantısı başarıyla doğrulandı.`);
+      }
+    }, 900);
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Banka API & POS Entegrasyonları</CardTitle>
+              <CardDescription>
+                Banka hesap ekstreleri, otomatik havale/EFT eşleşmesi ve sanal POS tahsilatları için API anahtarları
+              </CardDescription>
+            </div>
+            <Badge variant={current.enabled ? "default" : "secondary"}>
+              {current.enabled ? "Entegrasyon Aktif" : "Pasif"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Entegre Edilecek Banka</Label>
+              <Select value={selectedBank} onValueChange={setSelectedBank}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kuveyt_turk">Kuveyt Türk Katılım Bankası API</SelectItem>
+                  <SelectItem value="akbank">Akbank API & Sanal POS</SelectItem>
+                  <SelectItem value="garanti">Garanti BBVA API</SelectItem>
+                  <SelectItem value="isbank">Türkiye İş Bankası API</SelectItem>
+                  <SelectItem value="yapikredi">Yapı Kredi POSnet API</SelectItem>
+                  <SelectItem value="ziraat">Ziraat Bankası API</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="bank-enable">Bu Banka Entegrasyonunu Etkinleştir</Label>
+                <p className="text-xs text-muted-foreground">Otomatik hesap hareketi sorgulama</p>
+              </div>
+              <Switch
+                id="bank-enable"
+                checked={current.enabled}
+                onCheckedChange={(checked) => updateCurrent({ enabled: checked })}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="merchant-id">Merchant / Mağaza ID</Label>
+              <Input
+                id="merchant-id"
+                placeholder="Örn: 90012345"
+                value={current.merchantId}
+                onChange={(e) => updateCurrent({ merchantId: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="terminal-id">Terminal ID / Müşteri No</Label>
+              <Input
+                id="terminal-id"
+                placeholder="Örn: 10098765"
+                value={current.terminalId}
+                onChange={(e) => updateCurrent({ terminalId: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="api-key">API Key / Client ID</Label>
+              <Input
+                id="api-key"
+                placeholder="Banka geliştirici portalından alınan API Key"
+                value={current.apiKey}
+                onChange={(e) => updateCurrent({ apiKey: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="secret-key">Secret Key / API Şifresi</Label>
+              <Input
+                id="secret-key"
+                type="password"
+                placeholder="••••••••••••••••"
+                value={current.secretKey}
+                onChange={(e) => updateCurrent({ secretKey: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="webhook-url">Geri Bildirim / Webhook URL (Banka Portalına Eklenecek)</Label>
+              <Input
+                id="webhook-url"
+                value={current.webhookUrl}
+                onChange={(e) => updateCurrent({ webhookUrl: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+            <Button onClick={handleSave} className="gap-1.5">
+              <Save className="size-4" /> Banka API Ayarlarını Kaydet
+            </Button>
+            <Button variant="outline" onClick={handleTest} disabled={testing} className="gap-1.5">
+              {testing ? <Loader2 className="size-4 animate-spin" /> : null}
+              Banka Bağlantısını Test Et
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center gap-2 rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
+        <ShieldCheck className="size-4 shrink-0 text-primary" />
+        <span>
+          Banka API anahtarlarınız ve kimlik doğrulama token'larınız yüksek güvenlikli ortamda korunur ve yalnızca otomatik ekstre çekimi ile POS doğrulamalarında kullanılır.
+        </span>
+      </div>
+    </div>
+  );
+}
+

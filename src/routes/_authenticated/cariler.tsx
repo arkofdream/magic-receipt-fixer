@@ -325,63 +325,175 @@ function CustomersPage() {
             <DialogTrigger asChild>
               <Button>Yeni {PARTNER_LABELS[tab]}</Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Yeni {PARTNER_LABELS[tab]} Kartı</DialogTitle>
               </DialogHeader>
               <form
-                className="grid gap-4 sm:grid-cols-2"
+                className="space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault();
                   createCustomer.mutate(form);
                 }}
               >
-                {textFields.map((f) => (
-                  <div key={f.key} className="space-y-2">
-                    <Label htmlFor={f.key}>{f.label}</Label>
-                    <Input
-                      id={f.key}
-                      type={f.type ?? "text"}
-                      step={f.type === "number" ? "0.01" : undefined}
-                      required={f.required ?? false}
-                      value={String(form[f.key] ?? "")}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          [f.key]:
-                            f.type === "number" ? Number(e.target.value) || 0 : e.target.value,
-                        })
-                      }
-                    />
+                {/* 1. Temel Firma Bilgileri */}
+                <div className="rounded-lg border border-border p-3.5 space-y-3 bg-muted/20">
+                  <div className="text-xs font-semibold text-primary uppercase tracking-wider">
+                    Firma Bilgileri (Temel Bilgiler)
                   </div>
-                ))}
-                <AddressSelect
-                  value={{
-                    city: form.city,
-                    district: form.district,
-                    neighborhood: form.neighborhood,
-                  }}
-                  onChange={(v) => setForm({ ...form, ...v })}
-                />
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="address">Açık Adres</Label>
-                  <Input
-                    id="address"
-                    value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="title">Firma / Ticari Unvan *</Label>
+                      <Input
+                        id="title"
+                        required
+                        placeholder="Örn: ABC İnşaat San. ve Tic. Ltd. Şti."
+                        value={form.title}
+                        onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="vknTckn">VKN / TCKN *</Label>
+                      <Input
+                        id="vknTckn"
+                        required
+                        placeholder="10 veya 11 haneli numara"
+                        value={form.vknTckn}
+                        onChange={(e) => setForm({ ...form, vknTckn: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="taxOffice">Vergi Dairesi</Label>
+                      <Input
+                        id="taxOffice"
+                        placeholder="Örn: Kadıköy"
+                        value={form.taxOffice}
+                        onChange={(e) => setForm({ ...form, taxOffice: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="phone">Telefon</Label>
+                      <Input
+                        id="phone"
+                        placeholder="0500 000 00 00"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email">E-posta</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="info@firma.com"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="note">Açıklama / Not</Label>
-                  <Input
-                    id="note"
-                    value={form.note}
-                    onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  />
+
+                {/* 2. Adres Bilgileri */}
+                <div className="rounded-lg border border-border p-3.5 space-y-3">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Adres Bilgileri (İl, İlçe, Açık Adres)
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <AddressSelect
+                      value={{
+                        city: form.city,
+                        district: form.district,
+                        neighborhood: form.neighborhood,
+                      }}
+                      onChange={(v) => setForm({ ...form, ...v })}
+                    />
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="address">Açık Adres (Cadde, Sokak, No)</Label>
+                      <Input
+                        id="address"
+                        placeholder="Örn: Organize Sanayi Bölgesi 4. Cadde No:12"
+                        value={form.address}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="sm:col-span-2">
+
+                {/* 3. İsteğe Bağlı Ek Bilgiler */}
+                <div className="rounded-lg border border-border/70 p-3.5 space-y-3">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Ticari & Bakiye Ayarları (Opsiyonel)
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="code">Cari Kod</Label>
+                      <Input
+                        id="code"
+                        placeholder="Örn: C-001"
+                        value={form.code}
+                        onChange={(e) => setForm({ ...form, code: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="partnerGroup">Grup</Label>
+                      <Input
+                        id="partnerGroup"
+                        placeholder="Örn: Toptan, Bayi"
+                        value={form.partnerGroup}
+                        onChange={(e) => setForm({ ...form, partnerGroup: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="paymentTermDays">Vade (Gün)</Label>
+                      <Input
+                        id="paymentTermDays"
+                        type="number"
+                        min="0"
+                        value={form.paymentTermDays}
+                        onChange={(e) =>
+                          setForm({ ...form, paymentTermDays: Number(e.target.value) || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="riskLimit">Risk Limiti (₺)</Label>
+                      <Input
+                        id="riskLimit"
+                        type="number"
+                        min="0"
+                        value={form.riskLimit}
+                        onChange={(e) =>
+                          setForm({ ...form, riskLimit: Number(e.target.value) || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="openingBalance">Açılış Bakiyesi (Borç + / Alacak -)</Label>
+                      <Input
+                        id="openingBalance"
+                        type="number"
+                        step="0.01"
+                        value={form.openingBalance}
+                        onChange={(e) =>
+                          setForm({ ...form, openingBalance: Number(e.target.value) || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-3">
+                      <Label htmlFor="note">Not / Açıklama</Label>
+                      <Input
+                        id="note"
+                        placeholder="Müşteri/Tedarikçi hakkında özel not"
+                        value={form.note}
+                        onChange={(e) => setForm({ ...form, note: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
                   <Button type="submit" className="w-full" disabled={createCustomer.isPending}>
-                    Kaydet
+                    {createCustomer.isPending ? "Kaydediliyor…" : `${PARTNER_LABELS[tab]} Kaydet`}
                   </Button>
                 </div>
               </form>
