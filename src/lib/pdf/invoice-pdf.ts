@@ -1,4 +1,10 @@
-import { formatDate, formatMoney, itemTotals, type InvoiceItem } from "@/lib/invoice";
+import {
+  formatDate,
+  formatMoney,
+  itemTotals,
+  numberToTurkishWords,
+  type InvoiceItem,
+} from "@/lib/invoice";
 
 export type SellerInfo = {
   companyTitle: string;
@@ -10,6 +16,7 @@ export type SellerInfo = {
 };
 
 export type InvoiceRecord = {
+  id?: string;
   invoice_number: string;
   ettn: string;
   invoice_date: string;
@@ -26,6 +33,8 @@ export type InvoiceRecord = {
   grand_total: number | string;
   notes?: string | null;
   payment_info?: string | null;
+  tevkifat_code?: string | null;
+  created_at?: string;
 };
 
 type JsPdf = import("jspdf").jsPDF;
@@ -47,8 +56,8 @@ async function createDoc(): Promise<JsPdf> {
 async function autoTable(doc: JsPdf, options: Record<string, unknown>) {
   const mod = await import("jspdf-autotable");
   (mod.default as unknown as (d: JsPdf, o: Record<string, unknown>) => void)(doc, {
-    styles: { font: FONT, fontStyle: "normal", fontSize: 8, cellPadding: 4 },
-    headStyles: { font: FONT, fontStyle: "normal", fillColor: [30, 41, 59], textColor: 255 },
+    styles: { font: FONT, fontStyle: "normal", fontSize: 7.5, cellPadding: 3.5 },
+    headStyles: { font: FONT, fontStyle: "normal", fillColor: [241, 245, 249], textColor: [15, 23, 42] },
     ...options,
   });
 }
@@ -80,115 +89,380 @@ function asCustomer(value: unknown) {
   }>;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  TASLAK: "Taslak",
-  ONAYLANDI: "GİB'e İletildi",
-  IPTAL: "İptal",
+const TYPE_TITLE: Record<string, string> = {
+  SATIS:              "e-Arşiv Fatura",
+  E_ARSIV:            "e-Arşiv Fatura",
+  GENEL_IADE:         "İade Faturası (Genel İade)",
+  TEVKIFAT:           "e-Arşiv Fatura (Tevkifat)",
+  TEVKIFAT_IADE:      "İade Faturası (Tevkifat İade)",
+  ISTISNA:            "e-Arşiv Fatura (İstisna / KDV %0)",
+  OZEL_MATRAH:        "e-Arşiv Fatura (Özel Matrah)",
+  IHRAC_KAYITLI:      "e-Arşiv Fatura (İhraç Kayıtlı)",
+  KONAKLAMA_VERGISI:  "e-Arşiv Fatura (Konaklama Vergisi)",
+  YATIRIM_TESVIK:     "e-Arşiv Fatura (Yatırım Teşvik)",
+  IADE:               "İade Faturası",
+  GELEN_FATURA:       "Gelen Alış Faturası",
+  GELEN_E_ARSIV:      "Gelen e-Arşiv Fatura",
+};
+
+const SCENARIO_TITLE: Record<string, string> = {
+  SATIS:              "EARSIVFATURA",
+  E_ARSIV:            "EARSIVFATURA",
+  GENEL_IADE:         "IADE",
+  TEVKIFAT:           "TEVKIFAT",
+  TEVKIFAT_IADE:      "TEVKIFATIADE",
+  ISTISNA:            "ISTISNA",
+  OZEL_MATRAH:        "OZELMATRAH",
+  IHRAC_KAYITLI:      "IHRACKAYITLI",
+  KONAKLAMA_VERGISI:  "KONAKLAMAVERGISI",
+  YATIRIM_TESVIK:     "YATIRIMTESVIK",
+  IADE:               "IADE",
+  GELEN_FATURA:       "TICARIFATURA",
+  GELEN_E_ARSIV:      "EARSIVFATURA",
 };
 
 async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerInfo) {
   const currency = invoice.currency || "TRY";
   const customer = asCustomer(invoice.customer);
   const items = asItems(invoice.items);
-  const margin = 40;
+  const margin = 28;
+  const pageWidth = 595.28; // A4 width in pt
+  const printWidth = pageWidth - margin * 2;
 
   doc.setFont(FONT, "normal");
-  doc.setFontSize(16);
-  doc.text(seller.companyTitle || "e-Fatura", margin, 50);
-  doc.setFontSize(9);
-  const sellerLines = [
-    seller.vknTckn ? `VKN/TCKN: ${seller.vknTckn}` : "",
+
+  // ==========================================
+  // 1. ÜST BÖLÜM (SOL: SATICI | ORTA: GİB LOGO & BAŞLIK | SAĞ: KAREKOD/QR)
+  // ==========================================
+
+  // SOL: Satıcı Firma Bilgileri
+  doc.setFontSize(10.5);
+  doc.setTextColor(15, 23, 42);
+  const sellerTitle = seller.companyTitle || "FİRMA UNVANI BELİRTİLMEDİ";
+  doc.text(doc.splitTextToSize(sellerTitle, 190), margin, 38);
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  let sY = 56;
+  const sellerDetails = [
+    seller.address ? `Adres: ${seller.address}` : "",
+    seller.phone ? `Tel: ${seller.phone}` : "",
+    seller.email ? `E-Posta: ${seller.email}` : "",
     seller.taxOffice ? `Vergi Dairesi: ${seller.taxOffice}` : "",
-    seller.address,
-    [seller.phone, seller.email].filter(Boolean).join(" · "),
+    seller.vknTckn ? `VKN/TCKN: ${seller.vknTckn}` : "",
   ].filter(Boolean);
-  doc.text(sellerLines, margin, 66);
 
-  doc.setFontSize(13);
-  doc.text("FATURA", 555, 50, { align: "right" });
-  doc.setFontSize(9);
-  doc.text(
-    [
-      `Fatura No: ${invoice.invoice_number}`,
-      `Tarih: ${formatDate(invoice.invoice_date)}`,
-      `ETTN: ${invoice.ettn}`,
-      `Durum: ${STATUS_LABEL[invoice.status] ?? invoice.status}`,
-    ],
-    555,
-    66,
-    { align: "right" },
-  );
+  for (const line of sellerDetails) {
+    doc.text(doc.splitTextToSize(line, 190), margin, sY);
+    sY += 10;
+  }
 
-  const headerBottom = Math.max(66 + sellerLines.length * 12, 120);
+  // ORTA: GİB Logo & e-Arşiv / e-Fatura Başlığı
+  const midX = pageWidth / 2;
+
+  // GİB Hilal Kırmızı Amblem Çizimi
+  doc.setFillColor(220, 38, 38); // Kırmızı
+  doc.circle(midX, 42, 13, "F");
+  doc.setFillColor(255, 255, 255);
+  doc.circle(midX + 3.5, 42, 10.5, "F");
+  doc.setFillColor(220, 38, 38);
+  doc.rect(midX - 2.5, 34, 5, 16, "F");
+
+  doc.setFontSize(6);
+  doc.setTextColor(100, 116, 139);
+  doc.text("T.C. Hazine ve Maliye Bakanlığı", midX, 62, { align: "center" });
+  doc.text("Gelir İdaresi Başkanlığı", midX, 69, { align: "center" });
+
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  const mainTitle = TYPE_TITLE[invoice.type] || "e-Arşiv Fatura";
+  doc.text(mainTitle, midX, 83, { align: "center" });
+
+  doc.setFontSize(6.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text("GİB ONAYLI ELEKTRONİK BELGE", midX, 93, { align: "center" });
+  doc.text("www.gib.gov.tr", midX, 100, { align: "center" });
+
+  // SAĞ ÜST: Büyük ve Net Resmi GİB Karekod (QR Code)
+  const qrSize = 82;
+  const qrX = pageWidth - margin - qrSize;
+  const qrY = 24;
+
+  try {
+    const QRCode = await import("qrcode");
+    const qrPayload = [
+      `VKN:${seller.vknTckn || ""}`,
+      `AVKN:${customer.vknTckn || ""}`,
+      `FNo:${invoice.invoice_number}`,
+      `Trh:${invoice.invoice_date}`,
+      `Ttr:${invoice.grand_total}`,
+      `ETTN:${invoice.ettn}`,
+    ].join("|");
+
+    const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+      margin: 1,
+      width: 200,
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+
+    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+  } catch {
+    // Fallback kare kutu
+    doc.setDrawColor(0, 0, 0);
+    doc.rect(qrX, qrY, qrSize, qrSize);
+    doc.setFontSize(7);
+    doc.text("KAREKOD", qrX + qrSize / 2, qrY + qrSize / 2, { align: "center" });
+  }
+
+  // ==========================================
+  // 2. YATAY AYIRICI ÇİZGİ
+  // ==========================================
+  const lineY = 114;
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(1.5);
+  doc.line(margin, lineY, pageWidth - margin, lineY);
+
+  // ==========================================
+  // 3. ORTA BÖLÜM (SOL: SAYIN / ALICI | SAĞ: RESMİ METADATA TABLOSU)
+  // ==========================================
+  const subY = lineY + 14;
+
+  // SOL: SAYIN (ALICI BİLGİLERİ)
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text("SAYIN", margin, subY);
+
+  doc.setFontSize(8.5);
+  doc.text(customer.title || "NİHAİ TÜKETİCİ", margin, subY + 12);
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  let cY = subY + 23;
+  const customerDetails = [
+    [customer.address, customer.neighborhood, customer.district, customer.city].filter(Boolean).join(", "),
+    customer.email ? `E-Posta: ${customer.email}` : "",
+    customer.phone ? `Tel: ${customer.phone}` : "",
+    customer.taxOffice ? `Vergi Dairesi: ${customer.taxOffice}` : "",
+    customer.vknTckn ? `VKN/TCKN: ${customer.vknTckn}` : "VKN/TCKN: 11111111111",
+  ].filter(Boolean);
+
+  for (const line of customerDetails) {
+    doc.text(doc.splitTextToSize(line, 260), margin, cY);
+    cY += 9.5;
+  }
+
+  // SAĞ: Çerçeveli Fatura Metadata Tablosu
+  const metaTableX = pageWidth - margin - 170;
+  const invoiceTime = invoice.created_at ? new Date(invoice.created_at).toLocaleTimeString("tr-TR") : "10:00:00";
+  const scenario = SCENARIO_TITLE[invoice.type] || "EARSIVFATURA";
 
   await autoTable(doc, {
-    startY: headerBottom + 8,
-    head: [["ALICI BİLGİLERİ", ""]],
-    body: [
-      ["Unvan / Ad Soyad", customer.title ?? "-"],
-      ["VKN / TCKN", customer.vknTckn ?? "-"],
-      ["Vergi Dairesi", customer.taxOffice ?? "-"],
-      [
-        "Adres",
-        [customer.address, customer.neighborhood, customer.district, customer.city]
-          .filter(Boolean)
-          .join(", ") || "-",
-      ],
-      ["İletişim", [customer.email, customer.phone].filter(Boolean).join(" · ") || "-"],
-    ],
+    startY: subY - 4,
+    margin: { left: metaTableX, right: margin },
+    tableWidth: 170,
     theme: "grid",
-    columnStyles: { 0: { cellWidth: 130 } },
-  });
-
-  await autoTable(doc, {
-    startY: lastY(doc, headerBottom) + 14,
-    head: [["Açıklama", "Miktar", "Birim", "Birim Fiyat", "İsk. %", "KDV %", "Tutar"]],
-    body: items.map((item) => {
-      const t = itemTotals(item);
-      return [
-        item.name,
-        String(item.quantity),
-        item.unit,
-        formatMoney(item.unitPrice, currency),
-        `%${item.discountRate}`,
-        `%${item.vatRate}`,
-        formatMoney(t.total, currency),
-      ];
-    }),
-    theme: "striped",
+    body: [
+      ["Özelleştirme No:", "TR1.2"],
+      ["Senaryo:", scenario],
+      ["Fatura Tipi:", invoice.type],
+      ["Fatura No:", invoice.invoice_number],
+      ["Fatura Tarihi:", formatDate(invoice.invoice_date)],
+      ["Fatura Saati:", invoiceTime],
+    ],
+    styles: { fontSize: 7, cellPadding: 2.2, textColor: [15, 23, 42] },
     columnStyles: {
-      1: { halign: "right" },
-      3: { halign: "right" },
-      4: { halign: "right" },
-      5: { halign: "right" },
-      6: { halign: "right" },
+      0: { cellWidth: 70, fontStyle: "normal", textColor: [100, 116, 139] },
+      1: { cellWidth: 100, fontStyle: "normal" },
     },
   });
 
-  await autoTable(doc, {
-    startY: lastY(doc, headerBottom) + 12,
-    body: [
-      ["Ara Toplam", formatMoney(toNumber(invoice.subtotal), currency)],
-      ["İskonto", formatMoney(toNumber(invoice.total_discount), currency)],
-      ["KDV Matrahı", formatMoney(toNumber(invoice.taxable_amount), currency)],
-      ["Toplam KDV", formatMoney(toNumber(invoice.total_vat), currency)],
-      ["Tevkifat", formatMoney(toNumber(invoice.total_tevkifat), currency)],
-      ["ÖDENECEK TUTAR", formatMoney(toNumber(invoice.grand_total), currency)],
-    ],
-    theme: "plain",
-    margin: { left: 330 },
-    tableWidth: 225,
-    columnStyles: { 0: { cellWidth: 120 }, 1: { halign: "right" } },
+  // ORTA: ETTN Numarası
+  const afterMetaY = Math.max(cY + 6, lastY(doc, subY + 70) + 12);
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`ETTN: ${invoice.ettn || "-"}`, margin, afterMetaY);
+
+  // ==========================================
+  // 4. MAL / HİZMET TABLOSU (RESMİ ÇERÇEVELİ ÇİZELGE)
+  // ==========================================
+  const tableRows = items.map((it, idx) => {
+    const t = itemTotals(it);
+    const discRate = Number(it.discountRate) || 0;
+    const discAmount = (Number(it.quantity) * Number(it.unitPrice) * discRate) / 100;
+    return [
+      idx + 1,
+      it.name || "Mal / Hizmet",
+      `${Number(it.quantity)} ${it.unit || "Adet"}`,
+      formatMoney(Number(it.unitPrice), currency),
+      discRate > 0 ? `%${discRate}` : "-",
+      discRate > 0 ? formatMoney(discAmount, currency) : "0,00",
+      `%${Number(it.vatRate)}`,
+      formatMoney(t.vatAmount, currency),
+      formatMoney(t.lineTotal, currency),
+    ];
   });
 
-  const notes = [invoice.notes, invoice.payment_info].filter(Boolean).join("\n");
-  if (notes) {
-    doc.setFontSize(8);
-    doc.text(doc.splitTextToSize(notes, 480), margin, Math.min(lastY(doc, 700) + 24, 780));
+  await autoTable(doc, {
+    startY: afterMetaY + 8,
+    margin: { left: margin, right: margin },
+    theme: "grid",
+    head: [[
+      "Sıra\nNo",
+      "Mal / Hizmet",
+      "Miktar",
+      "Birim Fiyat",
+      "İskonto\nOranı",
+      "İskonto\nTutarı",
+      "KDV\nOranı",
+      "KDV Tutarı",
+      "Mal Hizmet Tutarı",
+    ]],
+    body: tableRows.length > 0 ? tableRows : [["1", "Mal / Hizmet Teslimi", "1 Adet", "0,00", "-", "0,00", "%20", "0,00", "0,00"]],
+    headStyles: {
+      fillColor: [241, 245, 249],
+      textColor: [15, 23, 42],
+      fontSize: 7,
+      fontStyle: "normal",
+      halign: "center",
+      cellPadding: 3,
+    },
+    styles: { fontSize: 7, cellPadding: 3.5, textColor: [30, 41, 59] },
+    columnStyles: {
+      0: { cellWidth: 24, halign: "center" },
+      1: { cellWidth: "auto" },
+      2: { cellWidth: 44, halign: "center" },
+      3: { cellWidth: 54, halign: "right" },
+      4: { cellWidth: 38, halign: "center" },
+      5: { cellWidth: 44, halign: "right" },
+      6: { cellWidth: 36, halign: "center" },
+      7: { cellWidth: 50, halign: "right" },
+      8: { cellWidth: 62, halign: "right" },
+    },
+  });
+
+  let currentY = lastY(doc, afterMetaY + 100) + 10;
+
+  // ==========================================
+  // 5. KDV KIRILIMI (SOL) VE TOPLAMLAR (SAĞ)
+  // ==========================================
+  const subtotal = toNumber(invoice.subtotal);
+  const discount = toNumber(invoice.total_discount);
+  const taxable = toNumber(invoice.taxable_amount || subtotal - discount);
+  const vat = toNumber(invoice.total_vat);
+  const tevkifat = toNumber(invoice.total_tevkifat);
+  const grand = toNumber(invoice.grand_total);
+
+  // Sol Alt: KDV Oranları Kırılımı Tablosu
+  const vatBreakdownMap = new Map<number, { taxable: number; vat: number }>();
+  for (const it of items) {
+    const t = itemTotals(it);
+    const r = Number(it.vatRate) || 0;
+    const cur = vatBreakdownMap.get(r) || { taxable: 0, vat: 0 };
+    cur.taxable += t.taxableAmount;
+    cur.vat += t.vatAmount;
+    vatBreakdownMap.set(r, cur);
   }
+
+  const vatBreakdownRows: (string | number)[][] = [];
+  vatBreakdownMap.forEach((val, rate) => {
+    vatBreakdownRows.push([`%${rate}`, formatMoney(val.taxable, currency), formatMoney(val.vat, currency)]);
+  });
+  if (vatBreakdownRows.length === 0) {
+    vatBreakdownRows.push(["%20", formatMoney(taxable, currency), formatMoney(vat, currency)]);
+  }
+
+  await autoTable(doc, {
+    startY: currentY,
+    margin: { left: margin, right: pageWidth - margin - 180 },
+    tableWidth: 180,
+    theme: "grid",
+    head: [["KDV Oranı", "KDV Matrahı", "Hesaplanan KDV"]],
+    body: vatBreakdownRows,
+    headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontSize: 6.5, fontStyle: "normal" },
+    styles: { fontSize: 6.5, cellPadding: 2.5 },
+    columnStyles: {
+      0: { cellWidth: 45, halign: "center" },
+      1: { cellWidth: 65, halign: "right" },
+      2: { cellWidth: 70, halign: "right" },
+    },
+  });
+
+  // Sağ Alt: Toplamlar Tablosu
+  const totalBoxRows = [
+    ["Mal Hizmet Toplam Tutarı", formatMoney(subtotal, currency)],
+    discount > 0 ? ["Toplam İskonto (-)", formatMoney(discount, currency)] : null,
+    ["KDV Matrahı", formatMoney(taxable, currency)],
+    ["Hesaplanan KDV", formatMoney(vat, currency)],
+    tevkifat > 0 ? ["Tevkifat Kesintisi (-)", formatMoney(tevkifat, currency)] : null,
+    ["Vergiler Dahil Toplam Tutar", formatMoney(grand + tevkifat, currency)],
+    ["ÖDENECEK TUTAR", formatMoney(grand, currency)],
+  ].filter(Boolean) as string[][];
+
+  await autoTable(doc, {
+    startY: currentY,
+    margin: { left: pageWidth - margin - 200, right: margin },
+    tableWidth: 200,
+    theme: "grid",
+    body: totalBoxRows,
+    styles: { fontSize: 7, cellPadding: 2.8, textColor: [15, 23, 42] },
+    columnStyles: {
+      0: { cellWidth: 110, fontStyle: "normal", textColor: [71, 85, 105] },
+      1: { cellWidth: 90, halign: "right", fontStyle: "normal" },
+    },
+  });
+
+  const totalsEndY = Math.max(lastY(doc, currentY + 70), currentY + 70);
+
+  // ==========================================
+  // 6. YAZI İLE TUTAR KUTUSU (# YAZI İLE: ... #)
+  // ==========================================
+  const wordsY = totalsEndY + 12;
+  const wordsText = `# YAZI İLE: ${numberToTurkishWords(grand, currency)} #`;
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, wordsY, printWidth, 18, 2, 2, "FD");
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(wordsText, margin + 8, wordsY + 12);
+
+  // ==========================================
+  // 7. DİPNOTLAR & YASAL UYARI
+  // ==========================================
+  let footerY = wordsY + 26;
+  const extraNotes: string[] = [];
+
+  if (invoice.type === "TEVKIFAT" || tevkifat > 0) {
+    extraNotes.push(`TEVKİFAT BİLGİSİ: Bu faturada KDV Tevkifatı uygulanmıştır (Tevkifat Tutarı: ${formatMoney(tevkifat, currency)}).`);
+  }
+  if (invoice.tevkifat_code) {
+    extraNotes.push(`Tevkifat Kodu: ${invoice.tevkifat_code}`);
+  }
+  if (invoice.notes) extraNotes.push(`Fatura Notu: ${invoice.notes}`);
+  if (invoice.payment_info) extraNotes.push(`Ödeme / Banka: ${invoice.payment_info}`);
+
+  if (extraNotes.length > 0) {
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    for (const n of extraNotes) {
+      const split = doc.splitTextToSize(n, printWidth);
+      doc.text(split, margin, Math.min(footerY, 780));
+      footerY += split.length * 9 + 2;
+    }
+  }
+
+  doc.setFontSize(6.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(
+    "Bu belge 213 sayılı Vergi Usul Kanunu hükümlerine göre Gelir İdaresi Başkanlığı e-Arşiv / e-Fatura standartlarına uygun olarak düzenlenmiştir.",
+    pageWidth / 2,
+    814,
+    { align: "center" },
+  );
 }
 
-/** Seçili faturaları TEK bir PDF dosyası olarak indirir (zip yok, her fatura ayrı sayfa). */
+/** Seçili faturaları TEK bir PDF dosyası olarak indirir. */
 export async function downloadInvoicesPdf(
   invoices: InvoiceRecord[],
   seller: SellerInfo,
@@ -204,10 +478,10 @@ export async function downloadInvoicesPdf(
   for (let page = 1; page <= total; page += 1) {
     doc.setPage(page);
     doc.setFont(FONT, "normal");
-    doc.setFontSize(8);
-    doc.text(`Sayfa ${page} / ${total}`, 555, 820, { align: "right" });
+    doc.setFontSize(7.5);
+    doc.text(`Sayfa ${page} / ${total}`, 555, 825, { align: "right" });
   }
-  doc.save(filename ?? `faturalar-${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(filename ?? `fatura-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 export type ZReportData = {
@@ -272,3 +546,4 @@ export async function downloadZReportPdf(data: ZReportData, seller: SellerInfo) 
 
   doc.save(`z-raporu-${data.date}.pdf`);
 }
+
