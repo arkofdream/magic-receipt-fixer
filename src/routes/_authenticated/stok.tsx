@@ -175,13 +175,13 @@ function StockPage() {
         totalInVal += q * pr;
       }
       const weightedAvgCost =
-        totalInQty > 0 ? totalInVal / totalInQty : Number(p.buy_price || p.unit_price) || 0;
+        totalInQty > 0 ? totalInVal / totalInQty : Number(p.purchase_price || p.unit_price) || 0;
 
       // 2. Son Alış Fiyatı (Last Purchase Price)
       const lastPurchase = incoming.length > 0 ? incoming[incoming.length - 1] : null;
       const lastPurchaseCost = lastPurchase
         ? Number(lastPurchase.unit_price) || 0
-        : Number(p.buy_price || p.unit_price) || 0;
+        : Number(p.purchase_price || p.unit_price) || 0;
 
       // 3. FIFO (İlk Giren İlk Çıkar) Maliyeti
       let totalOutQty = pMovements

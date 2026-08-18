@@ -44,13 +44,16 @@ import {
 } from "@/lib/invoice";
 
 type SearchParams = {
-  editId?: string;
+  editId?: string | undefined;
 };
 
 export const Route = createFileRoute("/_authenticated/fatura-kes")({
-  validateSearch: (search: Record<string, unknown>): SearchParams => ({
-    editId: typeof search.editId === "string" ? search.editId : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): SearchParams => {
+    const editId = search["editId"];
+    return {
+      editId: typeof editId === "string" ? editId : undefined,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Fatura Kes & Düzenle | e-Fatura Portalı" },
@@ -373,8 +376,9 @@ function NewInvoicePage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const vknWarning = customer.vknTckn.trim() && !isValidVknTckn(customer.vknTckn);
-  const selectedTypeDetails = INVOICE_TYPE_DETAILS[type] || INVOICE_TYPE_DETAILS.SATIS;
+  const vknWarning = customer.vknTckn.trim() ? !isValidVknTckn(customer.vknTckn) : false;
+  const selectedTypeDetails =
+    INVOICE_TYPE_DETAILS[type] ?? INVOICE_TYPE_DETAILS["SATIS"]!;
   const currentTevkifatObj = TEVKIFAT_CODES.find((c) => c.code === selectedTevkifatCode);
 
   return (

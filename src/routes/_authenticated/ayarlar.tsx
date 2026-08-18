@@ -116,13 +116,8 @@ function SettingsPage() {
     address: "",
     city: "",
     district: "",
-    postalCode: "",
     phone: "",
     email: "",
-    website: "",
-    mersisNo: "",
-    ticaretSicilNo: "",
-    signatureNote: "",
   });
 
   const [gibForm, setGibForm] = useState({
@@ -149,13 +144,8 @@ function SettingsPage() {
         address: profile.address ?? "",
         city: profile.city ?? "",
         district: profile.district ?? "",
-        postalCode: profile.postalCode ?? "",
         phone: profile.phone ?? "",
         email: profile.email ?? "",
-        website: profile.website ?? "",
-        mersisNo: profile.mersisNo ?? "",
-        ticaretSicilNo: profile.ticaretSicilNo ?? "",
-        signatureNote: profile.signatureNote ?? "",
       });
     }
   }, [profile]);
@@ -164,7 +154,7 @@ function SettingsPage() {
     if (settings) {
       setGibForm({
         enabled: settings.gib.enabled,
-        environment: settings.gib.environment,
+        environment: (settings.gib.environment === "PROD" ? "PROD" : "TEST") as "TEST" | "PROD",
         username: settings.gib.username ?? "",
         password: "",
       });
@@ -291,9 +281,9 @@ function SettingsPage() {
                     <Input
                       id="companyTitle"
                       placeholder="Örn: XYZ Bilişim Tic. Ltd. Şti."
-                      value={profileForm.companyTitle}
+                      value={companyForm.companyTitle}
                       onChange={(e) =>
-                        setProfileForm((f) => ({ ...f, companyTitle: e.target.value }))
+                        setCompanyForm((f) => ({ ...f, companyTitle: e.target.value }))
                       }
                     />
                   </div>
@@ -303,8 +293,8 @@ function SettingsPage() {
                     <Input
                       id="vknTckn"
                       placeholder="10 haneli VKN veya 11 haneli TCKN"
-                      value={profileForm.vknTckn}
-                      onChange={(e) => setProfileForm((f) => ({ ...f, vknTckn: e.target.value }))}
+                      value={companyForm.vknTckn}
+                      onChange={(e) => setCompanyForm((f) => ({ ...f, vknTckn: e.target.value }))}
                     />
                   </div>
 
@@ -313,8 +303,8 @@ function SettingsPage() {
                     <Input
                       id="taxOffice"
                       placeholder="Örn: Kadıköy V.D."
-                      value={profileForm.taxOffice}
-                      onChange={(e) => setProfileForm((f) => ({ ...f, taxOffice: e.target.value }))}
+                      value={companyForm.taxOffice}
+                      onChange={(e) => setCompanyForm((f) => ({ ...f, taxOffice: e.target.value }))}
                     />
                   </div>
 
@@ -324,8 +314,8 @@ function SettingsPage() {
                       id="address"
                       rows={3}
                       placeholder="Örn: Atatürk Cad. No:123 Kat:4 Kadıköy / İstanbul"
-                      value={profileForm.address}
-                      onChange={(e) => setProfileForm((f) => ({ ...f, address: e.target.value }))}
+                      value={companyForm.address}
+                      onChange={(e) => setCompanyForm((f) => ({ ...f, address: e.target.value }))}
                     />
                   </div>
 
@@ -334,8 +324,8 @@ function SettingsPage() {
                     <Input
                       id="phone"
                       placeholder="Örn: 0216 123 45 67"
-                      value={profileForm.phone}
-                      onChange={(e) => setProfileForm((f) => ({ ...f, phone: e.target.value }))}
+                      value={companyForm.phone}
+                      onChange={(e) => setCompanyForm((f) => ({ ...f, phone: e.target.value }))}
                     />
                   </div>
 
@@ -345,8 +335,8 @@ function SettingsPage() {
                       id="email"
                       type="email"
                       placeholder="Örn: muhasebe@firma.com"
-                      value={profileForm.email}
-                      onChange={(e) => setProfileForm((f) => ({ ...f, email: e.target.value }))}
+                      value={companyForm.email}
+                      onChange={(e) => setCompanyForm((f) => ({ ...f, email: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -428,7 +418,9 @@ function SettingsPage() {
                     <Label>Çalışma Ortamı</Label>
                     <Select
                       value={gibForm.environment}
-                      onValueChange={(value) => setGibForm((f) => ({ ...f, environment: value }))}
+                      onValueChange={(value: "TEST" | "PROD") =>
+                        setGibForm((f) => ({ ...f, environment: value }))
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
