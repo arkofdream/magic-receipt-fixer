@@ -117,20 +117,44 @@ const INITIAL_BANK_MOVEMENTS: BankMovement[] = [];
 function AccountingPage() {
   const queryClient = useQueryClient();
 
-  // Yerel veriler (Storage / State)
+  // Yerel veriler (Storage / State - Demo verilerden arındırılmış)
   const [banks, setBanks] = useState<BankAccount[]>(() => {
-    const saved = localStorage.getItem("muhasebe_banks");
-    return saved ? JSON.parse(saved) : INITIAL_BANKS;
+    try {
+      const saved = localStorage.getItem("muhasebe_banks");
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      // Eski demo kayıtları (bank-1, bank-2 vb.) temizle
+      const cleaned = Array.isArray(parsed) ? parsed.filter((b) => !b.id?.startsWith("bank-")) : [];
+      return cleaned;
+    } catch {
+      return [];
+    }
   });
 
   const [journal, setJournal] = useState<JournalEntry[]>(() => {
-    const saved = localStorage.getItem("muhasebe_journal");
-    return saved ? JSON.parse(saved) : INITIAL_JOURNAL;
+    try {
+      const saved = localStorage.getItem("muhasebe_journal");
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      // Eski demo fişleri (j-1, j-2 vb.) temizle
+      const cleaned = Array.isArray(parsed) ? parsed.filter((j) => !j.id?.startsWith("j-")) : [];
+      return cleaned;
+    } catch {
+      return [];
+    }
   });
 
   const [bankMovements, setBankMovements] = useState<BankMovement[]>(() => {
-    const saved = localStorage.getItem("muhasebe_bank_movements");
-    return saved ? JSON.parse(saved) : INITIAL_BANK_MOVEMENTS;
+    try {
+      const saved = localStorage.getItem("muhasebe_bank_movements");
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      // Eski demo hareketleri (bm-1, bm-2 vb.) temizle
+      const cleaned = Array.isArray(parsed) ? parsed.filter((bm) => !bm.id?.startsWith("bm-")) : [];
+      return cleaned;
+    } catch {
+      return [];
+    }
   });
 
   // Dialoglar
