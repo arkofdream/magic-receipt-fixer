@@ -41,7 +41,7 @@ const FALLBACK_DOCUMENTS: Record<LegalDocType, LegalDocument> = {
   membership_terms: {
     id: "default-membership-terms",
     docType: "membership_terms",
-    version: "v1.1",
+    version: "v1.2",
     title: "ÜYELİK VE YAZILIM HİZMETİ KULLANIM SÖZLEŞMESİ",
     publishedAt: new Date().toISOString(),
     requiresReacceptance: false,
@@ -66,32 +66,38 @@ Hizmet, "hizmet olarak yazılım" (SaaS) modeliyle sunulmaktadır. Kullanıcı'y
 5.3. Kullanıcı'nın tercih ettiği özel entegratör sistemlerinden veya entegrasyon şifrelerinden kaynaklanan aksaklıklarda Hizmet Sağlayıcı sorumlu tutulamaz.
 5.4. Düzenlenen fatura ve resmi evrakların içeriğinden, vergi oranlarından ve yasal bildirim sürelerinden münhasıran Kullanıcı sorumludur.
 
-## 6. Abonelik Süresi, Yıllık Ücret ve Gelecek Dönem Fiyatlandırma Politikası
-6.1. Platformun yıllık kullanım ve lisans yenileme bedeli, işbu sözleşmenin yürürlük tarihi itibarıyla **yıllık 6.000 TL (Altı Bin Türk Lirası)**'dir.
-6.2. **Fiyat Güncelleme ve Büyük Özellik Değişiklikleri:** Hizmet Sağlayıcı; ilerleyen yıllarda ve dönemlerde sisteme eklenecek yeni modüller, yapay zekâ destekli otomasyonlar, gelişmiş entegrasyonlar, büyük çaplı özellik geliştirmeleri, sunucu ve altyapı maliyetleri ile ekonomik parametreler doğrultusunda yıllık abonelik ve yenileme fiyatlarında artış yapma ve fiyat tarifesini güncelleme hakkını saklı tutar.
-6.3. Fiyat güncellemeleri, mevcut aktif dönemi etkilemez; Kullanıcı'nın bir sonraki abonelik yenileme döneminden itibaren geçerli olur. Yenileme öncesinde güncel bedel Kullanıcı'ya bildirilir.
+## 6. Abonelik Süresi, Aylık Ücret ve Gelecek Dönem Fiyatlandırma Politikası
+6.1. Platformun aylık kullanım ve lisans yenileme bedeli, işbu sözleşmenin yürürlük tarihi itibarıyla **aylık 6.000 TL (Altı Bin Türk Lirası)**'dir. Abonelik süresi aylık periyotlar halinde işler.
+6.2. **Fiyat Güncelleme ve Büyük Özellik Değişiklikleri:** Hizmet Sağlayıcı; ilerleyen dönemlerde sisteme eklenecek yeni modüller, yapay zekâ destekli otomasyonlar, gelişmiş entegrasyonlar, büyük çaplı özellik geliştirmeleri, sunucu ve altyapı maliyetleri ile ekonomik parametreler doğrultusunda aylık abonelik ve yenileme fiyatlarında artış yapma ve fiyat tarifesini güncelleme hakkını saklı tutar.
+6.3. Fiyat güncellemeleri, peşin ödenmiş mevcut aktif ayı/dönemi etkilemez; Kullanıcı'nın bir sonraki aylık yenileme döneminden itibaren geçerli olur. Yenileme öncesinde güncel bedel Kullanıcı'ya bildirilir.
 
 ## 7. Abonelik Yenileme ve Hizmetin Sürdürülmesi
-7.1. Kullanıcı'nın aboneliği, satın aldığı dönem boyunca aktiftir. Yeni dönemin başlaması için ilgili döneme ait yenileme bedelinin ödenmesi gerekir.
+7.1. Kullanıcı'nın aboneliği, satın aldığı aylık dönem boyunca aktiftir. Yeni dönemin başlaması için ilgili döneme ait aylık yenileme bedelinin ödenmesi gerekir.
 7.2. Yenileme bedelinin ödenmemesi durumunda hesabın ücretli modülleri askıya alınabilir; ancak kayıtlı geçmiş veriler silinmez ve saklama süresince muhafaza edilir.
-7.3. Platformda otomatik habersiz kart çekimi (otomatik tahsilat) uygulanmamakta olup, yenileme işlemleri Kullanıcı'nın talebi ve ödeme onayı ile gerçekleştirilir.
+7.3. Platformda otomatik habersiz kart çekimi (otomatik tahsilat) uygulanmamakta olup, yenileme işlemleri Kullanıcı'nın talebi ve ödeme onayı ile aylık olarak gerçekleştirilir.
 
-## 8. Hizmetin Askıya Alınması ve Fesih
+## 8. Abonelik İptali, Cayma Hakkı ve Cayma Bedeli Politikası
+8.1. **Taahhütsüz Hizmet:** Platform aboneliği herhangi bir asgari süre veya taahhüt şartı içermemektedir. Bu doğrultuda aboneliğin iptali halinde Kullanıcı'ya **herhangi bir cezai şart, taahhüt bozma bedeli veya cayma bedeli yansıtılmaz**.
+8.2. **İptal Talebi ve Dönem Sonu Erişimi:** Kullanıcı, dilediği zaman herhangi bir gerekçe göstermeksizin ve cayma bedeli ödemeksizin aboneliğini iptal edebilir. İptal talebinde bulunulduğunda, bedeli peşin ödenmiş olan mevcut aylık kullanım döneminin sonuna kadar sisteme tam erişim devam eder; dönem sonunda ise ek bir bedel tahsil edilmeksizin abonelik sona erdirilir.
+8.3. **Elektronik Hizmet ve İade Koşulları:** 6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği uyarınca; elektronik ortamda anında ifa edilen ve gayrimaddi hak niteliğindeki dijital yazılım hizmeti Kullanıcı'nın kullanımına derhal sunulduğundan, fiilen başlanmış ve kullanılan cari aylık döneme ait peşin ödenen abonelik bedeli iade edilmez. Ancak Kullanıcı'dan sonraki aylar için herhangi bir ek ücret veya cayma bedeli talep edilmez.
+8.4. **Verilerin Korunması:** Abonelik iptali veya sona ermesi durumunda Kullanıcı'nın geçmiş dönemlere ait fatura, cari, ürün ve muhasebe kayıtları silinmez; mevzuat gereği yasal saklama süreleri boyunca güvenli veritabanlarında saklanmaya devam eder.
+
+## 9. Hizmetin Askıya Alınması ve Fesih
 Mevzuata, kamu düzenine veya işbu sözleşme hükümlerine aykırı kullanım, üçüncü kişilerin haklarının ihlali veya sistem güvenliğini tehdit eden girişimlerin tespiti halinde Hizmet Sağlayıcı hizmeti tek taraflı askıya alabilir veya sözleşmeyi feshedebilir.
 
-## 9. Kullanıcı Tarafından Girilen Verilerin Mülkiyeti
+## 10. Kullanıcı Tarafından Girilen Verilerin Mülkiyeti
 Kullanıcı tarafından sisteme girilen cari, fatura, stok ve muhasebe kayıtlarının mülkiyeti Kullanıcı'ya aittir. Hizmet Sağlayıcı bu verileri yalnızca sözleşme kapsamındaki hizmetin ifası ve mevzuat gereksinimleri çerçevesinde işler.
 
-## 10. Kişisel Verilerin Korunması (KVKK)
+## 11. Kişisel Verilerin Korunması (KVKK)
 Taraflar, 6698 sayılı Kişisel Verilerin Korunması Kanunu'na tam uyum sağlayacağını kabul eder. Kişisel ve ticari veriler yüksek güvenlikli şifreleme ve sunucu standartlarında korunur.
 
-## 11. Fikri Mülkiyet Hakları
+## 12. Fikri Mülkiyet Hakları
 Yazılımın tüm kod, tasarım, algoritma, görsel ve marka hakları münhasıran Hizmet Sağlayıcı'ya aittir. Tersine mühendislik yapılması, kaynak kodların kopyalanması veya üçüncü kişilere satılması kesinlikle yasaktır.
 
-## 12. Yetkili Mahkeme ve Uygulanacak Hukuk
+## 13. Yetkili Mahkeme ve Uygulanacak Hukuk
 İşbu sözleşmeye Türkiye Cumhuriyeti hukuku uygulanır. Sözleşmenin uygulanmasından doğabilecek uyuşmazlıklarda Hizmet Sağlayıcı'nın yerleşim yeri mahkemeleri ve icra müdürlükleri yetkilidir.
 
-## 13. Yürürlük
+## 14. Yürürlük
 İşbu sözleşme, Kullanıcı'nın kayıt sırasında elektronik onay kutusunu işaretlemesiyle birlikte yürürlüğe girer.`,
   },
   kvkk_notice: {
@@ -167,10 +173,10 @@ export const getCurrentLegalVersions = createServerFn({ method: "GET" }).handler
       .order("published_at", { ascending: false });
 
     if (error) throw new Error(error.message);
-    const pick = (t: LegalDocType) => data?.find((d) => d.doc_type === t)?.version ?? (t === "membership_terms" ? "v1.1" : "v1.0");
+    const pick = (t: LegalDocType) => data?.find((d) => d.doc_type === t)?.version ?? (t === "membership_terms" ? "v1.2" : "v1.0");
     return { membership_terms: pick("membership_terms"), kvkk_notice: pick("kvkk_notice") };
   } catch {
-    return { membership_terms: "v1.1", kvkk_notice: "v1.0" };
+    return { membership_terms: "v1.2", kvkk_notice: "v1.0" };
   }
 });
 
