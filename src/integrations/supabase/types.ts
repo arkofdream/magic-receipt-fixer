@@ -20,6 +20,8 @@ export type Database = {
           counter_customer_id: string | null
           created_at: string
           customer_id: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string
           document_no: string
           due_date: string | null
@@ -36,6 +38,8 @@ export type Database = {
           counter_customer_id?: string | null
           created_at?: string
           customer_id: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           document_no?: string
           due_date?: string | null
@@ -52,6 +56,8 @@ export type Database = {
           counter_customer_id?: string | null
           created_at?: string
           customer_id?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           document_no?: string
           due_date?: string | null
@@ -121,6 +127,42 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string
+          table_name: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id: string
+          table_name: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string
+          table_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string
@@ -128,6 +170,8 @@ export type Database = {
           code: string
           contact_name: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           district: string
           email: string
           id: string
@@ -151,6 +195,8 @@ export type Database = {
           code?: string
           contact_name?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           district?: string
           email?: string
           id?: string
@@ -174,6 +220,8 @@ export type Database = {
           code?: string
           contact_name?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           district?: string
           email?: string
           id?: string
@@ -266,6 +314,8 @@ export type Database = {
           currency: string
           customer: Json
           customer_id: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           ettn: string
           exchange_rate: number
           gib_approval_date: string | null
@@ -294,6 +344,8 @@ export type Database = {
           currency?: string
           customer?: Json
           customer_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           ettn: string
           exchange_rate?: number
           gib_approval_date?: string | null
@@ -322,6 +374,8 @@ export type Database = {
           currency?: string
           customer?: Json
           customer_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           ettn?: string
           exchange_rate?: number
           gib_approval_date?: string | null
@@ -413,6 +467,8 @@ export type Database = {
       pos_sales: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string
           document_no: string
           gross_amount: number
@@ -427,6 +483,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           document_no?: string
           gross_amount?: number
@@ -441,6 +499,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           document_no?: string
           gross_amount?: number
@@ -461,6 +521,8 @@ export type Database = {
           category: string
           code: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string
           discount_rate: number
           id: string
@@ -479,6 +541,8 @@ export type Database = {
           category?: string
           code?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           discount_rate?: number
           id?: string
@@ -497,6 +561,8 @@ export type Database = {
           category?: string
           code?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           discount_rate?: number
           id?: string
@@ -552,6 +618,8 @@ export type Database = {
         Row: {
           created_at: string
           customer_id: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string
           document_no: string
           id: string
@@ -570,6 +638,8 @@ export type Database = {
         Insert: {
           created_at?: string
           customer_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           document_no?: string
           id?: string
@@ -588,6 +658,8 @@ export type Database = {
         Update: {
           created_at?: string
           customer_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string
           document_no?: string
           id?: string
@@ -772,6 +844,8 @@ export type Database = {
         Row: {
           address: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           is_default: boolean
           name: string
@@ -781,6 +855,8 @@ export type Database = {
         Insert: {
           address?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_default?: boolean
           name: string
@@ -790,6 +866,8 @@ export type Database = {
         Update: {
           address?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_default?: boolean
           name?: string
