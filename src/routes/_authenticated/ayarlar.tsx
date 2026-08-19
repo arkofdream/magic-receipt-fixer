@@ -14,6 +14,9 @@ import {
   Save,
   ShieldCheck,
   XCircle,
+  Download,
+  Upload,
+  Database,
 } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
@@ -208,6 +211,69 @@ function SettingsPage() {
   const active = settings?.activeProvider ?? "NONE";
   const isLoading = settingsLoading || profileLoading;
 
+  const [exportingBackup, setExportingBackup] = useState(false);
+
+  async function exportFullBackup() {
+    try {
+      setExportingBackup(true);
+      toast.info("Tüm verileriniz hazırlanıyor, lütfen bekleyin...");
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Oturum açmış kullanıcı bulunamadı.");
+
+      const [
+        profileRes,
+        customersRes,
+        invoicesRes,
+        productsRes,
+        accountTxnsRes,
+        stockMovementsRes,
+        posSalesRes,
+        warehousesRes,
+        auditLogsRes,
+      ] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("customers").select("*").eq("user_id", userId),
+        supabase.from("invoices").select("*").eq("user_id", userId),
+        supabase.from("products").select("*").eq("user_id", userId),
+        supabase.from("account_transactions").select("*").eq("user_id", userId),
+        supabase.from("stock_movements").select("*").eq("user_id", userId),
+        supabase.from("pos_sales").select("*").eq("user_id", userId),
+        supabase.from("warehouses").select("*").eq("user_id", userId),
+        supabase.from("audit_logs").select("*").eq("user_id", userId),
+      ]);
+
+      const fullBackupPayload = {
+        version: "1.0",
+        exportedAt: new Date().toISOString(),
+        user_id: userId,
+        profile: profileRes.data,
+        customers: customersRes.data ?? [],
+        invoices: invoicesRes.data ?? [],
+        products: productsRes.data ?? [],
+        account_transactions: accountTxnsRes.data ?? [],
+        stock_movements: stockMovementsRes.data ?? [],
+        pos_sales: posSalesRes.data ?? [],
+        warehouses: warehousesRes.data ?? [],
+        audit_logs: auditLogsRes.data ?? [],
+      };
+
+      const jsonStr = JSON.stringify(fullBackupPayload, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `magic-receipt-yedek-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Veri yedeğiniz başarıyla indirildi.");
+    } catch (e: any) {
+      toast.error(`Yedekleme hatası: ${e.message}`);
+    } finally {
+      setExportingBackup(false);
+    }
+  }
+
   return (
     <AppShell
       title="Ayarlar & Entegrasyon"
@@ -220,7 +286,7 @@ function SettingsPage() {
         </div>
       ) : (
         <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:w-[500px]">
+          <TabsList className="grid w-full grid-cols-4 sm:w-[650px]">
             <TabsTrigger value="company" className="gap-2">
               <Building2 className="size-4" /> Firma Bilgileri
             </TabsTrigger>
@@ -229,6 +295,9 @@ function SettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="bank-api" className="gap-2">
               <Landmark className="size-4" /> Banka API
+            </TabsTrigger>
+            <TabsTrigger value="backup" className="gap-2">
+              <Database className="size-4" /> Veri Güvenliği & Yedekleme
             </TabsTrigger>
           </TabsList>
 
@@ -474,6 +543,40 @@ function SettingsPage() {
           {/* BANKA API KEY ENTEGRASYONLARI TAB */}
           <TabsContent value="bank-api" className="space-y-6">
             <BankApiSettings />
+          </TabsContent>
+
+          {/* HARİCİ VERİ YEDEKLEME VE GÜVENLİK TAB */}
+          <TabsContent value="backup" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Database className="size-5 text-indigo-500" />
+                  Harici Veri Yedekleme ve Dışa Aktarma (JSON)
+                </CardTitle>
+                <CardDescription>
+                  Supabase bulut veritabanınızdaki tüm fatura, cari, ürün, stok, tahsilat ve işlem geçmişi verilerinizi tek tıkla kendi bilgisayarınıza güvenli JSON dosyası olarak indirebilirsiniz.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900 dark:bg-indigo-950/20">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="size-5 text-indigo-600 dark:text-indigo-400 mt-0.5" />
+                    <div className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+                      <p className="font-semibold text-sm text-indigo-900 dark:text-indigo-200">Tam Veri Güvenliği ve Yedekleme Garantisi</p>
+                      <p>• Bilgisayarınızdan uygulamayı silseniz veya sıfırlasanız dahi Supabase üzerindeki verileriniz silinmez.</p>
+                      <p>• Çevrimdışı (offline) arşiv amacıyla dilediğiniz an verilerinizi JSON formatında bilgisayarınıza indirebilirsiniz.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4 pt-2">
+                  <Button onClick={exportFullBackup} disabled={exportingBackup} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+                    {exportingBackup ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                    Tüm Muhasebe Verilerini İndir / Yedekle (JSON)
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       )}

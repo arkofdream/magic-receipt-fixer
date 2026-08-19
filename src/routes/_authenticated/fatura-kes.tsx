@@ -316,7 +316,11 @@ function NewInvoicePage() {
 
         // Cari hesap hareketi
         if (customerId) {
-          await supabase.from("account_transactions").delete().eq("source_id", insertedId);
+          await supabase
+            .from("account_transactions")
+            .update({ deleted_at: new Date().toISOString(), deleted_by: userId })
+            .eq("source_id", insertedId)
+            .is("deleted_at", null);
           const { error: txnError } = await supabase.from("account_transactions").insert({
             user_id: userId,
             customer_id: customerId,
@@ -332,7 +336,11 @@ function NewInvoicePage() {
         }
 
         // Stok hareketleri
-        await supabase.from("stock_movements").delete().eq("source_id", insertedId);
+        await supabase
+          .from("stock_movements")
+          .update({ deleted_at: new Date().toISOString(), deleted_by: userId })
+          .eq("source_id", insertedId)
+          .is("deleted_at", null);
         const stockRows = items
           .filter((i) => i.productId)
           .map((i) => ({

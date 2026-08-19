@@ -103,6 +103,7 @@ function CustomersPage() {
       const { data, error } = await supabase
         .from("customers")
         .select("*")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -203,11 +204,18 @@ function CustomersPage() {
 
   const removeCustomer = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("customers").delete().eq("id", id);
+      const userId = await currentUserId();
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Cari silindi.");
+      toast.success("Cari silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
     },

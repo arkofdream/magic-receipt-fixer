@@ -92,6 +92,7 @@ function ProductsPage() {
       const { data, error } = await supabase
         .from("products")
         .select("*")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -168,11 +169,18 @@ function ProductsPage() {
 
   const removeProduct = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products").delete().eq("id", id);
+      const userId = await currentUserId();
+      const { error } = await supabase
+        .from("products")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Kayıt silindi.");
+      toast.success("Ürün silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
     },

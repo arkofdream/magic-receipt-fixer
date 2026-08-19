@@ -166,6 +166,7 @@ function PosSalesPage() {
       const { data, error } = await supabase
         .from("pos_sales")
         .select("*")
+        .is("deleted_at", null)
         .gte("sale_date", start)
         .lte("sale_date", end)
         .order("sale_date", { ascending: false });
@@ -179,7 +180,8 @@ function PosSalesPage() {
     queryFn: async () => {
       const { count, error } = await supabase
         .from("invoices")
-        .select("id", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true })
+        .is("deleted_at", null);
       if (error) throw error;
       return count ?? 0;
     },
@@ -223,11 +225,18 @@ function PosSalesPage() {
 
   const removeSale = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("pos_sales").delete().eq("id", id);
+      const userId = await currentUserId();
+      const { error } = await supabase
+        .from("pos_sales")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Kayıt silindi.");
+      toast.success("Kayıt silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["pos-sales"] });
     },
     onError: (e: Error) => toast.error(e.message),

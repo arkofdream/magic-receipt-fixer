@@ -79,7 +79,7 @@ function StockPage() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", "stock"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").order("name");
+      const { data, error } = await supabase.from("products").select("*").is("deleted_at", null).order("name");
       if (error) throw error;
       return data ?? [];
     },
@@ -88,7 +88,7 @@ function StockPage() {
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("warehouses").select("*").order("created_at");
+      const { data, error } = await supabase.from("warehouses").select("*").is("deleted_at", null).order("created_at");
       if (error) throw error;
       return data ?? [];
     },
@@ -110,6 +110,7 @@ function StockPage() {
       const { data, error } = await supabase
         .from("stock_movements")
         .select("*")
+        .is("deleted_at", null)
         .order("movement_date", { ascending: true })
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -309,11 +310,18 @@ function StockPage() {
 
   const removeWarehouse = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("warehouses").delete().eq("id", id);
+      const userId = await currentUserId();
+      const { error } = await supabase
+        .from("warehouses")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Depo silindi.");
+      toast.success("Depo silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -382,11 +390,18 @@ function StockPage() {
 
   const removeMovement = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("stock_movements").delete().eq("id", id);
+      const userId = await currentUserId();
+      const { error } = await supabase
+        .from("stock_movements")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Stok hareketi silindi.");
+      toast.success("Stok hareketi silindi (Çöp Kutusuna taşındı).");
       refresh();
     },
     onError: (e: Error) => toast.error(e.message),
