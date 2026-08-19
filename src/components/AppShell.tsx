@@ -17,6 +17,7 @@ import {
   Download,
   Landmark,
   Monitor,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -39,6 +40,7 @@ const nav = [
 
   { to: "/pos-satislar", label: "POS Satışları", icon: CreditCard },
   { to: "/z-raporu", label: "Günlük Z Raporu", icon: BarChart3 },
+  { to: "/cop-kutusu", label: "Çöp Kutusu & Log", icon: Trash2 },
   { to: "/ayarlar", label: "Entegrasyon Ayarları", icon: Settings },
   { to: "/abonelik", label: "Aboneliğim", icon: BadgeCheck },
   { to: "/guncellemeler", label: "Güncellemeler", icon: Sparkles },
