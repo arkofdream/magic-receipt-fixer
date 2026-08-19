@@ -81,8 +81,8 @@ function SubscriptionPage() {
                   label="Yenileme ücreti"
                   value={
                     sub.renewalPrice === null
-                      ? "6.000,00 TL / Yıl (Güncel Liste Fiyatı)"
-                      : `${sub.renewalPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL / Yıl`
+                      ? "6.000,00 TL / Ay (Güncel Liste Fiyatı)"
+                      : `${sub.renewalPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL / Ay`
                   }
                 />
                 <Row label="Son ödeme tarihi" value={formatDate(sub.lastPaymentDate)} />
@@ -95,12 +95,12 @@ function SubscriptionPage() {
                   </p>
                 )}
                 <div className="rounded-md bg-muted p-3 text-muted-foreground">
-                  <p className="font-medium text-foreground">Abonelik & Yenileme Bilgisi</p>
+                  <p className="font-medium text-foreground">Abonelik, İptal ve Cayma Politikası</p>
                   <p className="mt-1">
-                    Platform kullanım bedeli yıllık <strong>6.000 TL</strong>'dir. İlerleyen yıllarda platforma eklenecek büyük özellikler, altyapı geliştirmeleri ve mevzuat modülleri doğrultusunda yenileme dönemlerinde fiyat tarifesinde artış yapılabilir.
+                    Platform kullanım bedeli aylık <strong>6.000 TL</strong>'dir. Taahhüt veya cayma bedeli bulunmamaktadır; dilediğiniz zaman aboneliğinizi herhangi bir ceza veya ek ücret ödemeksizin sonlandırabilirsiniz.
                   </p>
                   <p className="mt-2 text-xs">
-                    Platformda otomatik kart çekimi bulunmamaktadır. Yenileme talebiniz ve dekont onayınız sonrası aboneliğiniz anında uzatılır. İletişim: [E-POSTA] · [TELEFON]
+                    Platformda otomatik kart çekimi bulunmamaktadır. Yenileme talebiniz ve dekont onayınız sonrası aboneliğiniz aylık olarak uzatılır. İletişim: [E-POSTA] · [TELEFON]
                   </p>
                 </div>
               </>
