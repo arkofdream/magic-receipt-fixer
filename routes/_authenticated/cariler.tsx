@@ -203,11 +203,19 @@ function CustomersPage() {
 
   const removeCustomer = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("customers").delete().eq("id", id);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId || null,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Cari silindi.");
+      toast.success("Cari silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
     },

@@ -166,11 +166,19 @@ function StockPage() {
 
   const removeWarehouse = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("warehouses").delete().eq("id", id);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      const { error } = await supabase
+        .from("warehouses")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId || null,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Depo silindi.");
+      toast.success("Depo silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -239,11 +247,19 @@ function StockPage() {
 
   const removeMovement = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("stock_movements").delete().eq("id", id);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      const { error } = await supabase
+        .from("stock_movements")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId || null,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Hareket silindi.");
+      toast.success("Stok hareketi silindi (Çöp Kutusuna taşındı).");
       refresh();
     },
     onError: (e: Error) => toast.error(e.message),

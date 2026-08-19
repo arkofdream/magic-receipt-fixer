@@ -164,11 +164,19 @@ function PosSalesPage() {
 
   const removeSale = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("pos_sales").delete().eq("id", id);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      const { error } = await supabase
+        .from("pos_sales")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId || null,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Kayıt silindi.");
+      toast.success("Kayıt silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["pos-sales"] });
     },
     onError: (e: Error) => toast.error(e.message),

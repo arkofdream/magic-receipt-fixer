@@ -185,6 +185,8 @@ function InvoicesPage() {
 
   const cancel = useMutation({
     mutationFn: async (inv: InvoiceRow) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
       const { error } = await supabase
         .from("invoices")
         .update({ status: "IPTAL", cancel_date: new Date().toISOString() })
@@ -192,9 +194,14 @@ function InvoicesPage() {
       if (error) throw error;
 
       if (inv.posted) {
-        // İlgili otomatik hareketleri temizle
-        await supabase.from("account_transactions").delete().eq("source_id", inv.id);
-        await supabase.from("stock_movements").delete().eq("source_id", inv.id);
+        await supabase
+          .from("account_transactions")
+          .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
+          .eq("source_id", inv.id);
+        await supabase
+          .from("stock_movements")
+          .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
+          .eq("source_id", inv.id);
       }
     },
     onSuccess: () => {
@@ -210,13 +217,34 @@ function InvoicesPage() {
 
   const deleteDraft = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      const { error } = await supabase
+        .from("invoices")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId || null,
+        })
+        .eq("id", id);
       if (error) throw error;
+
+      await supabase
+        .from("account_transactions")
+        .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
+        .eq("source_id", id);
+      await supabase
+        .from("stock_movements")
+        .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
+        .eq("source_id", id);
     },
     onSuccess: () => {
-      toast.success("Taslak fatura silindi.");
+      toast.success("Fatura silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-count"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

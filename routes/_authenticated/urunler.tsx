@@ -168,11 +168,19 @@ function ProductsPage() {
 
   const removeProduct = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products").delete().eq("id", id);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      const { error } = await supabase
+        .from("products")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId || null,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Kayıt silindi.");
+      toast.success("Ürün silindi (Çöp Kutusuna taşındı).");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
     },
