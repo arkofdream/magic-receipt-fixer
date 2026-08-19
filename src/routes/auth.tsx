@@ -377,7 +377,7 @@ function AuthPage() {
                         >
                           Üyelik ve Yazılım Hizmeti Kullanım Sözleşmesi
                         </Link>
-                        'ni (Yıllık 6.000 TL lisans ücreti ve gelecekteki özellik/fiyatlandırma şartları dahil) okudum ve kabul ediyorum.{" "}
+                        'ni (Aylık 6.000 TL lisans ücreti ve taahhütsüz iptal şartları dahil) okudum ve kabul ediyorum.{" "}
                         <Link
                           to="/kvkk-aydinlatma"
                           target="_blank"
