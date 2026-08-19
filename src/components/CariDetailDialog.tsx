@@ -64,6 +64,7 @@ export function CariDetailDialog({
         .from("account_transactions")
         .select("*")
         .eq("customer_id", customerId!)
+        .is("deleted_at", null)
         .gte("txn_date", from)
         .lte("txn_date", to)
         .order("txn_date", { ascending: true })
@@ -178,11 +179,18 @@ export function CariDetailDialog({
 
   const removeTxn = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("account_transactions").delete().eq("id", id);
+      const userId = await currentUserId();
+      const { error } = await supabase
+        .from("account_transactions")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Hareket silindi.");
+      toast.success("Hareket silindi (Çöp Kutusuna taşındı).");
       refresh();
     },
     onError: (e: Error) => toast.error(e.message),
