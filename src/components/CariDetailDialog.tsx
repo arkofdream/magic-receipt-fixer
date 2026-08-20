@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook } from "@/lib/excel";
 import { formatDate, formatMoney } from "@/lib/invoice";
 import { TXN_LABELS, TXN_OPTIONS, addDaysISO, isDebit, today, type TxnType } from "@/lib/cari";
@@ -69,6 +70,18 @@ export function CariDetailDialog({
         .lte("txn_date", to)
         .order("txn_date", { ascending: true })
         .order("created_at", { ascending: true });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("account_transactions")
+          .select("*")
+          .eq("customer_id", customerId!)
+          .gte("txn_date", from)
+          .lte("txn_date", to)
+          .order("txn_date", { ascending: true })
+          .order("created_at", { ascending: true });
+        if (fallback.error) throw fallback.error;
+        return fallback.data;
+      }
       if (error) throw error;
       return data;
     },
@@ -180,17 +193,10 @@ export function CariDetailDialog({
   const removeTxn = useMutation({
     mutationFn: async (id: string) => {
       const userId = await currentUserId();
-      const { error } = await supabase
-        .from("account_transactions")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-        })
-        .eq("id", id);
-      if (error) throw error;
+      await safeSoftDelete("account_transactions", id, userId);
     },
     onSuccess: () => {
-      toast.success("Hareket silindi (Çöp Kutusuna taşındı).");
+      toast.success("Hareket silindi.");
       refresh();
     },
     onError: (e: Error) => toast.error(e.message),
