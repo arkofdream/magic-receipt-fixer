@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook } from "@/lib/excel";
 import { formatDate, formatMoney } from "@/lib/invoice";
 import { STOCK_LABELS, addDaysISO, today, type StockMovementType } from "@/lib/cari";
@@ -80,6 +81,11 @@ function StockPage() {
     queryKey: ["products", "stock"],
     queryFn: async () => {
       const { data, error } = await supabase.from("products").select("*").is("deleted_at", null).order("name");
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase.from("products").select("*").order("name");
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
       if (error) throw error;
       return data ?? [];
     },
@@ -89,6 +95,11 @@ function StockPage() {
     queryKey: ["warehouses"],
     queryFn: async () => {
       const { data, error } = await supabase.from("warehouses").select("*").is("deleted_at", null).order("created_at");
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase.from("warehouses").select("*").order("created_at");
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
       if (error) throw error;
       return data ?? [];
     },
@@ -113,6 +124,15 @@ function StockPage() {
         .is("deleted_at", null)
         .order("movement_date", { ascending: true })
         .order("created_at", { ascending: true });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("stock_movements")
+          .select("*")
+          .order("movement_date", { ascending: true })
+          .order("created_at", { ascending: true });
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
       if (error) throw error;
       return data ?? [];
     },
@@ -311,17 +331,10 @@ function StockPage() {
   const removeWarehouse = useMutation({
     mutationFn: async (id: string) => {
       const userId = await currentUserId();
-      const { error } = await supabase
-        .from("warehouses")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-        })
-        .eq("id", id);
-      if (error) throw error;
+      await safeSoftDelete("warehouses", id, userId);
     },
     onSuccess: () => {
-      toast.success("Depo silindi (Çöp Kutusuna taşındı).");
+      toast.success("Depo silindi.");
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -391,17 +404,10 @@ function StockPage() {
   const removeMovement = useMutation({
     mutationFn: async (id: string) => {
       const userId = await currentUserId();
-      const { error } = await supabase
-        .from("stock_movements")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-        })
-        .eq("id", id);
-      if (error) throw error;
+      await safeSoftDelete("stock_movements", id, userId);
     },
     onSuccess: () => {
-      toast.success("Stok hareketi silindi (Çöp Kutusuna taşındı).");
+      toast.success("Stok hareketi silindi.");
       refresh();
     },
     onError: (e: Error) => toast.error(e.message),

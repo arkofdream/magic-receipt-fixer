@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import { emptyCustomer, formatMoney, type InvoiceCustomer } from "@/lib/invoice";
 import { PARTNER_LABELS, type PartnerType } from "@/lib/cari";
@@ -105,6 +106,14 @@ function CustomersPage() {
         .select("*")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("customers")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (fallback.error) throw fallback.error;
+        return fallback.data;
+      }
       if (error) throw error;
       return data;
     },
@@ -205,17 +214,10 @@ function CustomersPage() {
   const removeCustomer = useMutation({
     mutationFn: async (id: string) => {
       const userId = await currentUserId();
-      const { error } = await supabase
-        .from("customers")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-        })
-        .eq("id", id);
-      if (error) throw error;
+      await safeSoftDelete("customers", id, userId);
     },
     onSuccess: () => {
-      toast.success("Cari silindi (Çöp Kutusuna taşındı).");
+      toast.success("Cari silindi.");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
     },

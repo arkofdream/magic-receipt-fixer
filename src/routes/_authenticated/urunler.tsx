@@ -19,6 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import { formatMoney } from "@/lib/invoice";
 
@@ -94,6 +95,14 @@ function ProductsPage() {
         .select("*")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (fallback.error) throw fallback.error;
+        return fallback.data;
+      }
       if (error) throw error;
       return data;
     },
@@ -170,17 +179,10 @@ function ProductsPage() {
   const removeProduct = useMutation({
     mutationFn: async (id: string) => {
       const userId = await currentUserId();
-      const { error } = await supabase
-        .from("products")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-        })
-        .eq("id", id);
-      if (error) throw error;
+      await safeSoftDelete("products", id, userId);
     },
     onSuccess: () => {
-      toast.success("Ürün silindi (Çöp Kutusuna taşındı).");
+      toast.success("Ürün silindi.");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
     },

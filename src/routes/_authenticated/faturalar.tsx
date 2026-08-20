@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import {
   formatDate,
   formatMoney,
@@ -104,6 +105,14 @@ function InvoicesPage() {
         .select("*")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("invoices")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
       if (error) throw error;
       return data ?? [];
     },
@@ -233,14 +242,21 @@ function InvoicesPage() {
       if (error) throw error;
 
       if (inv.posted) {
-        await supabase
+        const softTxn = await supabase
           .from("account_transactions")
           .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
           .eq("source_id", inv.id);
-        await supabase
+        if (softTxn.error && isMissingColumnError(softTxn.error)) {
+          await supabase.from("account_transactions").delete().eq("source_id", inv.id);
+        }
+
+        const softStock = await supabase
           .from("stock_movements")
           .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
           .eq("source_id", inv.id);
+        if (softStock.error && isMissingColumnError(softStock.error)) {
+          await supabase.from("stock_movements").delete().eq("source_id", inv.id);
+        }
       }
     },
     onSuccess: () => {
@@ -258,26 +274,10 @@ function InvoicesPage() {
     mutationFn: async (id: string) => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
-      const { error } = await supabase
-        .from("invoices")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId || null,
-        })
-        .eq("id", id);
-      if (error) throw error;
-
-      await supabase
-        .from("account_transactions")
-        .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
-        .eq("source_id", id);
-      await supabase
-        .from("stock_movements")
-        .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
-        .eq("source_id", id);
+      await safeSoftDelete("invoices", id, userId);
     },
     onSuccess: () => {
-      toast.success("Fatura silindi (Çöp Kutusuna taşındı).");
+      toast.success("Fatura başarıyla silindi.");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-count"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });

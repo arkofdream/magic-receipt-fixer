@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import {
   formatDate,
@@ -170,6 +171,16 @@ function PosSalesPage() {
         .gte("sale_date", start)
         .lte("sale_date", end)
         .order("sale_date", { ascending: false });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("pos_sales")
+          .select("*")
+          .gte("sale_date", start)
+          .lte("sale_date", end)
+          .order("sale_date", { ascending: false });
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
       if (error) throw error;
       return data ?? [];
     },
@@ -182,6 +193,13 @@ function PosSalesPage() {
         .from("invoices")
         .select("id", { count: "exact", head: true })
         .is("deleted_at", null);
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("invoices")
+          .select("id", { count: "exact", head: true });
+        if (fallback.error) throw fallback.error;
+        return fallback.count ?? 0;
+      }
       if (error) throw error;
       return count ?? 0;
     },
@@ -226,17 +244,10 @@ function PosSalesPage() {
   const removeSale = useMutation({
     mutationFn: async (id: string) => {
       const userId = await currentUserId();
-      const { error } = await supabase
-        .from("pos_sales")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-        })
-        .eq("id", id);
-      if (error) throw error;
+      await safeSoftDelete("pos_sales", id, userId);
     },
     onSuccess: () => {
-      toast.success("Kayıt silindi (Çöp Kutusuna taşındı).");
+      toast.success("Kayıt silindi.");
       queryClient.invalidateQueries({ queryKey: ["pos-sales"] });
     },
     onError: (e: Error) => toast.error(e.message),

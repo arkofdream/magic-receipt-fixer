@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError } from "@/lib/safe-supabase";
 import {
   emptyCustomer,
   formatMoney,
@@ -316,11 +317,14 @@ function NewInvoicePage() {
 
         // Cari hesap hareketi
         if (customerId) {
-          await supabase
+          const softTxn = await supabase
             .from("account_transactions")
             .update({ deleted_at: new Date().toISOString(), deleted_by: userId })
             .eq("source_id", insertedId)
             .is("deleted_at", null);
+          if (softTxn.error && isMissingColumnError(softTxn.error)) {
+            await supabase.from("account_transactions").delete().eq("source_id", insertedId);
+          }
           const { error: txnError } = await supabase.from("account_transactions").insert({
             user_id: userId,
             customer_id: customerId,
@@ -336,11 +340,14 @@ function NewInvoicePage() {
         }
 
         // Stok hareketleri
-        await supabase
+        const softStock = await supabase
           .from("stock_movements")
           .update({ deleted_at: new Date().toISOString(), deleted_by: userId })
           .eq("source_id", insertedId)
           .is("deleted_at", null);
+        if (softStock.error && isMissingColumnError(softStock.error)) {
+          await supabase.from("stock_movements").delete().eq("source_id", insertedId);
+        }
         const stockRows = items
           .filter((i) => i.productId)
           .map((i) => ({
