@@ -720,9 +720,11 @@ function NewInvoicePage() {
 
               <div className="sm:col-span-2">
                 <AddressSelect
-                  city={customer.city}
-                  district={customer.district}
-                  neighborhood={customer.neighborhood}
+                  value={{
+                    city: customer.city,
+                    district: customer.district,
+                    neighborhood: customer.neighborhood,
+                  }}
                   onChange={({ city, district, neighborhood }) =>
                     setCustomer({ ...customer, city, district, neighborhood })
                   }
