@@ -98,6 +98,15 @@ function CustomersPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ ...emptyCustomer, ...emptyExtras });
 
+  // Tedarikçi Ödeme Modalı Durumları
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentSupplier, setPaymentSupplier] = useState<any>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState("BANKA");
+  const [paymentDocNo, setPaymentDocNo] = useState("");
+  const [paymentDesc, setPaymentDesc] = useState("");
+
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
@@ -220,6 +229,40 @@ function CustomersPage() {
       toast.success("Cari silindi.");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const makeSupplierPayment = useMutation({
+    mutationFn: async () => {
+      if (!paymentSupplier) throw new Error("Tedarikçi seçilmedi.");
+      const amount = Number(paymentAmount);
+      if (!amount || amount <= 0) throw new Error("Geçerli bir ödeme tutarı giriniz.");
+
+      const { data: _result, error } = await supabase.rpc("create_supplier_payment", {
+        p_supplier_id: paymentSupplier.id,
+        p_payment_date: paymentDate,
+        p_amount: amount,
+        p_payment_method: paymentMethod,
+        p_document_no: paymentDocNo.trim(),
+        p_description: paymentDesc.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tedarikçi ödemesi başarıyla işlendi ve muhasebe fişi (320 Borç / Kasa-Banka Alacak) kaydedildi.");
+      setPaymentOpen(false);
+      setPaymentSupplier(null);
+      setPaymentAmount("");
+      setPaymentDocNo("");
+      setPaymentDesc("");
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["trial-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["reconciliation-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -599,13 +642,31 @@ function CustomersPage() {
                             </Badge>
                           ) : null}
                         </td>
-                        <td className="py-3 text-right whitespace-nowrap">
-                          <Button variant="outline" size="sm" onClick={() => setDetailId(c.id)}>
+                        <td className="py-3 text-right whitespace-nowrap space-x-1">
+                          {c.partner_type === "TEDARIKCI" && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                setPaymentSupplier(c);
+                                setPaymentAmount(String(Math.abs(b.balance) || ""));
+                                setPaymentDate(new Date().toISOString().slice(0, 10));
+                                setPaymentDocNo("");
+                                setPaymentDesc(`Tedarikçi Ödemesi - ${c.title}`);
+                                setPaymentOpen(true);
+                              }}
+                            >
+                              Ödeme Yap
+                            </Button>
+                          )}
+                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDetailId(c.id)}>
                             Ekstre
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => removeCustomer.mutate(c.id)}
                           >
                             Sil
@@ -620,6 +681,87 @@ function CustomersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* TEDARİKÇİ ÖDEME DİALOGU */}
+      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tedarikçiye Ödeme Yap (320 Borç Kapatma)</DialogTitle>
+          </DialogHeader>
+          {paymentSupplier && (
+            <div className="space-y-3 pt-2 text-sm">
+              <div className="rounded-md bg-muted/40 p-3 space-y-1">
+                <div className="font-semibold text-foreground">{paymentSupplier.title}</div>
+                <div className="text-xs text-muted-foreground">VKN/TCKN: {paymentSupplier.vkn_tckn || "-"}</div>
+                <div className="text-xs font-mono text-primary pt-1">
+                  Mevcut Bakiye: {formatMoney(balanceMap.get(paymentSupplier.id)?.balance ?? 0)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Ödeme Tarihi *</Label>
+                  <Input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Ödeme Tutarı (TL) *</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Ödeme Yöntemi / Çıkış Hesabı</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BANKA">Banka Hesabı (102 Bankalar)</SelectItem>
+                    <SelectItem value="KASA">Nakit Kasa (100 Kasa)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Dekont / Belge No</Label>
+                <Input
+                  placeholder="Örn: DEK-2026-001"
+                  value={paymentDocNo}
+                  onChange={(e) => setPaymentDocNo(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Açıklama</Label>
+                <Input
+                  placeholder="Ödeme açıklaması"
+                  value={paymentDesc}
+                  onChange={(e) => setPaymentDesc(e.target.value)}
+                />
+              </div>
+
+              <Button
+                className="w-full mt-3"
+                onClick={() => makeSupplierPayment.mutate()}
+                disabled={makeSupplierPayment.isPending}
+              >
+                {makeSupplierPayment.isPending ? "İşleniyor…" : "Ödemeyi Onayla & Fişini Oluştur"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <CariDetailDialog
         customer={detailCustomer as never}

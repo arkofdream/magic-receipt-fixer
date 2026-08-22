@@ -67,7 +67,9 @@ const TYPE_BADGE_MAP: Record<string, { label: string; variant: "default" | "seco
   E_ARSIV: { label: "e-Arşiv", variant: "secondary" },
   GELEN_FATURA: { label: "Gelen Fatura", variant: "outline" },
   GELEN_E_ARSIV: { label: "Gelen e-Arşiv", variant: "outline" },
-  IADE: { label: "İade", variant: "destructive" },
+  ALIS: { label: "Alış Faturası", variant: "default" },
+  ALIS_IADE: { label: "Alış İadesi", variant: "destructive" },
+  IADE: { label: "Satış İadesi", variant: "destructive" },
   TEVKIFAT: { label: "Tevkifatlı", variant: "default" },
   ISTISNA: { label: "İstisna (%0)", variant: "secondary" },
 };
@@ -233,39 +235,31 @@ function InvoicesPage() {
 
   const cancel = useMutation({
     mutationFn: async (inv: InvoiceRow) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      const { error } = await supabase
-        .from("invoices")
-        .update({ status: "IPTAL", cancel_date: new Date().toISOString() })
-        .eq("id", inv.id);
-      if (error) throw error;
-
-      if (inv.posted) {
-        const softTxn = await supabase
-          .from("account_transactions")
-          .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
-          .eq("source_id", inv.id);
-        if (softTxn.error && isMissingColumnError(softTxn.error)) {
-          await supabase.from("account_transactions").delete().eq("source_id", inv.id);
-        }
-
-        const softStock = await supabase
-          .from("stock_movements")
-          .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
-          .eq("source_id", inv.id);
-        if (softStock.error && isMissingColumnError(softStock.error)) {
-          await supabase.from("stock_movements").delete().eq("source_id", inv.id);
-        }
+      const isPurchase = inv.type === "ALIS" || inv.type === "GELEN_FATURA" || inv.type === "GELEN_E_ARSIV";
+      if (isPurchase) {
+        const { data: _result, error } = await supabase.rpc("cancel_purchase_invoice", {
+          p_invoice_id: inv.id,
+          p_cancel_reason: "Kullanıcı tarafından iptal edildi",
+        });
+        if (error) throw error;
+      } else {
+        const { data: _result, error } = await supabase.rpc("cancel_sales_invoice", {
+          p_invoice_id: inv.id,
+          p_cancel_reason: "Kullanıcı tarafından iptal edildi",
+        });
+        if (error) throw error;
       }
     },
     onSuccess: () => {
-      toast.success("Fatura iptal edildi; ilgili cari ve stok kayıtları dengelendi.");
+      toast.success("Fatura iptal edildi; ilgili cari, muhasebe ve stok kayıtları terslendi.");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
       queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
+      queryClient.invalidateQueries({ queryKey: ["trial-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["reconciliation-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -398,9 +392,14 @@ function InvoicesPage() {
             <FileDown className="size-4" />
             {downloading ? "Hazırlanıyor…" : `Seçilenleri İndir (${selected.length})`}
           </Button>
+          <Button variant="outline" asChild>
+            <Link to="/fatura-kes" search={{ mode: "ALIS" }}>
+              <Plus className="mr-1 size-4" /> Alış Faturası Girişi
+            </Link>
+          </Button>
           <Button asChild>
-            <Link to="/fatura-kes">
-              <Plus className="mr-1 size-4" /> Yeni Fatura
+            <Link to="/fatura-kes" search={{ mode: "SATIS" }}>
+              <Plus className="mr-1 size-4" /> Yeni Satış Faturası
             </Link>
           </Button>
         </div>
@@ -627,21 +626,23 @@ function InvoicesPage() {
                           </td>
                           <td className="py-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
-                              {/* Düzenle Butonu (Kaydedilen Fatura Düzenlenebilsin) */}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1 px-2 text-xs"
-                                title="Faturayı Düzenle"
-                                onClick={() =>
-                                  navigate({
-                                    to: "/fatura-kes",
-                                    search: { editId: inv.id },
-                                  })
-                                }
-                              >
-                                <Edit className="size-3.5" /> Düzenle
-                              </Button>
+                              {/* Yalnızca Taslak Faturalar Düzenlenebilir */}
+                              {inv.status === "TASLAK" && !inv.posted ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 gap-1 px-2 text-xs"
+                                  title="Faturayı Düzenle"
+                                  onClick={() =>
+                                    navigate({
+                                      to: "/fatura-kes",
+                                      search: { editId: inv.id },
+                                    })
+                                  }
+                                >
+                                  <Edit className="size-3.5" /> Düzenle
+                                </Button>
+                              ) : null}
 
                               <Button
                                 size="icon"
@@ -693,6 +694,22 @@ function InvoicesPage() {
                                   onClick={() => collect.mutate({ inv: row, amount: remaining })}
                                 >
                                   Tahsilat
+                                </Button>
+                              ) : null}
+
+                              {(inv.type === "ALIS" || inv.type === "GELEN_FATURA" || inv.type === "GELEN_E_ARSIV") && inv.status === "ONAYLANDI" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs"
+                                  onClick={() =>
+                                    navigate({
+                                      to: "/fatura-kes",
+                                      search: { mode: "ALIS_IADE", returnInvoiceId: inv.id },
+                                    })
+                                  }
+                                >
+                                  İade Et
                                 </Button>
                               ) : null}
 
