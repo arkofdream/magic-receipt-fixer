@@ -20,14 +20,15 @@ export type AddressValue = { city: string; district: string; neighborhood: strin
  * serbest metin girişine döner, böylece kayıt akışı hiçbir zaman bloke olmaz.
  */
 export function AddressSelect({
-  value,
+  value = { city: "", district: "", neighborhood: "" },
   onChange,
   disabled,
 }: {
-  value: AddressValue;
+  value?: AddressValue;
   onChange: (value: AddressValue) => void;
   disabled?: boolean;
 }) {
+  const safeValue = value || { city: "", district: "", neighborhood: "" };
   const fetchProvinces = useServerFn(listProvinces);
   const fetchDetail = useServerFn(getProvinceDetail);
 
@@ -40,7 +41,7 @@ export function AddressSelect({
 
   const provinces = provincesQuery.data ?? [];
   const selectedProvince = provinces.find(
-    (p) => p.name.localeCompare(value.city, "tr", { sensitivity: "base" }) === 0,
+    (p) => p.name.localeCompare(safeValue.city || "", "tr", { sensitivity: "base" }) === 0,
   );
 
   const detailQuery = useQuery({
@@ -54,30 +55,30 @@ export function AddressSelect({
   const districts = useMemo(() => detailQuery.data?.districts ?? [], [detailQuery.data?.districts]);
   const neighborhoods = useMemo(() => {
     const match = districts.find(
-      (d) => d.district.localeCompare(value.district, "tr", { sensitivity: "base" }) === 0,
+      (d) => d.district.localeCompare(safeValue.district || "", "tr", { sensitivity: "base" }) === 0,
     );
     return match?.neighborhoods ?? [];
-  }, [districts, value.district]);
+  }, [districts, safeValue.district]);
 
   if (provincesQuery.isError) {
     return (
       <>
         <TextField
           label="İl"
-          value={value.city}
-          onChange={(city) => onChange({ ...value, city })}
+          value={safeValue.city}
+          onChange={(city) => onChange({ ...safeValue, city })}
           disabled={disabled ?? false}
         />
         <TextField
           label="İlçe"
-          value={value.district}
-          onChange={(district) => onChange({ ...value, district })}
+          value={safeValue.district}
+          onChange={(district) => onChange({ ...safeValue, district })}
           disabled={disabled ?? false}
         />
         <TextField
           label="Mahalle / Köy"
-          value={value.neighborhood}
-          onChange={(neighborhood) => onChange({ ...value, neighborhood })}
+          value={safeValue.neighborhood}
+          onChange={(neighborhood) => onChange({ ...safeValue, neighborhood })}
           disabled={disabled ?? false}
         />
       </>
@@ -89,7 +90,7 @@ export function AddressSelect({
       <div className="space-y-2">
         <Label>İl</Label>
         <Select
-          {...(value.city ? { value: value.city } : {})}
+          {...(safeValue.city ? { value: safeValue.city } : {})}
           disabled={disabled || provincesQuery.isLoading}
           onValueChange={(city) => onChange({ city, district: "", neighborhood: "" })}
         >
@@ -109,9 +110,9 @@ export function AddressSelect({
       <div className="space-y-2">
         <Label>İlçe</Label>
         <Select
-          {...(value.district ? { value: value.district } : {})}
+          {...(safeValue.district ? { value: safeValue.district } : {})}
           disabled={disabled || !selectedProvince || detailQuery.isLoading}
-          onValueChange={(district) => onChange({ ...value, district, neighborhood: "" })}
+          onValueChange={(district) => onChange({ ...safeValue, district, neighborhood: "" })}
         >
           <SelectTrigger>
             <SelectValue
@@ -137,9 +138,9 @@ export function AddressSelect({
       <div className="space-y-2">
         <Label>Mahalle / Köy</Label>
         <Select
-          {...(value.neighborhood ? { value: value.neighborhood } : {})}
+          {...(safeValue.neighborhood ? { value: safeValue.neighborhood } : {})}
           disabled={disabled || neighborhoods.length === 0}
-          onValueChange={(neighborhood) => onChange({ ...value, neighborhood })}
+          onValueChange={(neighborhood) => onChange({ ...safeValue, neighborhood })}
         >
           <SelectTrigger>
             <SelectValue
