@@ -547,11 +547,11 @@ function NewInvoicePage() {
                   <Label>Fatura Tipi</Label>
                   <Select value={type} onValueChange={(v) => setType(v)} disabled={isNonEditable}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Fatura Tipi Seçin" />
                     </SelectTrigger>
                     <SelectContent>
                       {INVOICE_TYPES.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
+                        <SelectItem key={t.value} value={t.value}>
                           {t.label}
                         </SelectItem>
                       ))}
@@ -563,7 +563,7 @@ function NewInvoicePage() {
               {operationMode === "ALIS_IADE" && (
                 <div className="space-y-1 sm:col-span-2">
                   <Label>Orijinal Alış Faturası Seçimi *</Label>
-                  <Select value={originalInvoiceId} onValueChange={handleSelectOriginalPurchaseInvoice}>
+                  <Select value={originalInvoiceId || undefined} onValueChange={handleSelectOriginalPurchaseInvoice}>
                     <SelectTrigger>
                       <SelectValue placeholder="İade edilecek onaylı alış faturasını seçiniz..." />
                     </SelectTrigger>
@@ -603,11 +603,11 @@ function NewInvoicePage() {
                 <Label>Para Birimi</Label>
                 <Select value={currency} onValueChange={setCurrency} disabled={isNonEditable}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Para Birimi" />
                   </SelectTrigger>
                   <SelectContent>
                     {CURRENCY_OPTIONS.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
+                      <SelectItem key={c.code} value={c.code}>
                         {c.label} ({c.symbol})
                       </SelectItem>
                     ))}
@@ -617,11 +617,12 @@ function NewInvoicePage() {
 
               <div className="space-y-1">
                 <Label>Depo Seçimi</Label>
-                <Select value={warehouseId} onValueChange={setWarehouseId} disabled={isNonEditable}>
+                <Select value={warehouseId || "none"} onValueChange={(v) => setWarehouseId(v === "none" ? "" : v)} disabled={isNonEditable}>
                   <SelectTrigger>
                     <SelectValue placeholder="Depo Seçiniz (İsteğe bağlı)" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Depo Seçilmedi (Varsayılan)</SelectItem>
                     {warehouses.map((w) => (
                       <SelectItem key={w.id} value={w.id}>
                         {w.name} {w.code ? `(${w.code})` : ""}
@@ -641,14 +642,14 @@ function NewInvoicePage() {
                   {operationMode === "ALIS" || operationMode === "ALIS_IADE" ? "Tedarikçi (Satıcı) Bilgileri" : "Alıcı Bilgileri"}
                 </CardTitle>
                 <div className="w-56">
-                  <Select value={customerId} onValueChange={handleSelectCustomer} disabled={isNonEditable}>
+                  <Select value={customerId || undefined} onValueChange={handleSelectCustomer} disabled={isNonEditable}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue placeholder={operationMode === "ALIS" ? "Tedarikçi seçiniz..." : "Kayıtlı cari seç..."} />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredPartners.map((c) => (
                         <SelectItem key={c.id} value={c.id} className="text-xs">
-                          {c.title}
+                          {c.title} {c.vkn_tckn ? `(${c.vkn_tckn})` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -765,7 +766,7 @@ function NewInvoicePage() {
                       </span>
                       <div className="flex items-center gap-2 flex-1 max-w-sm">
                         <Select
-                          value={item.productId || ""}
+                          value={item.productId || undefined}
                           onValueChange={(val) => handleProductSelect(item.id, val)}
                           disabled={isNonEditable}
                         >
@@ -822,17 +823,17 @@ function NewInvoicePage() {
                       <div className="sm:col-span-2 space-y-1">
                         <Label className="text-xs">Birim</Label>
                         <Select
-                          value={item.unit}
+                          value={item.unit || "Adet"}
                           onValueChange={(v) => updateItem(item.id, { unit: v })}
                           disabled={isNonEditable}
                         >
                           <SelectTrigger className="h-9">
-                            <SelectValue />
+                            <SelectValue placeholder="Birim" />
                           </SelectTrigger>
                           <SelectContent>
                             {UNIT_OPTIONS.map((u) => (
-                              <SelectItem key={u.id} value={u.id}>
-                                {u.label}
+                              <SelectItem key={u} value={u}>
+                                {u}
                               </SelectItem>
                             ))}
                           </SelectContent>
