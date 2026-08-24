@@ -21,8 +21,6 @@ import { Route as AuthenticatedCarilerRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedCopKutusuRouteImport } from './routes/_authenticated/cop-kutusu'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFaturaKesRouteImport } from './routes/_authenticated/fatura-kes'
-import { Route as AuthenticatedFaturalarRouteImport } from './routes/_authenticated/faturalar'
-import { Route as AuthenticatedFaturalarYeniRouteImport } from './routes/_authenticated/faturalar-yeni'
 import { Route as AuthenticatedGuncellemelerRouteImport } from './routes/_authenticated/guncellemeler'
 import { Route as AuthenticatedMuhasebeRouteImport } from './routes/_authenticated/muhasebe'
 import { Route as AuthenticatedPosSatislarRouteImport } from './routes/_authenticated/pos-satislar'
@@ -30,6 +28,9 @@ import { Route as AuthenticatedStokRouteImport } from './routes/_authenticated/s
 import { Route as AuthenticatedUrunlerRouteImport } from './routes/_authenticated/urunler'
 import { Route as AuthenticatedZRaporuRouteImport } from './routes/_authenticated/z-raporu'
 import { Route as ApiInvoicesRouteImport } from './routes/api/invoices'
+import { Route as AuthenticatedFaturalarIndexRouteImport } from './routes/_authenticated/faturalar/index'
+import { Route as AuthenticatedFaturalarIdRouteImport } from './routes/_authenticated/faturalar/$id'
+import { Route as AuthenticatedFaturalarYeniRouteImport } from './routes/_authenticated/faturalar/yeni'
 import { Route as ApiEdmInvoiceRouteImport } from './routes/api/edm/invoice'
 import { Route as ApiEdmPreflightRouteImport } from './routes/api/edm/preflight'
 import { Route as ApiEdmTestRouteImport } from './routes/api/edm/test'
@@ -100,17 +101,6 @@ const AuthenticatedFaturaKesRoute = AuthenticatedFaturaKesRouteImport.update({
   path: '/fatura-kes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedFaturalarRoute = AuthenticatedFaturalarRouteImport.update({
-  id: '/faturalar',
-  path: '/faturalar',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedFaturalarYeniRoute =
-  AuthenticatedFaturalarYeniRouteImport.update({
-    id: '/faturalar-yeni',
-    path: '/faturalar-yeni',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedGuncellemelerRoute =
   AuthenticatedGuncellemelerRouteImport.update({
     id: '/guncellemeler',
@@ -148,6 +138,24 @@ const ApiInvoicesRoute = ApiInvoicesRouteImport.update({
   path: '/api/invoices',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedFaturalarIndexRoute =
+  AuthenticatedFaturalarIndexRouteImport.update({
+    id: '/faturalar/',
+    path: '/faturalar/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFaturalarIdRoute =
+  AuthenticatedFaturalarIdRouteImport.update({
+    id: '/faturalar/$id',
+    path: '/faturalar/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFaturalarYeniRoute =
+  AuthenticatedFaturalarYeniRouteImport.update({
+    id: '/faturalar/yeni',
+    path: '/faturalar/yeni',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiEdmInvoiceRoute = ApiEdmInvoiceRouteImport.update({
   id: '/api/edm/invoice',
   path: '/api/edm/invoice',
@@ -212,8 +220,6 @@ export interface FileRoutesByFullPath {
   '/cop-kutusu': typeof AuthenticatedCopKutusuRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/fatura-kes': typeof AuthenticatedFaturaKesRoute
-  '/faturalar': typeof AuthenticatedFaturalarRoute
-  '/faturalar-yeni': typeof AuthenticatedFaturalarYeniRoute
   '/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/muhasebe': typeof AuthenticatedMuhasebeRoute
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
@@ -221,6 +227,8 @@ export interface FileRoutesByFullPath {
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
   '/api/invoices': typeof ApiInvoicesRouteWithChildren
+  '/faturalar/$id': typeof AuthenticatedFaturalarIdRoute
+  '/faturalar/yeni': typeof AuthenticatedFaturalarYeniRoute
   '/api/edm/invoice': typeof ApiEdmInvoiceRoute
   '/api/edm/preflight': typeof ApiEdmPreflightRoute
   '/api/edm/test': typeof ApiEdmTestRoute
@@ -229,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/api/invoices/summary': typeof ApiInvoicesSummaryRoute
   '/api/invoices/sync': typeof ApiInvoicesSyncRoute
   '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
+  '/faturalar/': typeof AuthenticatedFaturalarIndexRoute
   '/api/invoices/$id/status': typeof ApiInvoicesIdStatusRoute
   '/api/invoices/$id/xml': typeof ApiInvoicesIdXmlRoute
 }
@@ -244,8 +253,6 @@ export interface FileRoutesByTo {
   '/cop-kutusu': typeof AuthenticatedCopKutusuRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/fatura-kes': typeof AuthenticatedFaturaKesRoute
-  '/faturalar': typeof AuthenticatedFaturalarRoute
-  '/faturalar-yeni': typeof AuthenticatedFaturalarYeniRoute
   '/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/muhasebe': typeof AuthenticatedMuhasebeRoute
   '/pos-satislar': typeof AuthenticatedPosSatislarRoute
@@ -253,6 +260,8 @@ export interface FileRoutesByTo {
   '/urunler': typeof AuthenticatedUrunlerRoute
   '/z-raporu': typeof AuthenticatedZRaporuRoute
   '/api/invoices': typeof ApiInvoicesRouteWithChildren
+  '/faturalar/$id': typeof AuthenticatedFaturalarIdRoute
+  '/faturalar/yeni': typeof AuthenticatedFaturalarYeniRoute
   '/api/edm/invoice': typeof ApiEdmInvoiceRoute
   '/api/edm/preflight': typeof ApiEdmPreflightRoute
   '/api/edm/test': typeof ApiEdmTestRoute
@@ -261,6 +270,7 @@ export interface FileRoutesByTo {
   '/api/invoices/summary': typeof ApiInvoicesSummaryRoute
   '/api/invoices/sync': typeof ApiInvoicesSyncRoute
   '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
+  '/faturalar': typeof AuthenticatedFaturalarIndexRoute
   '/api/invoices/$id/status': typeof ApiInvoicesIdStatusRoute
   '/api/invoices/$id/xml': typeof ApiInvoicesIdXmlRoute
 }
@@ -278,8 +288,6 @@ export interface FileRoutesById {
   '/_authenticated/cop-kutusu': typeof AuthenticatedCopKutusuRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/fatura-kes': typeof AuthenticatedFaturaKesRoute
-  '/_authenticated/faturalar': typeof AuthenticatedFaturalarRoute
-  '/_authenticated/faturalar-yeni': typeof AuthenticatedFaturalarYeniRoute
   '/_authenticated/guncellemeler': typeof AuthenticatedGuncellemelerRoute
   '/_authenticated/muhasebe': typeof AuthenticatedMuhasebeRoute
   '/_authenticated/pos-satislar': typeof AuthenticatedPosSatislarRoute
@@ -287,6 +295,8 @@ export interface FileRoutesById {
   '/_authenticated/urunler': typeof AuthenticatedUrunlerRoute
   '/_authenticated/z-raporu': typeof AuthenticatedZRaporuRoute
   '/api/invoices': typeof ApiInvoicesRouteWithChildren
+  '/_authenticated/faturalar/$id': typeof AuthenticatedFaturalarIdRoute
+  '/_authenticated/faturalar/yeni': typeof AuthenticatedFaturalarYeniRoute
   '/api/edm/invoice': typeof ApiEdmInvoiceRoute
   '/api/edm/preflight': typeof ApiEdmPreflightRoute
   '/api/edm/test': typeof ApiEdmTestRoute
@@ -295,6 +305,7 @@ export interface FileRoutesById {
   '/api/invoices/summary': typeof ApiInvoicesSummaryRoute
   '/api/invoices/sync': typeof ApiInvoicesSyncRoute
   '/api/public/subscription-reminders': typeof ApiPublicSubscriptionRemindersRoute
+  '/_authenticated/faturalar/': typeof AuthenticatedFaturalarIndexRoute
   '/api/invoices/$id/status': typeof ApiInvoicesIdStatusRoute
   '/api/invoices/$id/xml': typeof ApiInvoicesIdXmlRoute
 }
@@ -312,8 +323,6 @@ export interface FileRouteTypes {
     | '/cop-kutusu'
     | '/dashboard'
     | '/fatura-kes'
-    | '/faturalar'
-    | '/faturalar-yeni'
     | '/guncellemeler'
     | '/muhasebe'
     | '/pos-satislar'
@@ -321,6 +330,8 @@ export interface FileRouteTypes {
     | '/urunler'
     | '/z-raporu'
     | '/api/invoices'
+    | '/faturalar/$id'
+    | '/faturalar/yeni'
     | '/api/edm/invoice'
     | '/api/edm/preflight'
     | '/api/edm/test'
@@ -329,6 +340,7 @@ export interface FileRouteTypes {
     | '/api/invoices/summary'
     | '/api/invoices/sync'
     | '/api/public/subscription-reminders'
+    | '/faturalar/'
     | '/api/invoices/$id/status'
     | '/api/invoices/$id/xml'
   fileRoutesByTo: FileRoutesByTo
@@ -344,8 +356,6 @@ export interface FileRouteTypes {
     | '/cop-kutusu'
     | '/dashboard'
     | '/fatura-kes'
-    | '/faturalar'
-    | '/faturalar-yeni'
     | '/guncellemeler'
     | '/muhasebe'
     | '/pos-satislar'
@@ -353,6 +363,8 @@ export interface FileRouteTypes {
     | '/urunler'
     | '/z-raporu'
     | '/api/invoices'
+    | '/faturalar/$id'
+    | '/faturalar/yeni'
     | '/api/edm/invoice'
     | '/api/edm/preflight'
     | '/api/edm/test'
@@ -361,6 +373,7 @@ export interface FileRouteTypes {
     | '/api/invoices/summary'
     | '/api/invoices/sync'
     | '/api/public/subscription-reminders'
+    | '/faturalar'
     | '/api/invoices/$id/status'
     | '/api/invoices/$id/xml'
   id:
@@ -377,8 +390,6 @@ export interface FileRouteTypes {
     | '/_authenticated/cop-kutusu'
     | '/_authenticated/dashboard'
     | '/_authenticated/fatura-kes'
-    | '/_authenticated/faturalar'
-    | '/_authenticated/faturalar-yeni'
     | '/_authenticated/guncellemeler'
     | '/_authenticated/muhasebe'
     | '/_authenticated/pos-satislar'
@@ -386,6 +397,8 @@ export interface FileRouteTypes {
     | '/_authenticated/urunler'
     | '/_authenticated/z-raporu'
     | '/api/invoices'
+    | '/_authenticated/faturalar/$id'
+    | '/_authenticated/faturalar/yeni'
     | '/api/edm/invoice'
     | '/api/edm/preflight'
     | '/api/edm/test'
@@ -394,6 +407,7 @@ export interface FileRouteTypes {
     | '/api/invoices/summary'
     | '/api/invoices/sync'
     | '/api/public/subscription-reminders'
+    | '/_authenticated/faturalar/'
     | '/api/invoices/$id/status'
     | '/api/invoices/$id/xml'
   fileRoutesById: FileRoutesById
@@ -497,20 +511,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFaturaKesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/faturalar': {
-      id: '/_authenticated/faturalar'
-      path: '/faturalar'
-      fullPath: '/faturalar'
-      preLoaderRoute: typeof AuthenticatedFaturalarRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/faturalar-yeni': {
-      id: '/_authenticated/faturalar-yeni'
-      path: '/faturalar-yeni'
-      fullPath: '/faturalar-yeni'
-      preLoaderRoute: typeof AuthenticatedFaturalarYeniRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/guncellemeler': {
       id: '/_authenticated/guncellemeler'
       path: '/guncellemeler'
@@ -559,6 +559,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/invoices'
       preLoaderRoute: typeof ApiInvoicesRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/faturalar/': {
+      id: '/_authenticated/faturalar/'
+      path: '/faturalar'
+      fullPath: '/faturalar/'
+      preLoaderRoute: typeof AuthenticatedFaturalarIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturalar/$id': {
+      id: '/_authenticated/faturalar/$id'
+      path: '/faturalar/$id'
+      fullPath: '/faturalar/$id'
+      preLoaderRoute: typeof AuthenticatedFaturalarIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturalar/yeni': {
+      id: '/_authenticated/faturalar/yeni'
+      path: '/faturalar/yeni'
+      fullPath: '/faturalar/yeni'
+      preLoaderRoute: typeof AuthenticatedFaturalarYeniRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/edm/invoice': {
       id: '/api/edm/invoice'
@@ -641,14 +662,15 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCopKutusuRoute: typeof AuthenticatedCopKutusuRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFaturaKesRoute: typeof AuthenticatedFaturaKesRoute
-  AuthenticatedFaturalarRoute: typeof AuthenticatedFaturalarRoute
-  AuthenticatedFaturalarYeniRoute: typeof AuthenticatedFaturalarYeniRoute
   AuthenticatedGuncellemelerRoute: typeof AuthenticatedGuncellemelerRoute
   AuthenticatedMuhasebeRoute: typeof AuthenticatedMuhasebeRoute
   AuthenticatedPosSatislarRoute: typeof AuthenticatedPosSatislarRoute
   AuthenticatedStokRoute: typeof AuthenticatedStokRoute
   AuthenticatedUrunlerRoute: typeof AuthenticatedUrunlerRoute
   AuthenticatedZRaporuRoute: typeof AuthenticatedZRaporuRoute
+  AuthenticatedFaturalarIdRoute: typeof AuthenticatedFaturalarIdRoute
+  AuthenticatedFaturalarYeniRoute: typeof AuthenticatedFaturalarYeniRoute
+  AuthenticatedFaturalarIndexRoute: typeof AuthenticatedFaturalarIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -659,14 +681,15 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCopKutusuRoute: AuthenticatedCopKutusuRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFaturaKesRoute: AuthenticatedFaturaKesRoute,
-  AuthenticatedFaturalarRoute: AuthenticatedFaturalarRoute,
-  AuthenticatedFaturalarYeniRoute: AuthenticatedFaturalarYeniRoute,
   AuthenticatedGuncellemelerRoute: AuthenticatedGuncellemelerRoute,
   AuthenticatedMuhasebeRoute: AuthenticatedMuhasebeRoute,
   AuthenticatedPosSatislarRoute: AuthenticatedPosSatislarRoute,
   AuthenticatedStokRoute: AuthenticatedStokRoute,
   AuthenticatedUrunlerRoute: AuthenticatedUrunlerRoute,
   AuthenticatedZRaporuRoute: AuthenticatedZRaporuRoute,
+  AuthenticatedFaturalarIdRoute: AuthenticatedFaturalarIdRoute,
+  AuthenticatedFaturalarYeniRoute: AuthenticatedFaturalarYeniRoute,
+  AuthenticatedFaturalarIndexRoute: AuthenticatedFaturalarIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
