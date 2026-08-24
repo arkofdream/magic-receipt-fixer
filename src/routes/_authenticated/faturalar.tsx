@@ -429,11 +429,8 @@ function InvoicesPage() {
             {downloading ? "Hazırlanıyor…" : `Seçilenleri İndir (${selected.length})`}
           </Button>
           <Button
-            className="gap-1 bg-primary text-primary-foreground cursor-pointer"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.href = "/faturalar/yeni";
-            }}
+            className="gap-1 bg-primary text-primary-foreground"
+            onClick={() => navigate({ to: "/faturalar-yeni" })}
           >
             <Plus className="mr-1 size-4" /> Yeni e-Fatura (EDM)
           </Button>
