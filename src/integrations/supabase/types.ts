@@ -534,6 +534,22 @@ export type Database = {
           updated_at: string
           user_id: string
           warehouse_id: string | null
+          provider?: string
+          provider_reference?: string | null
+          trx_id?: string | null
+          seller_tax_number?: string
+          seller_name?: string
+          buyer_tax_number?: string
+          buyer_name?: string
+          edm_status?: string
+          edm_return_code?: string
+          edm_return_message?: string
+          error_code?: string | null
+          error_message?: string | null
+          raw_ubl_xml?: string | null
+          response_metadata?: Json
+          sent_at?: string | null
+          processed_at?: string | null
         }
         Insert: {
           cancel_date?: string | null
@@ -564,6 +580,22 @@ export type Database = {
           updated_at?: string
           user_id: string
           warehouse_id?: string | null
+          provider?: string
+          provider_reference?: string | null
+          trx_id?: string | null
+          seller_tax_number?: string
+          seller_name?: string
+          buyer_tax_number?: string
+          buyer_name?: string
+          edm_status?: string
+          edm_return_code?: string
+          edm_return_message?: string
+          error_code?: string | null
+          error_message?: string | null
+          raw_ubl_xml?: string | null
+          response_metadata?: Json
+          sent_at?: string | null
+          processed_at?: string | null
         }
         Update: {
           cancel_date?: string | null
@@ -594,6 +626,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
           warehouse_id?: string | null
+          provider?: string
+          provider_reference?: string | null
+          trx_id?: string | null
+          seller_tax_number?: string
+          seller_name?: string
+          buyer_tax_number?: string
+          buyer_name?: string
+          edm_status?: string
+          edm_return_code?: string
+          edm_return_message?: string
+          error_code?: string | null
+          error_message?: string | null
+          raw_ubl_xml?: string | null
+          response_metadata?: Json
+          sent_at?: string | null
+          processed_at?: string | null
         }
         Relationships: [
           {

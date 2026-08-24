@@ -24,12 +24,16 @@ export const Route = createFileRoute("/api/invoices/$id")({
             );
           }
 
-          // Ensure no passwords or SESSION_ID values are exposed
+          const customerData = invoice.customer || {};
+          const buyerTitle = invoice.buyer_name || customerData.title || customerData.name || "Alıcı Müşteri";
+          const buyerTaxNo = invoice.buyer_tax_number || customerData.vkn_tckn || customerData.tax_number || customerData.tckn || "-";
+
           const safeInvoice = {
             id: invoice.id,
             ettn: invoice.ettn,
             uuid: invoice.ettn,
             invoiceNumber: invoice.invoice_number,
+            invoice_number: invoice.invoice_number,
             type: invoice.type,
             status: invoice.status,
             edmStatus: invoice.edm_status,
@@ -37,23 +41,33 @@ export const Route = createFileRoute("/api/invoices/$id")({
             edmReturnMessage: invoice.edm_return_message,
             provider: invoice.provider || "EDM",
             providerReference: invoice.provider_reference || invoice.trx_id,
+            provider_reference: invoice.provider_reference || invoice.trx_id,
             trxId: invoice.trx_id,
+            trx_id: invoice.trx_id,
             invoiceDate: invoice.invoice_date,
-            currency: invoice.currency,
+            invoice_date: invoice.invoice_date,
+            currency: invoice.currency || "TRY",
             seller: {
-              taxNumber: invoice.seller_tax_number,
-              name: invoice.seller_name,
+              taxNumber: invoice.seller_tax_number || "3230512384",
+              name: invoice.seller_name || "Fuat Ekiz Teknoloji A.Ş.",
             },
+            seller_tax_number: invoice.seller_tax_number || "3230512384",
+            seller_name: invoice.seller_name || "Fuat Ekiz Teknoloji A.Ş.",
             buyer: {
-              taxNumber: invoice.buyer_tax_number,
-              name: invoice.buyer_name,
-              details: invoice.customer,
+              taxNumber: buyerTaxNo,
+              name: buyerTitle,
+              details: customerData,
             },
-            items: invoice.items,
-            subtotal: invoice.subtotal,
-            totalVat: invoice.total_vat,
-            grandTotal: invoice.grand_total,
-            notes: invoice.notes,
+            buyer_tax_number: buyerTaxNo,
+            buyer_name: buyerTitle,
+            customer: customerData,
+            items: invoice.items || [],
+            subtotal: invoice.subtotal || 0,
+            totalVat: invoice.total_vat || 0,
+            total_vat: invoice.total_vat || 0,
+            grandTotal: invoice.grand_total || 0,
+            grand_total: invoice.grand_total || 0,
+            notes: invoice.notes || "",
             sentAt: invoice.sent_at,
             processedAt: invoice.processed_at,
             createdAt: invoice.created_at,

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText, RefreshCw } from "lucide-react";
+import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -90,6 +90,65 @@ function InvoicesPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [batchSending, setBatchSending] = useState(false);
+
+  async function handleBatchSendEdm() {
+    if (selected.length === 0) return;
+    const selectedInvoices = invoices.filter((inv) => selected.includes(inv.id));
+    
+    const confirmMsg = `Seçilen ${selectedInvoices.length} adet faturayı EDM entegratör sistemine canlı olarak gönderilecek. Devam etmek istiyor musunuz?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setBatchSending(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const inv of selectedInvoices) {
+      try {
+        const customer = (inv.customer as any) || {};
+        const payload = {
+          invoiceNumber: inv.invoice_number,
+          issueDate: inv.invoice_date,
+          currency: inv.currency || "TRY",
+          profileId: "EARSIVFATURA",
+          invoiceTypeCode: inv.type || "SATIS",
+          seller: { taxNumber: "3230512384", name: "Fuat Ekiz Teknoloji A.Ş." },
+          buyer: {
+            taxNumber: customer.vkn_tckn || customer.tax_number || customer.vknTckn || "2222222222",
+            name: customer.title || customer.name || "Müşteri",
+            taxOffice: customer.tax_office || "",
+            address: customer.address || "",
+            city: customer.city || "",
+            district: customer.district || "",
+          },
+          lines: Array.isArray(inv.items) && inv.items.length > 0
+            ? inv.items
+            : [{ name: "Ürün/Hizmet Bedeli", quantity: 1, unitPrice: Number(inv.grand_total) || 100, vatRate: 20 }],
+          note: inv.notes || "Toplu EDM gönderimi",
+        };
+
+        const res = await fetch("/api/edm/invoice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+
+    setBatchSending(false);
+    toast.success(`Toplu EDM Gönderimi Tamamlandı: ${successCount} Başarılı, ${failCount} Başarısız.`);
+    setSelected([]);
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
+  }
 
   const { data: summaryStats } = useQuery({
     queryKey: ["invoices-summary"],
@@ -579,6 +638,29 @@ function InvoicesPage() {
               <CardTitle className="text-base">Faturalar ({filtered.length})</CardTitle>
               <CardDescription>Resmi şekil şartlarına uygun çıktılar ve durum takibi</CardDescription>
             </div>
+            {selected.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground font-semibold px-2 py-1 bg-muted rounded">
+                  {selected.length} Fatura Seçildi
+                </span>
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={batchSending}
+                  onClick={handleBatchSendEdm}
+                  className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                >
+                  <Send className={`size-3.5 ${batchSending ? "animate-spin" : ""}`} />
+                  {batchSending ? "Gönderiliyor..." : "Seçilenleri EDM'ye Gönder"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloading} className="gap-1">
+                  <Download className="size-3.5" /> Toplu PDF İndir
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleBatchDelete} className="gap-1">
+                  <Trash2 className="size-3.5" /> Seçilenleri Sil
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
