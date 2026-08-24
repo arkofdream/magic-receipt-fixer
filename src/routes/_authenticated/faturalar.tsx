@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText } from "lucide-react";
+import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -89,6 +89,33 @@ function InvoicesPage() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const { data: summaryStats } = useQuery({
+    queryKey: ["invoices-summary"],
+    queryFn: async () => {
+      const res = await fetch("/api/invoices/summary");
+      const json = await res.json();
+      if (!res.ok || !json.success) return null;
+      return json.data;
+    },
+  });
+
+  async function handleBatchSync() {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/invoices/sync", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Senkronizasyon hatası.");
+      toast.success(json.message);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
+    } catch (err: any) {
+      toast.error(err.message || "Toplu senkronizasyon başarısız.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -385,6 +412,15 @@ function InvoicesPage() {
         <div className="flex gap-2">
           <Button
             variant="outline"
+            className="gap-1 text-xs"
+            disabled={syncing}
+            onClick={handleBatchSync}
+          >
+            <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Senkronize Ediliyor..." : "EDM Senkronize Et"}
+          </Button>
+          <Button
+            variant="outline"
             className="gap-2"
             disabled={selected.length === 0 || downloading}
             onClick={downloadSelected}
@@ -392,20 +428,53 @@ function InvoicesPage() {
             <FileDown className="size-4" />
             {downloading ? "Hazırlanıyor…" : `Seçilenleri İndir (${selected.length})`}
           </Button>
-          <Button variant="outline" asChild>
-            <Link to="/fatura-kes" search={{ mode: "ALIS" }}>
-              <Plus className="mr-1 size-4" /> Alış Faturası Girişi
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link to="/fatura-kes" search={{ mode: "SATIS" }}>
-              <Plus className="mr-1 size-4" /> Yeni Satış Faturası
+          <Button asChild className="gap-1 bg-primary text-primary-foreground">
+            <Link to="/faturalar/yeni">
+              <Plus className="mr-1 size-4" /> Yeni e-Fatura (EDM)
             </Link>
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
+        {/* Veritabanı Fatura Özet Kartları */}
+        {summaryStats ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-xs">
+            <Card className="p-3 bg-card">
+              <span className="text-muted-foreground block text-[11px]">Toplam Fatura</span>
+              <span className="text-base font-bold font-mono">{summaryStats.total}</span>
+            </Card>
+            <Card className="p-3 bg-muted/20">
+              <span className="text-muted-foreground block text-[11px]">Taslak</span>
+              <span className="text-base font-bold font-mono">{summaryStats.draft}</span>
+            </Card>
+            <Card className="p-3 bg-amber-500/10">
+              <span className="text-amber-600 dark:text-amber-400 block text-[11px]">Bekliyor</span>
+              <span className="text-base font-bold font-mono text-amber-600 dark:text-amber-400">{summaryStats.pending}</span>
+            </Card>
+            <Card className="p-3 bg-blue-500/10">
+              <span className="text-blue-600 dark:text-blue-400 block text-[11px]">İşleniyor</span>
+              <span className="text-base font-bold font-mono text-blue-600 dark:text-blue-400">{summaryStats.processing}</span>
+            </Card>
+            <Card className="p-3 bg-indigo-500/10">
+              <span className="text-indigo-600 dark:text-indigo-400 block text-[11px]">EDM'ye Gönderildi</span>
+              <span className="text-base font-bold font-mono text-indigo-600 dark:text-indigo-400">{summaryStats.sent}</span>
+            </Card>
+            <Card className="p-3 bg-emerald-500/10">
+              <span className="text-emerald-600 dark:text-emerald-400 block text-[11px]">Kabul Edildi</span>
+              <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">{summaryStats.accepted}</span>
+            </Card>
+            <Card className="p-3 bg-rose-500/10">
+              <span className="text-rose-600 dark:text-rose-400 block text-[11px]">Hatalı</span>
+              <span className="text-base font-bold font-mono text-rose-600 dark:text-rose-400">{summaryStats.failed}</span>
+            </Card>
+            <Card className="p-3 bg-red-500/10">
+              <span className="text-red-600 dark:text-red-400 block text-[11px]">Reddedildi</span>
+              <span className="text-base font-bold font-mono text-red-600 dark:text-red-400">{summaryStats.rejected}</span>
+            </Card>
+          </div>
+        ) : null}
+
         {/* Kategori Sekmeleri */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-3 sm:flex sm:flex-wrap h-auto p-1 gap-1">
@@ -626,6 +695,17 @@ function InvoicesPage() {
                           </td>
                           <td className="py-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1 px-2 text-xs"
+                                asChild
+                              >
+                                <Link to="/faturalar/$id" params={{ id: inv.id }}>
+                                  <FileText className="size-3.5" /> Detay
+                                </Link>
+                              </Button>
+
                               {/* Yalnızca Taslak Faturalar Düzenlenebilir */}
                               {inv.status === "TASLAK" && !inv.posted ? (
                                 <Button

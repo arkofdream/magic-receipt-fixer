@@ -17,6 +17,8 @@ import {
   Download,
   Upload,
   Database,
+  FileText,
+  Send,
 } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
@@ -531,6 +533,8 @@ function SettingsPage() {
               </CardContent>
             </Card>
 
+            <EdmTestCard />
+
             <div className="flex items-center gap-2 rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-primary" />
               <span>
@@ -815,4 +819,221 @@ function BankApiSettings() {
     </div>
   );
 }
+
+function EdmTestCard() {
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginResult, setLoginResult] = useState<{
+    success: boolean;
+    message: string;
+    sessionIdPresent?: boolean;
+  } | null>(null);
+
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceResult, setInvoiceResult] = useState<{
+    success: boolean;
+    message: string;
+    invoiceNumber?: string;
+    uuid?: string;
+    edmReference?: string;
+    status?: string;
+  } | null>(null);
+
+  async function handleTestEdm() {
+    setLoginLoading(true);
+    setLoginResult(null);
+    try {
+      const res = await fetch("/api/edm/test");
+      const data = await res.json();
+      setLoginResult(data);
+      if (data.success) {
+        toast.success("EDM TEST bağlantısı başarılı.");
+      } else {
+        toast.error(data.message || "EDM TEST bağlantı hatası");
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Bağlantı hatası";
+      const errRes = {
+        success: false,
+        message: `İstek gönderilirken hata oluştu: ${msg}`,
+      };
+      setLoginResult(errRes);
+      toast.error(errRes.message);
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  async function handleSendTestInvoice() {
+    setInvoiceLoading(true);
+    setInvoiceResult(null);
+
+    const sampleInvoice = {
+      seller: {
+        taxNumber: "3230512384",
+        name: "Demo Satıcı Teknoloji A.Ş.",
+        address: "Atatürk Cad. No:1 Kadıköy İstanbul",
+      },
+      buyer: {
+        taxNumber: "2222222222",
+        name: "Demo Alıcı Ticaret Ltd. Şti.",
+        address: "Kızılay Mah. Çankaya Ankara",
+      },
+      lines: [
+        {
+          name: "EDM TEST Örnek Ürünü",
+          quantity: 1,
+          unitPrice: 100,
+          vatRate: 20,
+        },
+      ],
+      note: "EDM TEST ortamı e-Fatura gönderim doğrulama testi",
+    };
+
+    try {
+      const res = await fetch("/api/edm/invoice", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ invoice: sampleInvoice }),
+      });
+
+      const data = await res.json();
+      setInvoiceResult(data);
+
+      if (data.success) {
+        toast.success(`Fatura EDM TEST ortamına gönderildi. (${data.invoiceNumber || ""})`);
+      } else {
+        toast.error(data.message || "Fatura gönderim hatası");
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Fatura gönderim hatası";
+      const errRes = {
+        success: false,
+        message: `İstek gönderilirken hata oluştu: ${msg}`,
+      };
+      setInvoiceResult(errRes);
+      toast.error(errRes.message);
+    } finally {
+      setInvoiceLoading(false);
+    }
+  }
+
+  return (
+    <Card className="border-indigo-100 dark:border-indigo-950 space-y-2">
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Radio className="size-5 text-indigo-600 dark:text-indigo-400" />
+          EDM Bilişim e-Fatura TEST Web Service Entegrasyonu
+        </CardTitle>
+        <CardDescription>
+          Server-side EDM TEST ortamı SOAP Web Service Login ve e-Fatura gönderme altyapı testi.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* 1. BÖLÜM: LOGIN BAGLANTI TESTI */}
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold flex items-center gap-2">
+              <Radio className="size-4 text-indigo-500" />
+              1. Aşama: Bağlantı & Oturum Testi (Login)
+            </h4>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Sunucu tarafında tanımlı <code>EDM_TEST_USERNAME</code> ve <code>EDM_TEST_PASSWORD</code> ortam değişkenleriyle EDM TEST servisine Login SOAP isteği yapılır.
+          </p>
+
+          {loginResult ? (
+            <div
+              className={`flex items-start gap-2 rounded-md p-3 text-xs ${
+                loginResult.success
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900"
+                  : "bg-destructive/10 text-destructive border border-destructive/20"
+              }`}
+            >
+              {loginResult.success ? (
+                <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <XCircle className="size-4 shrink-0 mt-0.5 text-destructive" />
+              )}
+              <div>
+                <p className="font-medium">
+                  {loginResult.success ? "EDM TEST bağlantısı başarılı." : "EDM TEST bağlantısı başarısız."}
+                </p>
+                <p className="mt-1 opacity-90">{loginResult.message}</p>
+              </div>
+            </div>
+          ) : null}
+
+          <Button
+            onClick={handleTestEdm}
+            disabled={loginLoading}
+            variant="outline"
+            size="sm"
+            className="gap-2 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950/50"
+          >
+            {loginLoading ? <Loader2 className="size-4 animate-spin" /> : <Radio className="size-4 text-indigo-600 dark:text-indigo-400" />}
+            EDM Bağlantısını Test Et
+          </Button>
+        </div>
+
+        {/* 2. BÖLÜM: TEST FATURASI GONDERME */}
+        <div className="space-y-3 rounded-lg border border-indigo-100 bg-indigo-50/30 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/10">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="size-4 text-indigo-600 dark:text-indigo-400" />
+              2. Aşama: EDM TEST Fatura Gönderme
+            </h4>
+          </div>
+
+          <div className="rounded border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+            <strong>⚠️ Güvenlik Uyarısı:</strong> Bu test butonu yalnızca <code>https://test.edmbilisim.com.tr</code> TEST ortamında örnek bir UBL-TR e-Fatura oluşturup gönderir. Canlı e-Fatura sistemine kesinlikle istek atılmaz.
+          </div>
+
+          {invoiceResult ? (
+            <div
+              className={`flex items-start gap-2 rounded-md p-3 text-xs ${
+                invoiceResult.success
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900"
+                  : "bg-destructive/10 text-destructive border border-destructive/20"
+              }`}
+            >
+              {invoiceResult.success ? (
+                <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <XCircle className="size-4 shrink-0 mt-0.5 text-destructive" />
+              )}
+              <div className="space-y-1">
+                <p className="font-medium">
+                  {invoiceResult.success ? "Fatura EDM TEST Ortamına Başarıyla Gönderildi." : "Fatura Gönderimi Başarısız."}
+                </p>
+                <p className="opacity-90">{invoiceResult.message}</p>
+                {invoiceResult.success ? (
+                  <div className="mt-2 space-y-0.5 font-mono text-[11px] opacity-80 border-t border-emerald-200 pt-1.5 dark:border-emerald-800">
+                    <p>Fatura No: {invoiceResult.invoiceNumber || "-"}</p>
+                    <p>UUID: {invoiceResult.uuid || "-"}</p>
+                    <p>EDM Referans (TRXID): {invoiceResult.edmReference || "-"}</p>
+                    <p>Durum: {invoiceResult.status || "-"}</p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <Button
+            onClick={handleSendTestInvoice}
+            disabled={invoiceLoading}
+            className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+            size="sm"
+          >
+            {invoiceLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            TEST Faturası Oluştur ve Gönder
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 
