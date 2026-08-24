@@ -1,4 +1,4 @@
-import { validateTCKN, validateVKN, validateVknTckn } from "@/lib/validation";
+import { validateTCKN, validateVKN, validateVknTckn } from "./validation.ts";
 
 export type InvoiceItem = {
   id: string;
@@ -226,9 +226,65 @@ export const INVOICE_STATUSES: Record<
   { label: string; tone: "draft" | "sent" | "cancel" }
 > = {
   TASLAK: { label: "Taslak", tone: "draft" },
+  DRAFT: { label: "Taslak", tone: "draft" },
+  PENDING: { label: "Gönderim Bekliyor", tone: "draft" },
+  PROCESSING: { label: "EDM İşliyor", tone: "draft" },
+  SENT: { label: "EDM'ye Gönderildi", tone: "sent" },
+  ACCEPTED: { label: "Kabul Edildi", tone: "sent" },
   ONAYLANDI: { label: "GİB'e İletildi / Onaylı", tone: "sent" },
+  REJECTED: { label: "Reddedildi", tone: "cancel" },
+  FAILED: { label: "Hatalı", tone: "cancel" },
   IPTAL: { label: "İptal Edildi", tone: "cancel" },
+  CANCELLED: { label: "İptal Edildi", tone: "cancel" },
+  UNKNOWN: { label: "Durum Bilinmiyor", tone: "draft" },
 };
+
+/**
+ * Normalizes raw status string from EDM SOAP into standard application status.
+ */
+export function mapEdmStatusToInvoiceStatus(edmStatus: string): string {
+  if (!edmStatus) return "UNKNOWN";
+  const upper = edmStatus.toUpperCase().trim();
+
+  if (
+    upper.includes("SUCCEED") ||
+    upper.includes("ACCEPTED") ||
+    upper.includes("COMPLETED") ||
+    upper.includes("ONAYLANDI") ||
+    upper.includes("SUCCESS") ||
+    upper.includes("APPROVED")
+  ) {
+    return "ACCEPTED";
+  }
+
+  if (
+    upper.includes("SEND") ||
+    upper.includes("PROCESSING") ||
+    upper.includes("PACKAGE") ||
+    upper.includes("ISLENDI")
+  ) {
+    return "SENT";
+  }
+
+  if (upper.includes("REJECT") || upper.includes("REDDEDILDI")) {
+    return "REJECTED";
+  }
+
+  if (
+    upper.includes("FAIL") ||
+    upper.includes("ERROR") ||
+    upper.includes("HATA") ||
+    upper.includes("BASARISIZ")
+  ) {
+    return "FAILED";
+  }
+
+  if (upper.includes("CANCEL") || upper.includes("IPTAL")) {
+    return "CANCELLED";
+  }
+
+  return "UNKNOWN";
+}
 
 /** Standart Türkiye KDV Dilimleri */
 export const VAT_RATES = [0, 1, 10, 20] as const;
