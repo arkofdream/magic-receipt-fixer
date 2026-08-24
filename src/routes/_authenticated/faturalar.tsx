@@ -428,10 +428,11 @@ function InvoicesPage() {
             <FileDown className="size-4" />
             {downloading ? "Hazırlanıyor…" : `Seçilenleri İndir (${selected.length})`}
           </Button>
-          <Button asChild className="gap-1 bg-primary text-primary-foreground">
-            <Link to="/faturalar/yeni">
-              <Plus className="mr-1 size-4" /> Yeni e-Fatura (EDM)
-            </Link>
+          <Button
+            className="gap-1 bg-primary text-primary-foreground"
+            onClick={() => navigate({ to: "/faturalar/yeni" })}
+          >
+            <Plus className="mr-1 size-4" /> Yeni e-Fatura (EDM)
           </Button>
         </div>
       }
