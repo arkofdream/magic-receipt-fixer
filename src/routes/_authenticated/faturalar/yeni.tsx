@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
-import { ArrowLeft, Plus, Trash2, Send, Save, FileText } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Plus, Trash2, Send, Save, FileText, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -11,8 +12,38 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 import { validateVknTckn } from "@/lib/validation";
 import { roundDecimal } from "@/lib/ubl";
+
+const POPULAR_TAX_OFFICES = [
+  "Kadıköy V.D.",
+  "Beşiktaş V.D.",
+  "Şişli V.D.",
+  "Ümraniye V.D.",
+  "Kızılay V.D.",
+  "Çankaya V.D.",
+  "Karşıyaka V.D.",
+  "Nilüfer V.D.",
+  "Meram V.D.",
+  "Seyhan V.D.",
+  "Bornova V.D.",
+  "Konak V.D.",
+  "Büyük Mükellefler V.D.",
+];
+
+const TURKEY_CITIES = [
+  "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin",
+  "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale",
+  "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum",
+  "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin",
+  "İstanbul", "İzmir", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli",
+  "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş",
+  "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas",
+  "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat",
+  "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın",
+  "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
+];
 
 export const Route = createFileRoute("/_authenticated/faturalar/yeni")({
   component: NewInvoicePage,
@@ -30,6 +61,16 @@ interface FormLine {
 
 function NewInvoicePage() {
   const navigate = useNavigate();
+
+  // Kayıtlı Müşterileri Çek
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers-dropdown"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("customers").select("*").order("name");
+      if (error) return [];
+      return data || [];
+    },
+  });
 
   // Form State
   const [profileId, setProfileId] = useState<"EARSIVFATURA" | "TICARIFATURA" | "TEMELFATURA">("EARSIVFATURA");
@@ -384,6 +425,38 @@ function NewInvoicePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-4 text-xs">
+              {/* Kayıtlı Müşterilerden Seç (Hızlı Doldur) */}
+              {customers.length > 0 && (
+                <div className="space-y-1 bg-primary/5 p-2 rounded border border-primary/20">
+                  <Label className="text-xs font-semibold text-primary">Kayıtlı Müşteri / Cari Seç (Hızlı Doldur)</Label>
+                  <Select
+                    onValueChange={(custId) => {
+                      const c = customers.find((item: any) => item.id === custId);
+                      if (c) {
+                        setBuyerName(c.name || "");
+                        setBuyerTaxNumber(c.tax_number || c.tckn || "");
+                        setBuyerTaxOffice(c.tax_office || "");
+                        setBuyerAddress(c.address || "");
+                        setBuyerCity(c.city || "");
+                        setBuyerDistrict(c.district || "");
+                        toast.success(`${c.name} bilgileri forma aktarıldı.`);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="-- Kayıtlı Müşterilerinizden Seçin --" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} ({c.tax_number || c.tckn || "No VKN"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div>
                 <Label className="text-xs">Müşteri Unvanı / Adı Soyadı *</Label>
                 <Input
@@ -403,11 +476,25 @@ function NewInvoicePage() {
                 </div>
                 <div>
                   <Label className="text-xs">Vergi Dairesi</Label>
-                  <Input
-                    placeholder="Örn: Kadıköy V.D."
-                    value={buyerTaxOffice}
-                    onChange={(e) => setBuyerTaxOffice(e.target.value)}
-                  />
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="Örn: Kadıköy V.D."
+                      value={buyerTaxOffice}
+                      onChange={(e) => setBuyerTaxOffice(e.target.value)}
+                    />
+                    <Select onValueChange={(v) => setBuyerTaxOffice(v)}>
+                      <SelectTrigger className="h-7 text-[11px]">
+                        <SelectValue placeholder="Listeden seçin (Opsiyonel)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {POPULAR_TAX_OFFICES.map((vd) => (
+                          <SelectItem key={vd} value={vd}>
+                            {vd}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
               <div>
@@ -421,7 +508,25 @@ function NewInvoicePage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs">İl</Label>
-                  <Input placeholder="Örn: İstanbul" value={buyerCity} onChange={(e) => setBuyerCity(e.target.value)} />
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="Örn: İstanbul"
+                      value={buyerCity}
+                      onChange={(e) => setBuyerCity(e.target.value)}
+                    />
+                    <Select onValueChange={(v) => setBuyerCity(v)}>
+                      <SelectTrigger className="h-7 text-[11px]">
+                        <SelectValue placeholder="İl seçin" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-56">
+                        {TURKEY_CITIES.map((city) => (
+                          <SelectItem key={city} value={city}>
+                            {city}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div>
                   <Label className="text-xs">İlçe</Label>
