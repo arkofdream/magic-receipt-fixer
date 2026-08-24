@@ -158,11 +158,48 @@ export async function createPendingInvoiceRecord(
   };
 
   if (isDatabaseConfigured()) {
-    const { data: dbData, error } = await supabaseAdmin
+    let insertResult = await supabaseAdmin
       .from("invoices")
       .insert([record])
       .select("id, ettn, invoice_number")
       .single();
+
+    if (insertResult.error && insertResult.error.message?.includes("buyer_name")) {
+      // Fallback: DB schema lacks optional extended columns, insert standard record with JSON customer
+      const standardRecord = {
+        user_id: userId,
+        ettn: data.uuid,
+        invoice_number: data.invoiceNumber,
+        type: data.invoiceTypeCode,
+        status: "PENDING",
+        invoice_date: data.issueDate,
+        currency: data.currency,
+        exchange_rate: 1,
+        customer: {
+          vkn_tckn: data.buyer.taxNumber,
+          title: data.buyer.name,
+          address: data.buyer.address || "",
+          tax_office: data.buyer.taxOffice || "",
+          city: data.buyer.city || "",
+          district: data.buyer.district || "",
+        },
+        items: data.lines,
+        subtotal: data.subTotal,
+        taxable_amount: data.subTotal,
+        total_vat: data.taxTotal,
+        grand_total: data.grandTotal,
+        notes: data.note || "",
+        updated_at: new Date().toISOString(),
+      };
+
+      insertResult = await supabaseAdmin
+        .from("invoices")
+        .insert([standardRecord])
+        .select("id, ettn, invoice_number")
+        .single();
+    }
+
+    const { data: dbData, error } = insertResult;
 
     if (error) {
       if (error.code === "23505" || error.message?.includes("unique") || error.message?.includes("duplicate")) {
@@ -253,10 +290,18 @@ export async function updateInvoiceResultRecord(
         .eq("ettn", ettn);
 
       if (error) {
-        console.error("[InvoiceRepository] Supabase update error:", error);
+        console.warn("[InvoiceRepository] Supabase full update notice, trying standard update fallback:", error.message);
+        await supabaseAdmin
+          .from("invoices")
+          .update({
+            status: mappedStatus,
+            notes: result.message ? `[EDM] ${result.message}` : undefined,
+            updated_at: processedAt,
+          })
+          .eq("ettn", ettn);
       }
     } catch (e) {
-      console.warn("[InvoiceRepository] Supabase update error:", e);
+      console.warn("[InvoiceRepository] Supabase update warning:", e);
     }
   }
 
