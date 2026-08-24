@@ -150,6 +150,24 @@ function InvoicesPage() {
     queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
   }
 
+  async function handleBatchDelete() {
+    if (selected.length === 0) return;
+    if (!window.confirm(`Seçilen ${selected.length} adet faturayı silmek istediğinizden emin misiniz?`)) return;
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      for (const id of selected) {
+        await safeSoftDelete("invoices", id, userId);
+      }
+      toast.success(`${selected.length} adet fatura silindi.`);
+      setSelected([]);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Fatura silme hatası.");
+    }
+  }
+
   const { data: summaryStats } = useQuery({
     queryKey: ["invoices-summary"],
     queryFn: async () => {
@@ -653,7 +671,7 @@ function InvoicesPage() {
                   <Send className={`size-3.5 ${batchSending ? "animate-spin" : ""}`} />
                   {batchSending ? "Gönderiliyor..." : "Seçilenleri EDM'ye Gönder"}
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloading} className="gap-1">
+                <Button variant="outline" size="sm" onClick={downloadSelected} disabled={downloading} className="gap-1">
                   <Download className="size-3.5" /> Toplu PDF İndir
                 </Button>
                 <Button variant="destructive" size="sm" onClick={handleBatchDelete} className="gap-1">
