@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { safeFetchTrash } from "@/lib/safe-supabase";
 import { formatMoney } from "@/lib/invoice";
 
 export const Route = createFileRoute("/_authenticated/cop-kutusu")({
@@ -59,98 +60,92 @@ function TrashBinPage() {
   const [logDetail, setLogDetail] = useState<any | null>(null);
 
   // Soft deleted records queries
-  const { data: deletedInvoices = [] } = useQuery({
+  const { data: deletedInvoices = [], isLoading: loadingInvoices } = useQuery({
     queryKey: ["trash", "invoices"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () =>
+      safeFetchTrash(() =>
+        supabase
+          .from("invoices")
+          .select("*")
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false }),
+      ),
   });
 
-  const { data: deletedCustomers = [] } = useQuery({
+  const { data: deletedCustomers = [], isLoading: loadingCustomers } = useQuery({
     queryKey: ["trash", "customers"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () =>
+      safeFetchTrash(() =>
+        supabase
+          .from("customers")
+          .select("*")
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false }),
+      ),
   });
 
-  const { data: deletedProducts = [] } = useQuery({
+  const { data: deletedProducts = [], isLoading: loadingProducts } = useQuery({
     queryKey: ["trash", "products"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () =>
+      safeFetchTrash(() =>
+        supabase
+          .from("products")
+          .select("*")
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false }),
+      ),
   });
 
-  const { data: deletedPosSales = [] } = useQuery({
+  const { data: deletedPosSales = [], isLoading: loadingPosSales } = useQuery({
     queryKey: ["trash", "pos_sales"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pos_sales")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () =>
+      safeFetchTrash(() =>
+        supabase
+          .from("pos_sales")
+          .select("*")
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false }),
+      ),
   });
 
-  const { data: deletedWarehouses = [] } = useQuery({
+  const { data: deletedWarehouses = [], isLoading: loadingWarehouses } = useQuery({
     queryKey: ["trash", "warehouses"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouses")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () =>
+      safeFetchTrash(() =>
+        supabase
+          .from("warehouses")
+          .select("*")
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false }),
+      ),
   });
 
-  const { data: deletedStockMovements = [] } = useQuery({
+  const { data: deletedStockMovements = [], isLoading: loadingMovements } = useQuery({
     queryKey: ["trash", "stock_movements"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stock_movements")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () =>
+      safeFetchTrash(() =>
+        supabase
+          .from("stock_movements")
+          .select("*")
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false }),
+      ),
   });
 
-  const { data: deletedTransactions = [] } = useQuery({
+  const { data: deletedTransactions = [], isLoading: loadingTxns } = useQuery({
     queryKey: ["trash", "account_transactions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("account_transactions")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () =>
+      safeFetchTrash(() =>
+        supabase
+          .from("account_transactions")
+          .select("*")
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false }),
+      ),
   });
 
-  const { data: auditLogs = [] } = useQuery({
+  // Audit Logs Query
+  const { data: auditLogs = [], isLoading: loadingAudit } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -163,6 +158,7 @@ function TrashBinPage() {
     },
   });
 
+  // Restore Mutation
   const restoreItem = useMutation({
     mutationFn: async ({ table, id }: { table: TableType; id: string }) => {
       const { error } = await supabase
@@ -171,6 +167,7 @@ function TrashBinPage() {
         .eq("id", id);
       if (error) throw error;
 
+      // If restoring an invoice, also restore associated account_transactions and stock_movements
       if (table === "invoices") {
         await supabase
           .from("account_transactions")
@@ -182,7 +179,7 @@ function TrashBinPage() {
           .eq("source_id", id);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success("Kayıt başarıyla geri yüklendi!");
       queryClient.invalidateQueries({ queryKey: ["trash"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -200,8 +197,10 @@ function TrashBinPage() {
     onError: (e: Error) => toast.error(`Geri yükleme hatası: ${e.message}`),
   });
 
+  // Permanent Delete Mutation
   const hardDeleteItem = useMutation({
     mutationFn: async ({ table, id }: { table: TableType; id: string }) => {
+      // If hard deleting an invoice, clean up associated transactions
       if (table === "invoices") {
         await supabase.from("account_transactions").delete().eq("source_id", id);
         await supabase.from("stock_movements").delete().eq("source_id", id);
@@ -338,7 +337,7 @@ function TrashBinPage() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Kalıcı Silme Onayı</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    <strong>{inv.invoice_number}</strong> numaralı faturayı veritabanından kalıcı olarak silmek üzeresiniz. Bu işlem GERİ ALINAMAZ!
+                                    <strong>{inv.invoice_number}</strong> numaralı faturayı veritabanından kalıcı olarak silmek üzeresiniz. Bu işlem GERİ ALINAMAZ! Devam etmek istiyor musunuz?
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -858,3 +857,4 @@ function TrashBinPage() {
     </AppShell>
   );
 }
+

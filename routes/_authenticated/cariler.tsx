@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import { emptyCustomer, formatMoney, type InvoiceCustomer } from "@/lib/invoice";
 import { PARTNER_LABELS, type PartnerType } from "@/lib/cari";
@@ -97,13 +98,31 @@ function CustomersPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ ...emptyCustomer, ...emptyExtras });
 
+  // Tedarikçi Ödeme Modalı Durumları
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentSupplier, setPaymentSupplier] = useState<any>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState("BANKA");
+  const [paymentDocNo, setPaymentDocNo] = useState("");
+  const [paymentDesc, setPaymentDesc] = useState("");
+
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
         .select("*")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("customers")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (fallback.error) throw fallback.error;
+        return fallback.data;
+      }
       if (error) throw error;
       return data;
     },
@@ -203,21 +222,47 @@ function CustomersPage() {
 
   const removeCustomer = useMutation({
     mutationFn: async (id: string) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      const { error } = await supabase
-        .from("customers")
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId || null,
-        })
-        .eq("id", id);
+      const userId = await currentUserId();
+      await safeSoftDelete("customers", id, userId);
+    },
+    onSuccess: () => {
+      toast.success("Cari silindi.");
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const makeSupplierPayment = useMutation({
+    mutationFn: async () => {
+      if (!paymentSupplier) throw new Error("Tedarikçi seçilmedi.");
+      const amount = Number(paymentAmount);
+      if (!amount || amount <= 0) throw new Error("Geçerli bir ödeme tutarı giriniz.");
+
+      const { data: _result, error } = await supabase.rpc("create_supplier_payment", {
+        p_supplier_id: paymentSupplier.id,
+        p_payment_date: paymentDate,
+        p_amount: amount,
+        p_payment_method: paymentMethod,
+        p_document_no: paymentDocNo.trim(),
+        p_description: paymentDesc.trim(),
+      });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Cari silindi (Çöp Kutusuna taşındı).");
+      toast.success("Tedarikçi ödemesi başarıyla işlendi ve muhasebe fişi (320 Borç / Kasa-Banka Alacak) kaydedildi.");
+      setPaymentOpen(false);
+      setPaymentSupplier(null);
+      setPaymentAmount("");
+      setPaymentDocNo("");
+      setPaymentDesc("");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["trial-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["reconciliation-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -333,63 +378,175 @@ function CustomersPage() {
             <DialogTrigger asChild>
               <Button>Yeni {PARTNER_LABELS[tab]}</Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Yeni {PARTNER_LABELS[tab]} Kartı</DialogTitle>
               </DialogHeader>
               <form
-                className="grid gap-4 sm:grid-cols-2"
+                className="space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault();
                   createCustomer.mutate(form);
                 }}
               >
-                {textFields.map((f) => (
-                  <div key={f.key} className="space-y-2">
-                    <Label htmlFor={f.key}>{f.label}</Label>
-                    <Input
-                      id={f.key}
-                      type={f.type ?? "text"}
-                      step={f.type === "number" ? "0.01" : undefined}
-                      required={f.required ?? false}
-                      value={String(form[f.key] ?? "")}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          [f.key]:
-                            f.type === "number" ? Number(e.target.value) || 0 : e.target.value,
-                        })
-                      }
-                    />
+                {/* 1. Temel Firma Bilgileri */}
+                <div className="rounded-lg border border-border p-3.5 space-y-3 bg-muted/20">
+                  <div className="text-xs font-semibold text-primary uppercase tracking-wider">
+                    Firma Bilgileri (Temel Bilgiler)
                   </div>
-                ))}
-                <AddressSelect
-                  value={{
-                    city: form.city,
-                    district: form.district,
-                    neighborhood: form.neighborhood,
-                  }}
-                  onChange={(v) => setForm({ ...form, ...v })}
-                />
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="address">Açık Adres</Label>
-                  <Input
-                    id="address"
-                    value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="title">Firma / Ticari Unvan *</Label>
+                      <Input
+                        id="title"
+                        required
+                        placeholder="Örn: ABC İnşaat San. ve Tic. Ltd. Şti."
+                        value={form.title}
+                        onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="vknTckn">VKN / TCKN *</Label>
+                      <Input
+                        id="vknTckn"
+                        required
+                        placeholder="10 veya 11 haneli numara"
+                        value={form.vknTckn}
+                        onChange={(e) => setForm({ ...form, vknTckn: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="taxOffice">Vergi Dairesi</Label>
+                      <Input
+                        id="taxOffice"
+                        placeholder="Örn: Kadıköy"
+                        value={form.taxOffice}
+                        onChange={(e) => setForm({ ...form, taxOffice: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="phone">Telefon</Label>
+                      <Input
+                        id="phone"
+                        placeholder="0500 000 00 00"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email">E-posta</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="info@firma.com"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="note">Açıklama / Not</Label>
-                  <Input
-                    id="note"
-                    value={form.note}
-                    onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  />
+
+                {/* 2. Adres Bilgileri */}
+                <div className="rounded-lg border border-border p-3.5 space-y-3">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Adres Bilgileri (İl, İlçe, Açık Adres)
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <AddressSelect
+                      value={{
+                        city: form.city,
+                        district: form.district,
+                        neighborhood: form.neighborhood,
+                      }}
+                      onChange={(v) => setForm({ ...form, ...v })}
+                    />
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="address">Açık Adres (Cadde, Sokak, No)</Label>
+                      <Input
+                        id="address"
+                        placeholder="Örn: Organize Sanayi Bölgesi 4. Cadde No:12"
+                        value={form.address}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="sm:col-span-2">
+
+                {/* 3. İsteğe Bağlı Ek Bilgiler */}
+                <div className="rounded-lg border border-border/70 p-3.5 space-y-3">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Ticari & Bakiye Ayarları (Opsiyonel)
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="code">Cari Kod</Label>
+                      <Input
+                        id="code"
+                        placeholder="Örn: C-001"
+                        value={form.code}
+                        onChange={(e) => setForm({ ...form, code: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="partnerGroup">Grup</Label>
+                      <Input
+                        id="partnerGroup"
+                        placeholder="Örn: Toptan, Bayi"
+                        value={form.partnerGroup}
+                        onChange={(e) => setForm({ ...form, partnerGroup: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="paymentTermDays">Vade (Gün)</Label>
+                      <Input
+                        id="paymentTermDays"
+                        type="number"
+                        min="0"
+                        value={form.paymentTermDays}
+                        onChange={(e) =>
+                          setForm({ ...form, paymentTermDays: Number(e.target.value) || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="riskLimit">Risk Limiti (₺)</Label>
+                      <Input
+                        id="riskLimit"
+                        type="number"
+                        min="0"
+                        value={form.riskLimit}
+                        onChange={(e) =>
+                          setForm({ ...form, riskLimit: Number(e.target.value) || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="openingBalance">Açılış Bakiyesi (Borç + / Alacak -)</Label>
+                      <Input
+                        id="openingBalance"
+                        type="number"
+                        step="0.01"
+                        value={form.openingBalance}
+                        onChange={(e) =>
+                          setForm({ ...form, openingBalance: Number(e.target.value) || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-3">
+                      <Label htmlFor="note">Not / Açıklama</Label>
+                      <Input
+                        id="note"
+                        placeholder="Müşteri/Tedarikçi hakkında özel not"
+                        value={form.note}
+                        onChange={(e) => setForm({ ...form, note: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
                   <Button type="submit" className="w-full" disabled={createCustomer.isPending}>
-                    Kaydet
+                    {createCustomer.isPending ? "Kaydediliyor…" : `${PARTNER_LABELS[tab]} Kaydet`}
                   </Button>
                 </div>
               </form>
@@ -485,13 +642,31 @@ function CustomersPage() {
                             </Badge>
                           ) : null}
                         </td>
-                        <td className="py-3 text-right whitespace-nowrap">
-                          <Button variant="outline" size="sm" onClick={() => setDetailId(c.id)}>
+                        <td className="py-3 text-right whitespace-nowrap space-x-1">
+                          {c.partner_type === "TEDARIKCI" && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                setPaymentSupplier(c);
+                                setPaymentAmount(String(Math.abs(b.balance) || ""));
+                                setPaymentDate(new Date().toISOString().slice(0, 10));
+                                setPaymentDocNo("");
+                                setPaymentDesc(`Tedarikçi Ödemesi - ${c.title}`);
+                                setPaymentOpen(true);
+                              }}
+                            >
+                              Ödeme Yap
+                            </Button>
+                          )}
+                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDetailId(c.id)}>
                             Ekstre
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => removeCustomer.mutate(c.id)}
                           >
                             Sil
@@ -506,6 +681,87 @@ function CustomersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* TEDARİKÇİ ÖDEME DİALOGU */}
+      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tedarikçiye Ödeme Yap (320 Borç Kapatma)</DialogTitle>
+          </DialogHeader>
+          {paymentSupplier && (
+            <div className="space-y-3 pt-2 text-sm">
+              <div className="rounded-md bg-muted/40 p-3 space-y-1">
+                <div className="font-semibold text-foreground">{paymentSupplier.title}</div>
+                <div className="text-xs text-muted-foreground">VKN/TCKN: {paymentSupplier.vkn_tckn || "-"}</div>
+                <div className="text-xs font-mono text-primary pt-1">
+                  Mevcut Bakiye: {formatMoney(balanceMap.get(paymentSupplier.id)?.balance ?? 0)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Ödeme Tarihi *</Label>
+                  <Input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Ödeme Tutarı (TL) *</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Ödeme Yöntemi / Çıkış Hesabı</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BANKA">Banka Hesabı (102 Bankalar)</SelectItem>
+                    <SelectItem value="KASA">Nakit Kasa (100 Kasa)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Dekont / Belge No</Label>
+                <Input
+                  placeholder="Örn: DEK-2026-001"
+                  value={paymentDocNo}
+                  onChange={(e) => setPaymentDocNo(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Açıklama</Label>
+                <Input
+                  placeholder="Ödeme açıklaması"
+                  value={paymentDesc}
+                  onChange={(e) => setPaymentDesc(e.target.value)}
+                />
+              </div>
+
+              <Button
+                className="w-full mt-3"
+                onClick={() => makeSupplierPayment.mutate()}
+                disabled={makeSupplierPayment.isPending}
+              >
+                {makeSupplierPayment.isPending ? "İşleniyor…" : "Ödemeyi Onayla & Fişini Oluştur"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <CariDetailDialog
         customer={detailCustomer as never}

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Trash2, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Trash2, AlertCircle, Info, Check, Edit, PlusCircle, ArrowLeft, ShoppingCart, Send, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -19,34 +21,56 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError } from "@/lib/safe-supabase";
 import {
   emptyCustomer,
   formatMoney,
   generateEttn,
-  generateInvoiceNumber,
   INVOICE_TYPES,
+  INVOICE_TYPE_DETAILS,
+  TEVKIFAT_CODES,
   TEVKIFAT_RATES,
+  EXEMPTION_CODES,
   CURRENCY_OPTIONS,
+  UNIT_OPTIONS,
+  VAT_RATES,
   invoiceTotals,
   itemTotals,
   newItem,
+  numberToTurkishWords,
   roundMoney,
   isValidVknTckn,
   type InvoiceCustomer,
   type InvoiceItem,
 } from "@/lib/invoice";
 
+type SearchParams = {
+  editId?: string | undefined;
+  mode?: "SATIS" | "ALIS" | "ALIS_IADE" | undefined;
+  returnInvoiceId?: string | undefined;
+};
+
 export const Route = createFileRoute("/_authenticated/fatura-kes")({
+  validateSearch: (search: Record<string, unknown>): SearchParams => {
+    const editId = search["editId"];
+    const mode = search["mode"] as "SATIS" | "ALIS" | "ALIS_IADE" | undefined;
+    const returnInvoiceId = search["returnInvoiceId"] as string | undefined;
+    return {
+      editId: typeof editId === "string" ? editId : undefined,
+      mode: mode === "ALIS" || mode === "ALIS_IADE" || mode === "SATIS" ? mode : undefined,
+      returnInvoiceId: typeof returnInvoiceId === "string" ? returnInvoiceId : undefined,
+    };
+  },
   head: () => ({
     meta: [
-      { title: "Fatura Kes | e-Fatura Portalı" },
+      { title: "Fatura Kes & Alış Girişi | e-Fatura Portalı" },
       {
         name: "description",
         content:
-          "Alıcı bilgileri ve kalemlerle e-arşiv/e-fatura hazırlayın, KDV ve tevkifatı otomatik hesaplayın.",
+          "Satış faturası kesin, tedarikçi alış faturası işleyin veya alış iadesi oluşturun. KDV ve tevkifat otomatik hesaplanır.",
       },
-      { property: "og:title", content: "Fatura Kes | e-Fatura Portalı" },
-      { property: "og:description", content: "Yeni e-arşiv veya e-fatura oluşturun." },
+      { property: "og:title", content: "Fatura Kes & Alış Girişi | e-Fatura Portalı" },
+      { property: "og:description", content: "Satış, alış ve iade faturaları yönetimi." },
     ],
   }),
   component: NewInvoicePage,
@@ -54,15 +78,25 @@ export const Route = createFileRoute("/_authenticated/fatura-kes")({
 
 function NewInvoicePage() {
   const navigate = useNavigate();
+  const searchParams = Route.useSearch();
+  const editId = searchParams.editId;
+  const initialMode = searchParams.mode || "SATIS";
+  const returnInvoiceId = searchParams.returnInvoiceId;
   const queryClient = useQueryClient();
 
+  const [operationMode, setOperationMode] = useState<"SATIS" | "ALIS" | "ALIS_IADE">(initialMode);
   const [type, setType] = useState("SATIS");
   const [currency, setCurrency] = useState("TRY");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [customer, setCustomer] = useState<InvoiceCustomer>(emptyCustomer);
   const [customerId, setCustomerId] = useState<string>("");
+  const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState<string>("");
+  const [originalInvoiceId, setOriginalInvoiceId] = useState<string>(returnInvoiceId || "");
   const [warehouseId, setWarehouseId] = useState<string>("");
+  const [serialPrefix, setSerialPrefix] = useState("EAR");
   const [items, setItems] = useState<InvoiceItem[]>([newItem()]);
+  const [selectedTevkifatCode, setSelectedTevkifatCode] = useState<string>("");
+  const [selectedExemptionCode, setSelectedExemptionCode] = useState<string>("301");
   const [tevkifatRate, setTevkifatRate] = useState("0");
   const [notes, setNotes] = useState("");
   const [paymentInfo, setPaymentInfo] = useState("");
@@ -100,55 +134,164 @@ function NewInvoicePage() {
     },
   });
 
-  const { data: invoiceCount = 0 } = useQuery({
-    queryKey: ["invoice-count"],
+  // Alış faturaları listesi (Alış iadesi için kaynak fatura seçimi)
+  const { data: purchaseInvoices = [] } = useQuery({
+    queryKey: ["invoices", "purchase-list"],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from("invoices")
-        .select("id", { count: "exact", head: true });
+        .select("*")
+        .in("type", ["ALIS", "GELEN_FATURA", "GELEN_E_ARSIV"])
+        .eq("status", "ONAYLANDI")
+        .order("invoice_date", { ascending: false });
       if (error) throw error;
-      return count ?? 0;
+      return data ?? [];
     },
   });
 
-  const isTevkifatli = type === "TEVKIFAT";
-  const activeTevkifatRate = isTevkifatli ? Number(tevkifatRate) || 0 : 0;
-  const totals = invoiceTotals(items, activeTevkifatRate);
+  // Eğer Düzenleme (editId) modundaysak faturayı yükle
+  const { data: existingInvoice } = useQuery({
+    queryKey: ["invoice-detail", editId],
+    queryFn: async () => {
+      if (!editId) return null;
+      const { data, error } = await supabase.from("invoices").select("*").eq("id", editId).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: Boolean(editId),
+  });
 
-  function updateItem(id: string, patch: Partial<InvoiceItem>) {
-    setItems((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        const updated = { ...i, ...patch };
-        if (updated.quantity !== undefined)
-          updated.quantity = Math.max(0, Number(updated.quantity) || 0);
-        if (updated.unitPrice !== undefined)
-          updated.unitPrice = Math.max(0, Number(updated.unitPrice) || 0);
-        if (updated.discountRate !== undefined)
-          updated.discountRate = Math.min(100, Math.max(0, Number(updated.discountRate) || 0));
-        if (updated.vatRate !== undefined)
-          updated.vatRate = Math.max(0, Number(updated.vatRate) || 0);
-        return updated;
-      }),
-    );
+  const isNonEditable = Boolean(
+    existingInvoice && (existingInvoice.status !== "TASLAK" || existingInvoice.posted)
+  );
+
+  useEffect(() => {
+    if (!existingInvoice) return;
+    const invType = existingInvoice.type || "SATIS";
+    setType(invType);
+    if (invType === "ALIS" || invType === "GELEN_FATURA" || invType === "GELEN_E_ARSIV") {
+      setOperationMode("ALIS");
+      setSupplierInvoiceNumber(existingInvoice.invoice_number || "");
+    } else if (invType === "ALIS_IADE") {
+      setOperationMode("ALIS_IADE");
+    } else {
+      setOperationMode("SATIS");
+    }
+
+    setCurrency(existingInvoice.currency || "TRY");
+    setDate(existingInvoice.invoice_date || new Date().toISOString().slice(0, 10));
+    setCustomerId(existingInvoice.customer_id || "");
+    setWarehouseId(existingInvoice.warehouse_id || "");
+    setNotes(existingInvoice.notes || "");
+    setPaymentInfo(existingInvoice.payment_info || "");
+
+    const customPrefix = existingInvoice.invoice_number ? existingInvoice.invoice_number.slice(0, 3) : "GIB";
+    setSerialPrefix(customPrefix);
+
+    if (existingInvoice.customer && typeof existingInvoice.customer === "object") {
+      const c = existingInvoice.customer as Partial<InvoiceCustomer>;
+      setCustomer({
+        vknTckn: c.vknTckn || "",
+        title: c.title || "",
+        taxOffice: c.taxOffice || "",
+        address: c.address || "",
+        city: c.city || "",
+        district: c.district || "",
+        neighborhood: c.neighborhood || "",
+        email: c.email || "",
+        phone: c.phone || "",
+        customPrefix: c.customPrefix || customPrefix,
+      });
+    }
+
+    if (Array.isArray(existingInvoice.items) && existingInvoice.items.length > 0) {
+      setItems(existingInvoice.items as InvoiceItem[]);
+    }
+  }, [existingInvoice]);
+
+  // Alış İadesi modunda orijinal fatura seçildiğinde kalemleri ve tedarikçiyi otomatik doldur
+  function handleSelectOriginalPurchaseInvoice(invId: string) {
+    setOriginalInvoiceId(invId);
+    const orig = purchaseInvoices.find((i) => i.id === invId);
+    if (orig) {
+      if (orig.customer_id) {
+        setCustomerId(orig.customer_id);
+      }
+      if (orig.customer && typeof orig.customer === "object") {
+        const c = orig.customer as Partial<InvoiceCustomer>;
+        setCustomer({
+          vknTckn: c.vknTckn || "",
+          title: c.title || "",
+          taxOffice: c.taxOffice || "",
+          address: c.address || "",
+          city: c.city || "",
+          district: c.district || "",
+          neighborhood: c.neighborhood || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          customPrefix: "",
+        });
+      }
+      if (Array.isArray(orig.items) && orig.items.length > 0) {
+        setItems(orig.items as InvoiceItem[]);
+      }
+      setWarehouseId(orig.warehouse_id || "");
+      setSupplierInvoiceNumber(`IADE-${orig.invoice_number || ""}`);
+    }
   }
 
-  function applyProduct(id: string, productId: string) {
-    const p = products.find((x) => x.id === productId);
-    if (!p) return;
-    updateItem(id, {
-      productId: p.id,
-      name: p.name,
-      unit: p.unit,
-      unitPrice: Number(p.unit_price) || 0,
-      vatRate: Number(p.vat_rate) || 20,
+  const isTevkifatli = operationMode === "SATIS" && (type === "TEVKIFAT" || Boolean(selectedTevkifatCode));
+  const activeTevkifatRate = isTevkifatli ? Number(tevkifatRate) || 0 : 0;
+  const totals = invoiceTotals(items, activeTevkifatRate);
+  const wordsAmount = numberToTurkishWords(totals.grandTotal, currency);
+
+  function handleTevkifatCodeChange(code: string) {
+    setSelectedTevkifatCode(code);
+    const found = TEVKIFAT_CODES.find((c) => c.code === code);
+    if (found) {
+      setTevkifatRate(String(found.rate));
+    }
+  }
+
+  function addItem() {
+    setItems((prev) => [...prev, newItem()]);
+  }
+
+  function removeItem(id: string) {
+    if (items.length <= 1) {
+      toast.error("En az bir kalem bulunmalıdır.");
+      return;
+    }
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  function updateItem(id: string, updates: Partial<InvoiceItem>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  }
+
+  function handleProductSelect(itemId: string, productId: string) {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const isPurchase = operationMode === "ALIS" || operationMode === "ALIS_IADE";
+    const selectedPrice = isPurchase
+      ? Number(product.purchase_price ?? product.unit_price ?? 0)
+      : Number(product.unit_price ?? 0);
+
+    updateItem(itemId, {
+      productId: product.id,
+      name: product.name,
+      unit: product.unit || "Adet",
+      unitPrice: selectedPrice,
+      vatRate: Number(product.vat_rate ?? 20),
     });
   }
 
-  function applyCustomer(selectedId: string) {
-    const c = customers.find((x) => x.id === selectedId);
+  function handleSelectCustomer(id: string) {
+    setCustomerId(id);
+    const c = customers.find((cust) => cust.id === id);
     if (!c) return;
-    setCustomerId(c.id);
+    const prefix = c.code ? c.code.slice(0, 3).toUpperCase() : serialPrefix;
+    setSerialPrefix(prefix);
     setCustomer({
       vknTckn: c.vkn_tckn || "",
       title: c.title || "",
@@ -156,451 +299,600 @@ function NewInvoicePage() {
       address: c.address || "",
       city: c.city || "",
       district: c.district || "",
-      neighborhood: c.neighborhood ?? "",
+      neighborhood: c.neighborhood || "",
       email: c.email || "",
       phone: c.phone || "",
+      customPrefix: prefix,
     });
   }
 
   const saveInvoice = useMutation({
     mutationFn: async (newStatus: "TASLAK" | "ONAYLANDI" = "TASLAK") => {
+      if (isNonEditable) {
+        throw new Error("Onaylanmış veya iptal edilmiş faturalar düzenlenemez.");
+      }
       if (!customer.vknTckn.trim() || !customer.title.trim()) {
-        throw new Error("Alıcı VKN/TCKN ve unvan bilgileri zorunludur.");
+        throw new Error(operationMode === "ALIS" ? "Tedarikçi VKN/TCKN ve unvan bilgileri zorunludur." : "Alıcı VKN/TCKN ve unvan bilgileri zorunludur.");
       }
       if (items.length === 0 || items.some((i) => !i.name.trim())) {
         throw new Error("En az bir geçerli açıklamayla fatura kalemi girmelisiniz.");
       }
+
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) throw new Error("Oturum bulunamadı. Lütfen yeniden giriş yapınız.");
 
-      const shouldPost = newStatus === "ONAYLANDI";
-      const invoiceNumber = generateInvoiceNumber(invoiceCount);
-
-      const { data: inserted, error } = await supabase
-        .from("invoices")
-        .insert({
-          user_id: userId,
-          customer_id: customerId || null,
-          warehouse_id: warehouseId || null,
-          posted: shouldPost,
-          ettn: generateEttn(),
-          invoice_number: invoiceNumber,
-          type,
-          status: newStatus,
-          gib_approval_date: shouldPost ? new Date().toISOString() : null,
-          invoice_date: date,
-          currency,
-          exchange_rate: 1,
-          customer: JSON.parse(JSON.stringify(customer)),
-          items: JSON.parse(JSON.stringify(items)),
-          subtotal: totals.subtotal,
-          total_discount: totals.totalDiscount,
-          taxable_amount: totals.taxableAmount,
-          total_vat: totals.totalVat,
-          total_tevkifat: totals.totalTevkifat,
-          grand_total: totals.grandTotal,
-          notes: notes.trim(),
-          payment_info: paymentInfo.trim(),
-        })
-        .select("id, invoice_number")
-        .single();
-
-      if (error) throw error;
-
-      if (shouldPost && inserted) {
-        const isReturn = type === "IADE";
-
-        // Cari hesap hareketi
-        if (customerId) {
-          const { error: txnError } = await supabase.from("account_transactions").insert({
-            user_id: userId,
-            customer_id: customerId,
-            txn_date: date,
-            txn_type: isReturn ? "ALACAK" : "BORC",
-            amount: totals.grandTotal,
-            document_no: inserted.invoice_number,
-            description: isReturn ? "İade faturası kaydı" : "Satış faturası borç kaydı",
-            source: "FATURA",
-            source_id: inserted.id,
-          });
-          if (txnError) throw txnError;
+      if (operationMode === "ALIS") {
+        // --- 1. ALIŞ FATURASI AKIŞI (create_purchase_invoice) ---
+        if (!customerId) {
+          throw new Error("Tedarikçi seçimi zorunludur.");
+        }
+        if (!supplierInvoiceNumber.trim()) {
+          throw new Error("Tedarikçi fatura numarası zorunludur.");
         }
 
-        // Stok hareketleri
-        const stockRows = items
-          .filter((i) => i.productId)
-          .map((i) => ({
-            user_id: userId,
-            product_id: i.productId as string,
-            warehouse_id: warehouseId || null,
-            customer_id: customerId || null,
-            movement_date: date,
-            movement_type: isReturn ? "GIRIS" : "CIKIS",
-            quantity: Math.max(0, Number(i.quantity) || 0),
-            unit_price: roundMoney(Number(i.unitPrice) || 0),
-            document_no: inserted.invoice_number,
-            description: isReturn
-              ? "Fatura kaynaklı stok iade girişi"
-              : "Fatura kaynaklı stok çıkışı",
-            source: "FATURA",
-            source_id: inserted.id,
-          }));
+        const { data: _result, error } = await supabase.rpc("create_purchase_invoice", {
+          p_invoice_date: date,
+          p_supplier_id: customerId,
+          p_invoice_number: supplierInvoiceNumber.trim(),
+          p_warehouse_id: warehouseId || null,
+          p_supplier_info: JSON.parse(JSON.stringify(customer)),
+          p_items: JSON.parse(JSON.stringify(items)),
+          p_subtotal: totals.subtotal,
+          p_total_discount: totals.totalDiscount,
+          p_taxable_amount: totals.taxableAmount,
+          p_total_vat: totals.totalVat,
+          p_total_tevkifat: 0,
+          p_grand_total: totals.grandTotal,
+          p_currency: currency,
+          p_exchange_rate: 1,
+          p_notes: notes.trim(),
+          p_payment_info: paymentInfo.trim(),
+          p_ettn: generateEttn(),
+          p_status: newStatus,
+        });
+        if (error) throw error;
 
-        if (stockRows.length > 0) {
-          const { error: stockError } = await supabase.from("stock_movements").insert(stockRows);
-          if (stockError) throw stockError;
+      } else if (operationMode === "ALIS_IADE") {
+        // --- 2. ALIŞ İADESİ AKIŞI (create_purchase_return) ---
+        if (!originalInvoiceId) {
+          throw new Error("İade edilecek orijinal alış faturası seçilmelidir.");
+        }
+        if (!supplierInvoiceNumber.trim()) {
+          throw new Error("İade fatura/irsaliye numarası zorunludur.");
+        }
+
+        const { data: _result, error } = await supabase.rpc("create_purchase_return", {
+          p_original_invoice_id: originalInvoiceId,
+          p_return_date: date,
+          p_return_invoice_number: supplierInvoiceNumber.trim(),
+          p_items: JSON.parse(JSON.stringify(items)),
+          p_warehouse_id: warehouseId || null,
+          p_notes: notes.trim(),
+        });
+        if (error) throw error;
+
+      } else {
+        // --- 3. SATIŞ FATURASI AKIŞI (Mevcut Mantık Korundu) ---
+        if (editId && existingInvoice) {
+          const shouldPost = newStatus === "ONAYLANDI";
+          const { error: updateError } = await supabase
+            .from("invoices")
+            .update({
+              customer_id: customerId || null,
+              warehouse_id: warehouseId || null,
+              type,
+              status: newStatus,
+              posted: shouldPost,
+              gib_approval_date: shouldPost ? new Date().toISOString() : null,
+              invoice_date: date,
+              currency,
+              exchange_rate: 1,
+              customer: JSON.parse(JSON.stringify(customer)),
+              items: JSON.parse(JSON.stringify(items)),
+              subtotal: totals.subtotal,
+              total_discount: totals.totalDiscount,
+              taxable_amount: totals.taxableAmount,
+              total_vat: totals.totalVat,
+              total_tevkifat: totals.totalTevkifat,
+              grand_total: totals.grandTotal,
+              notes: notes.trim(),
+              payment_info: paymentInfo.trim(),
+            })
+            .eq("id", editId);
+          if (updateError) throw updateError;
+        } else {
+          const ettn = generateEttn();
+          const { data: _result, error } = await supabase.rpc("create_sales_invoice", {
+            p_invoice_date: date,
+            p_type: type,
+            p_status: newStatus,
+            p_customer_id: customerId || null,
+            p_warehouse_id: warehouseId || null,
+            p_customer_info: JSON.parse(JSON.stringify(customer)),
+            p_items: JSON.parse(JSON.stringify(items)),
+            p_subtotal: totals.subtotal,
+            p_total_discount: totals.totalDiscount,
+            p_taxable_amount: totals.taxableAmount,
+            p_total_vat: totals.totalVat,
+            p_total_tevkifat: totals.totalTevkifat,
+            p_grand_total: totals.grandTotal,
+            p_currency: currency,
+            p_exchange_rate: 1,
+            p_notes: notes.trim(),
+            p_payment_info: paymentInfo.trim(),
+            p_ettn: ettn,
+          });
+          if (error) throw error;
         }
       }
     },
     onSuccess: (_data, newStatus) => {
       toast.success(
-        newStatus === "ONAYLANDI"
-          ? "Fatura GİB'e iletildi; cari ve stok hareketleri işlendi."
-          : "Fatura taslak olarak başarıyla kaydedildi.",
+        operationMode === "ALIS"
+          ? "Alış faturası başarıyla kaydedildi; 153/191/320 muhasebe fişi ve stok girişi işlendi."
+          : operationMode === "ALIS_IADE"
+            ? "Alış iadesi başarıyla işlendi; 320/153/191 fişi ve stok çıkışı yapıldı."
+            : editId
+              ? "Fatura başarıyla güncellendi."
+              : newStatus === "ONAYLANDI"
+                ? "Fatura GİB'e iletildi; cari ve stok hareketleri işlendi."
+                : "Fatura taslak olarak başarıyla kaydedildi.",
       );
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoice-count"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
-      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["trial-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["reconciliation-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
       navigate({ to: "/faturalar" });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const vknWarning = customer.vknTckn.trim() && !isValidVknTckn(customer.vknTckn);
+  const vknWarning = customer.vknTckn.trim() ? !isValidVknTckn(customer.vknTckn) : false;
+  const currentTevkifatObj = TEVKIFAT_CODES.find((c) => c.code === selectedTevkifatCode);
+
+  // Müşteri / Tedarikçi Listesi Filtresi
+  const filteredPartners = customers.filter((c) => {
+    if (operationMode === "ALIS" || operationMode === "ALIS_IADE") {
+      return c.partner_type === "TEDARIKCI";
+    }
+    return c.partner_type !== "TEDARIKCI";
+  });
 
   return (
     <AppShell
-      title="Fatura Kes"
-      subtitle="E-Arşiv / E-Fatura düzenleyin, KDV ve tevkifatı otomatik hesaplayın."
+      title={
+        editId
+          ? "Faturayı Düzenle"
+          : operationMode === "ALIS"
+            ? "Alış Faturası Girişi (Gelen Fatura)"
+            : operationMode === "ALIS_IADE"
+              ? "Alış İadesi Oluştur (Tedarikçiye İade)"
+              : "Fatura Kes"
+      }
+      subtitle={
+        operationMode === "ALIS"
+          ? "Tedarikçiden gelen alış faturasını kaydedin, 153/191/320 yevmiye fişi ve stok girişi otomatik işlensin."
+          : operationMode === "ALIS_IADE"
+            ? "Tedarikçiye iade edilen malları kaydedin, stoktan düşülsün ve 320 borç kaydı oluşturulsun."
+            : "E-Arşiv / E-Fatura düzenleyin, KDV ve tevkifatı otomatik hesaplayın."
+      }
       actions={
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => saveInvoice.mutate("TASLAK")}
-            disabled={saveInvoice.isPending}
-          >
-            Taslak Olarak Kaydet
-          </Button>
-          <Button onClick={() => saveInvoice.mutate("ONAYLANDI")} disabled={saveInvoice.isPending}>
-            GİB'e Gönder
-          </Button>
+          {editId ? (
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: "/faturalar" })}>
+              <ArrowLeft className="mr-1 size-4" /> Vazgeç
+            </Button>
+          ) : null}
         </div>
       }
     >
+      {/* İŞLEM MODU SEÇİCİ */}
+      {!editId && (
+        <div className="mb-4">
+          <Tabs
+            value={operationMode}
+            onValueChange={(v) => {
+              const m = v as "SATIS" | "ALIS" | "ALIS_IADE";
+              setOperationMode(m);
+              setCustomerId("");
+              setCustomer(emptyCustomer);
+              if (m === "ALIS") setType("ALIS");
+              else if (m === "ALIS_IADE") setType("ALIS_IADE");
+              else setType("SATIS");
+            }}
+          >
+            <TabsList className="grid grid-cols-3 max-w-lg bg-muted/80">
+              <TabsTrigger value="SATIS" className="gap-1.5 font-medium">
+                <Send className="size-4" /> Satış Faturası Kes
+              </TabsTrigger>
+              <TabsTrigger value="ALIS" className="gap-1.5 font-medium">
+                <ShoppingCart className="size-4" /> Alış Faturası İşle
+              </TabsTrigger>
+              <TabsTrigger value="ALIS_IADE" className="gap-1.5 font-medium">
+                <RotateCcw className="size-4" /> Alış İadesi Yap
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* SOL VE ORTA: FORM ALANLARI */}
         <div className="space-y-6 lg:col-span-2">
+          {/* 1. FATURA TİPİ VE TEMEL BİLGİLER */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Fatura Bilgileri</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Fatura Tipi</Label>
-                <Select value={type} onValueChange={setType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INVOICE_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">
+                  {operationMode === "ALIS"
+                    ? "Alış Fatura Bilgileri"
+                    : operationMode === "ALIS_IADE"
+                      ? "Alış İade Bilgileri"
+                      : "Fatura Bilgileri"}
+                </CardTitle>
+                <Badge variant={operationMode === "ALIS" ? "secondary" : operationMode === "ALIS_IADE" ? "destructive" : "default"}>
+                  {operationMode === "ALIS" ? "ALIŞ FATURASI" : operationMode === "ALIS_IADE" ? "ALIŞ İADESİ" : "SATIŞ FATURASI"}
+                </Badge>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Düzenleme Tarihi</Label>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              {operationMode === "SATIS" && (
+                <div className="space-y-1">
+                  <Label>Fatura Tipi</Label>
+                  <Select value={type} onValueChange={(v) => setType(v)} disabled={isNonEditable}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Fatura Tipi Seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INVOICE_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {operationMode === "ALIS_IADE" && (
+                <div className="space-y-1 sm:col-span-2">
+                  <Label>Orijinal Alış Faturası Seçimi *</Label>
+                  <Select value={originalInvoiceId || undefined} onValueChange={handleSelectOriginalPurchaseInvoice}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="İade edilecek onaylı alış faturasını seçiniz..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {purchaseInvoices.map((pi) => (
+                        <SelectItem key={pi.id} value={pi.id}>
+                          {pi.invoice_number} - {(pi.customer as any)?.title || "Tedarikçi"} ({formatMoney(pi.grand_total)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {operationMode !== "SATIS" && (
+                <div className="space-y-1">
+                  <Label>{operationMode === "ALIS" ? "Tedarikçi Fatura No *" : "İade Belge No *"}</Label>
+                  <Input
+                    placeholder="Örn: ABC2026000001234"
+                    value={supplierInvoiceNumber}
+                    onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label>Fatura Tarihi</Label>
                 <Input
-                  id="date"
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  disabled={isNonEditable}
                 />
               </div>
-              <div className="space-y-2">
+
+              <div className="space-y-1">
                 <Label>Para Birimi</Label>
-                <Select value={currency} onValueChange={setCurrency}>
+                <Select value={currency} onValueChange={setCurrency} disabled={isNonEditable}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Para Birimi" />
                   </SelectTrigger>
                   <SelectContent>
                     {CURRENCY_OPTIONS.map((c) => (
                       <SelectItem key={c.code} value={c.code}>
-                        {c.label}
+                        {c.label} ({c.symbol})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 sm:col-span-3">
-                <Label>Stok Çıkışı Yapılacak Depo</Label>
-                <Select value={warehouseId} onValueChange={setWarehouseId}>
+
+              <div className="space-y-1">
+                <Label>Depo Seçimi</Label>
+                <Select value={warehouseId || "none"} onValueChange={(v) => setWarehouseId(v === "none" ? "" : v)} disabled={isNonEditable}>
                   <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        warehouses.length === 0
-                          ? "Depo tanımlı değil (opsiyonel)"
-                          : "Depo seçin (opsiyonel)"
-                      }
-                    />
+                    <SelectValue placeholder="Depo Seçiniz (İsteğe bağlı)" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Depo Seçilmedi (Varsayılan)</SelectItem>
                     {warehouses.map((w) => (
                       <SelectItem key={w.id} value={w.id}>
-                        {w.name}
+                        {w.name} {w.code ? `(${w.code})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Fatura onaylandığında katalogdan seçilen kalemler için stok çıkışı ve cari borç
-                  kaydı otomatik oluşturulur.
-                </p>
               </div>
             </CardContent>
           </Card>
 
+          {/* 2. ALICI VEYA TEDARİKÇİ BİLGİLERİ */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Alıcı (Müşteri) Bilgileri</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Kayıtlı Cariden Seç</Label>
-                <Select onValueChange={applyCustomer}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Kayıtlı carilerden seçin (opsiyonel)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.title} — {c.vkn_tckn}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">
+                  {operationMode === "ALIS" || operationMode === "ALIS_IADE" ? "Tedarikçi (Satıcı) Bilgileri" : "Alıcı Bilgileri"}
+                </CardTitle>
+                <div className="w-56">
+                  <Select value={customerId || undefined} onValueChange={handleSelectCustomer} disabled={isNonEditable}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder={operationMode === "ALIS" ? "Tedarikçi seçiniz..." : "Kayıtlı cari seç..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredPartners.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-xs">
+                          {c.title} {c.vkn_tckn ? `(${c.vkn_tckn})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="c-vknTckn">VKN / TCKN *</Label>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="vkn">VKN / TCKN *</Label>
                 <Input
-                  id="c-vknTckn"
+                  id="vkn"
                   value={customer.vknTckn}
                   onChange={(e) => setCustomer({ ...customer, vknTckn: e.target.value })}
-                  placeholder="10 veya 11 haneli numara"
+                  placeholder="Vergi / TC Kimlik No"
+                  disabled={isNonEditable}
                 />
-                {vknWarning ? (
-                  <p className="flex items-center gap-1 text-xs text-amber-600">
-                    <AlertCircle className="size-3.5" /> Geçersiz VKN/TCKN formatı
+                {vknWarning && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="size-3" /> VKN 10 haneli veya TCKN 11 haneli olmalıdır.
                   </p>
-                ) : null}
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="c-title">Unvan / Ad Soyad *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="title">Unvan / Ad Soyad *</Label>
                 <Input
-                  id="c-title"
+                  id="title"
                   value={customer.title}
                   onChange={(e) => setCustomer({ ...customer, title: e.target.value })}
-                  placeholder="Müşteri veya firma unvanı"
+                  placeholder="Firma Unvanı veya Şahıs Adı"
+                  disabled={isNonEditable}
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="c-taxOffice">Vergi Dairesi</Label>
+              <div className="space-y-1">
+                <Label htmlFor="taxOffice">Vergi Dairesi</Label>
                 <Input
-                  id="c-taxOffice"
+                  id="taxOffice"
                   value={customer.taxOffice}
                   onChange={(e) => setCustomer({ ...customer, taxOffice: e.target.value })}
+                  placeholder="Vergi Dairesi Adı"
+                  disabled={isNonEditable}
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="c-phone">Telefon</Label>
+              <div className="space-y-1">
+                <Label htmlFor="email">E-posta</Label>
                 <Input
-                  id="c-phone"
-                  value={customer.phone}
-                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="c-email">E-posta</Label>
-                <Input
-                  id="c-email"
+                  id="email"
                   type="email"
                   value={customer.email}
                   onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+                  placeholder="fatura@sirket.com"
+                  disabled={isNonEditable}
                 />
               </div>
 
-              <AddressSelect
-                value={{
-                  city: customer.city,
-                  district: customer.district,
-                  neighborhood: customer.neighborhood,
-                }}
-                onChange={(v: { city: string; district: string; neighborhood: string }) =>
-                  setCustomer({ ...customer, ...v })
-                }
-              />
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="c-address">Adres</Label>
+              <div className="sm:col-span-2 space-y-1">
+                <Label htmlFor="address">Adres</Label>
                 <Input
-                  id="c-address"
+                  id="address"
                   value={customer.address}
                   onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
+                  placeholder="Cadde, Sokak, No, Daire"
+                  disabled={isNonEditable}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <AddressSelect
+                  value={{
+                    city: customer.city,
+                    district: customer.district,
+                    neighborhood: customer.neighborhood,
+                  }}
+                  onChange={({ city, district, neighborhood }) =>
+                    setCustomer({ ...customer, city, district, neighborhood })
+                  }
+                  disabled={isNonEditable}
                 />
               </div>
             </CardContent>
           </Card>
 
+          {/* 3. FATURA KALEMLERİ */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Fatura Kalemleri</CardTitle>
-              <Button variant="outline" size="sm" onClick={() => setItems([...items, newItem()])}>
-                Kalem Ekle
-              </Button>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Mal / Hizmet Kalemleri</CardTitle>
+                <CardDescription>
+                  {operationMode === "ALIS"
+                    ? "Alış yapılan ürünler ve net birim alış fiyatları (KDV stok maliyetine dahil edilmez)"
+                    : "Satış kalemleri ve KDV oranları"}
+                </CardDescription>
+              </div>
+              {!isNonEditable && (
+                <Button size="sm" variant="outline" onClick={addItem} className="gap-1.5 text-xs">
+                  <PlusCircle className="size-3.5" /> Kalem Ekle
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {items.map((item, index) => {
                 const t = itemTotals(item);
                 return (
-                  <div key={item.id} className="rounded-md border border-border p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase text-muted-foreground">
-                        Kalem {index + 1}
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-lg border border-border/70 bg-card/40 space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-muted-foreground font-mono">
+                        #{index + 1}
                       </span>
-                      {items.length > 1 ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setItems(items.filter((i) => i.id !== item.id))}
+                      <div className="flex items-center gap-2 flex-1 max-w-sm">
+                        <Select
+                          value={item.productId || undefined}
+                          onValueChange={(val) => handleProductSelect(item.id, val)}
+                          disabled={isNonEditable}
                         >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      ) : null}
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label>Katalogdan Seç</Label>
-                        <Select onValueChange={(v) => applyProduct(item.id, v)}>
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={
-                                productsLoading
-                                  ? "Katalog yükleniyor…"
-                                  : productsError
-                                    ? "Katalog yüklenemedi"
-                                    : products.length === 0
-                                      ? "Katalogda kayıtlı ürün yok"
-                                      : "Ürün/hizmet seçin (opsiyonel)"
-                              }
-                            />
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Katalogdan ürün seç..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {products.length === 0 ? (
-                              <div className="px-3 py-2 text-sm text-muted-foreground">
-                                {productsLoading
-                                  ? "Yükleniyor…"
-                                  : productsError
-                                    ? "Katalog yüklenemedi, sayfayı yenileyin."
-                                    : "Ürün & Hizmet sayfasından kalem ekleyin."}
-                              </div>
-                            ) : (
-                              products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name} — {formatMoney(Number(p.unit_price), currency)}
-                                </SelectItem>
-                              ))
-                            )}
+                            {products.map((p) => (
+                              <SelectItem key={p.id} value={p.id} className="text-xs">
+                                {p.name} (Alış: {formatMoney(p.purchase_price ?? 0)} / Satış: {formatMoney(p.unit_price ?? 0)})
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
 
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label>Kalem Açıklaması *</Label>
+                      {!isNonEditable && items.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => removeItem(item.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2.5 sm:grid-cols-12">
+                      <div className="sm:col-span-4 space-y-1">
+                        <Label className="text-xs">Kalem Açıklaması *</Label>
                         <Input
+                          className="h-9"
                           value={item.name}
                           onChange={(e) => updateItem(item.id, { name: e.target.value })}
                           placeholder="Ürün veya hizmet açıklaması"
+                          disabled={isNonEditable}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-5">
-                        <div className="space-y-2">
-                          <Label>Miktar</Label>
-                          <Input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(item.id, { quantity: Number(e.target.value) })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Birim</Label>
-                          <Input
-                            value={item.unit}
-                            onChange={(e) => updateItem(item.id, { unit: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Birim Fiyat</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unitPrice}
-                            onChange={(e) =>
-                              updateItem(item.id, { unitPrice: Number(e.target.value) })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>İskonto %</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={item.discountRate}
-                            onChange={(e) =>
-                              updateItem(item.id, { discountRate: Number(e.target.value) })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>KDV %</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.vatRate}
-                            onChange={(e) =>
-                              updateItem(item.id, { vatRate: Number(e.target.value) })
-                            }
-                          />
-                        </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">Miktar</Label>
+                        <Input
+                          className="h-9"
+                          type="number"
+                          min="0.001"
+                          step="0.001"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.id, { quantity: Number(e.target.value) })}
+                          disabled={isNonEditable}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">Birim</Label>
+                        <Select
+                          value={item.unit || "Adet"}
+                          onValueChange={(v) => updateItem(item.id, { unit: v })}
+                          disabled={isNonEditable}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Birim" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {UNIT_OPTIONS.map((u) => (
+                              <SelectItem key={u} value={u}>
+                                {u}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">
+                          {operationMode === "ALIS" ? "Alış Fiyatı (TL)" : "Birim Fiyat (TL)"}
+                        </Label>
+                        <Input
+                          className="h-9"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })}
+                          disabled={isNonEditable}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">KDV %</Label>
+                        <Select
+                          value={String(item.vatRate ?? 20)}
+                          onValueChange={(v) => updateItem(item.id, { vatRate: Number(v) })}
+                          disabled={isNonEditable}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VAT_RATES.map((rate) => (
+                              <SelectItem key={rate} value={String(rate)}>
+                                %{rate}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
-                    <p className="mt-3 text-right text-sm font-semibold">
-                      Kalem Tutarı: {formatMoney(t.total, currency)}
-                    </p>
+
+                    <div className="flex items-center justify-between border-t border-border/50 pt-2 text-xs">
+                      <span className="text-muted-foreground font-mono">
+                        Matrah: {formatMoney(t.taxable, currency)} | KDV: {formatMoney(t.vat, currency)}
+                      </span>
+                      <span className="font-semibold text-sm font-mono text-primary">
+                        Toplam: {formatMoney(t.total, currency)}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
             </CardContent>
           </Card>
 
+          {/* 4. EK BİLGİLER */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base">Ek Bilgiler & Notlar</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -610,75 +902,99 @@ function NewInvoicePage() {
                   id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Fatura üzerinde görünecek notlar"
+                  placeholder="Fatura üzerinde görünecek özel notlar veya sipariş no"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="payment">Banka / Ödeme Bilgileri</Label>
+                <Label htmlFor="payment">Ödeme / Banka Bilgileri</Label>
                 <Textarea
                   id="payment"
                   value={paymentInfo}
                   onChange={(e) => setPaymentInfo(e.target.value)}
-                  placeholder="IBAN, banka hesap bilgileri"
+                  placeholder="Banka Adı, IBAN ve ödeme vadesi detayları"
                 />
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* SAĞ TARAF: FATURA ÖZETİ */}
         <div>
-          <Card className="lg:sticky lg:top-6">
-            <CardHeader>
-              <CardTitle className="text-base">Fatura Özeti</CardTitle>
+          <Card className="lg:sticky lg:top-6 space-y-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                {operationMode === "ALIS"
+                  ? "Alış Faturası Özeti"
+                  : operationMode === "ALIS_IADE"
+                    ? "Alış İadesi Özeti"
+                    : "Fatura Özeti & Döküm"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <Row label="Ara Toplam" value={formatMoney(totals.subtotal, currency)} />
-              <Row label="Toplam İskonto" value={formatMoney(totals.totalDiscount, currency)} />
-              <Row label="KDV Matrahı" value={formatMoney(totals.taxableAmount, currency)} />
-              <Row label="Hesaplanan KDV" value={formatMoney(totals.totalVat, currency)} />
-
-              {isTevkifatli ? (
-                <div className="space-y-2 rounded-md bg-muted/50 p-3">
-                  <Label htmlFor="tevkifat">Tevkifat Oranı</Label>
-                  <Select value={tevkifatRate} onValueChange={setTevkifatRate}>
-                    <SelectTrigger id="tevkifat">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEVKIFAT_RATES.map((rate) => (
-                        <SelectItem key={rate.value} value={rate.value}>
-                          {rate.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Row
-                    label="Tevkifat Tutarı"
-                    value={`- ${formatMoney(totals.totalTevkifat, currency)}`}
-                  />
-                </div>
+              <Row label="Mal/Hizmet Toplamı" value={formatMoney(totals.subtotal, currency)} />
+              {totals.totalDiscount > 0 ? (
+                <Row
+                  label="Toplam İskonto"
+                  value={`- ${formatMoney(totals.totalDiscount, currency)}`}
+                />
               ) : null}
+              <Row label="KDV Matrahı (153)" value={formatMoney(totals.taxableAmount, currency)} />
+              <Row
+                label={operationMode === "ALIS" ? "İndirilecek KDV (191)" : "Hesaplanan KDV (391)"}
+                value={formatMoney(totals.totalVat, currency)}
+              />
 
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-base font-bold">
-                <span>Ödenecek Tutar</span>
-                <span className="text-primary">{formatMoney(totals.grandTotal, currency)}</span>
+              {/* KDV Dağılımı */}
+              <div className="rounded-md bg-muted/40 p-2.5 space-y-1 text-xs font-mono">
+                <span className="font-semibold text-muted-foreground font-sans">KDV Dilim Dağılımı:</span>
+                {Object.entries(totals.vatBreakdown)
+                  .filter(([_, v]) => v.taxable > 0)
+                  .map(([rate, val]) => (
+                    <div key={rate} className="flex justify-between text-muted-foreground">
+                      <span>%{rate} KDV:</span>
+                      <span>
+                        Matrah: {formatMoney(val.taxable, currency)} | Vergi: {formatMoney(val.vat, currency)}
+                      </span>
+                    </div>
+                  ))}
               </div>
 
-              <div className="space-y-2 pt-2">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => saveInvoice.mutate("TASLAK")}
-                  disabled={saveInvoice.isPending}
-                >
-                  {saveInvoice.isPending ? "Kaydediliyor…" : "Taslak Olarak Kaydet"}
-                </Button>
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-lg font-bold">
+                <span>{operationMode === "ALIS" ? "Tedarikçiye Borç (320)" : "Genel Toplam"}</span>
+                <span className="text-primary font-mono">{formatMoney(totals.grandTotal, currency)}</span>
+              </div>
+
+              {/* Yazı İle */}
+              <div className="rounded-md bg-muted p-2.5 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Yazı İle: </span>
+                <span className="italic">{wordsAmount}</span>
+              </div>
+
+              <div className="space-y-2 pt-3">
+                {operationMode === "SATIS" && !editId && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => saveInvoice.mutate("TASLAK")}
+                    disabled={saveInvoice.isPending}
+                  >
+                    {saveInvoice.isPending ? "Kaydediliyor…" : "Taslak Olarak Kaydet"}
+                  </Button>
+                )}
                 <Button
                   className="w-full"
                   onClick={() => saveInvoice.mutate("ONAYLANDI")}
                   disabled={saveInvoice.isPending}
                 >
-                  {saveInvoice.isPending ? "İşleniyor…" : "GİB'e Gönder"}
+                  {saveInvoice.isPending
+                    ? "İşleniyor…"
+                    : operationMode === "ALIS"
+                      ? "Alış Faturasını Kaydet & Onayla"
+                      : operationMode === "ALIS_IADE"
+                        ? "Alış İadesini Onayla"
+                        : editId
+                          ? "Faturayı Güncelle & Onayla"
+                          : "GİB'e Gönder / Onayla"}
                 </Button>
               </div>
             </CardContent>
@@ -693,7 +1009,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="font-medium font-mono">{value}</span>
     </div>
   );
 }
