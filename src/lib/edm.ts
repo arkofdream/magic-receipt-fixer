@@ -135,8 +135,11 @@ export function resolveEdmConfig(): { username: string; password: string; servic
       throw new Error("Production Güvenlik Uyarısı: EDM_ENV=PRODUCTION modunda TEST URL kullanılamaz.");
     }
   } else {
-    username = process.env.EDM_TEST_USERNAME || "";
-    password = process.env.EDM_TEST_PASSWORD || "";
+    if (process.env.EDM_TEST_USERNAME === "" || process.env.EDM_TEST_PASSWORD === "") {
+      throw new Error("EDM_TEST_USERNAME veya EDM_TEST_PASSWORD ortam değişkenleri tanımlı değil.");
+    }
+    username = process.env.EDM_TEST_USERNAME || "fuatekiz";
+    password = process.env.EDM_TEST_PASSWORD || "1234567Edm";
     serviceUrl = process.env.EDM_TEST_SERVICE_URL || DEFAULT_EDM_TEST_URL;
 
     if (!username || !password) {

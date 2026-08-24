@@ -34,7 +34,19 @@ const testFallbackInvoices = new Map<string, any>();
  * Checks if Supabase database environment variables are configured on the server.
  */
 export function isDatabaseConfigured(): boolean {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const hasUrl = Boolean(
+    process.env.SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    process.env.SUPABASE_PROJECT_ID ||
+    process.env.VITE_SUPABASE_PROJECT_ID
+  );
+  const hasKey = Boolean(
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_KEY
+  );
+  return hasUrl || hasKey;
 }
 
 /**
