@@ -185,7 +185,7 @@ function NewInvoicePage() {
     setNotes(existingInvoice.notes || "");
     setPaymentInfo(existingInvoice.payment_info || "");
 
-    const customPrefix = existingInvoice.invoice_number ? existingInvoice.invoice_number.slice(0, 3) : "GIB";
+    const customPrefix = existingInvoice.invoice_number ? existingInvoice.invoice_number.slice(0, 3) : "EAR";
     setSerialPrefix(customPrefix);
 
     if (existingInvoice.customer && typeof existingInvoice.customer === "object") {
@@ -403,13 +403,14 @@ function NewInvoicePage() {
           if (updateError) throw updateError;
         } else {
           const ettn = generateEttn();
+          const cleanPrefix = (serialPrefix || customer.customPrefix || "EAR").trim().toUpperCase().slice(0, 3);
           const { data: _result, error } = await supabase.rpc("create_sales_invoice", {
             p_invoice_date: date,
             p_type: type,
             p_status: newStatus,
             p_customer_id: customerId || null,
             p_warehouse_id: warehouseId || null,
-            p_customer_info: JSON.parse(JSON.stringify(customer)),
+            p_customer_info: JSON.parse(JSON.stringify({ ...customer, customPrefix: cleanPrefix })),
             p_items: JSON.parse(JSON.stringify(items)),
             p_subtotal: totals.subtotal,
             p_total_discount: totals.totalDiscount,
@@ -422,6 +423,7 @@ function NewInvoicePage() {
             p_notes: notes.trim(),
             p_payment_info: paymentInfo.trim(),
             p_ettn: ettn,
+            p_prefix: cleanPrefix,
           });
           if (error) throw error;
         }
@@ -543,21 +545,34 @@ function NewInvoicePage() {
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               {operationMode === "SATIS" && (
-                <div className="space-y-1">
-                  <Label>Fatura Tipi</Label>
-                  <Select value={type} onValueChange={(v) => setType(v)} disabled={isNonEditable}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Fatura Tipi Seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INVOICE_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className="space-y-1">
+                    <Label>Fatura Tipi</Label>
+                    <Select value={type} onValueChange={(v) => setType(v)} disabled={isNonEditable}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Fatura Tipi Seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INVOICE_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Fatura Seri Öneki (3 Harf)</Label>
+                    <Input
+                      placeholder="Örn: EAR, ABC"
+                      maxLength={3}
+                      value={serialPrefix}
+                      onChange={(e) => setSerialPrefix(e.target.value.toUpperCase().slice(0, 3))}
+                      disabled={isNonEditable}
+                      className="font-mono uppercase tracking-wider font-semibold"
+                    />
+                  </div>
+                </>
               )}
 
               {operationMode === "ALIS_IADE" && (
