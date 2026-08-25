@@ -159,19 +159,26 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
 
   const now = new Date();
 
-  let uuid = data.uuid ? data.uuid.trim() : "";
+  let uuid = data.uuid ? data.uuid.trim().toLowerCase() : "";
   if (uuid) {
     if (!UUID_V4_REGEX.test(uuid)) {
       throw new Error(`Fatura doğrulaması başarısız: Geçersiz UUID formatı ("${uuid}").`);
     }
   } else {
-    uuid = randomUUID();
+    uuid = randomUUID().toLowerCase();
   }
 
-  const invoiceNumber =
-    data.invoiceNumber && data.invoiceNumber.trim()
-      ? data.invoiceNumber.trim()
-      : "MRF" + now.getFullYear() + String(Date.now()).slice(-9);
+  let invoiceNumber = (data.invoiceNumber || "").trim();
+  if (invoiceNumber) {
+    const INVOICE_NUMBER_REGEX = /^[A-Za-z0-9]{3}(?:19|20)\d{2}\d{9}$/;
+    if (!INVOICE_NUMBER_REGEX.test(invoiceNumber)) {
+      throw new Error(
+        `Fatura doğrulaması başarısız: Geçersiz fatura numarası formatı ("${invoiceNumber}"). Fatura numarası 3 hane seri ön eki, 4 hane yıl ve 9 hane sıra numarasından (toplam 16 karakter) oluşmalıdır (Örn: EAR2026000000001).`
+      );
+    }
+  } else {
+    invoiceNumber = "MRF" + now.getFullYear() + String(Date.now()).slice(-9);
+  }
 
   const issueDate = data.issueDate || now.toISOString().slice(0, 10);
   const issueTime = data.issueTime || now.toISOString().slice(11, 19);

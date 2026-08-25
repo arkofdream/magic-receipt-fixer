@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, RefreshCw, FileText, CheckCircle, AlertCircle, Clock, Send, ShieldCheck, Download } from "lucide-react";
+import { ArrowLeft, RefreshCw, FileText, CheckCircle, AlertCircle, Clock, Send, ShieldCheck, Download, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { INVOICE_STATUSES } from "@/lib/invoice";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/faturalar/$id")({
   component: InvoiceDetailPage,
@@ -18,6 +19,7 @@ function InvoiceDetailPage() {
   const { id } = useParams({ from: "/_authenticated/faturalar/$id" });
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const { data: invoiceRes, isLoading, error } = useQuery({
     queryKey: ["invoice-detail", id],
@@ -42,13 +44,65 @@ function InvoiceDetailPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.message || "Durum güncellenemedi.");
       }
-      toast.success(json.message || "EDM canlı durum güncellendi.");
+      toast.success(json.message || "Entegratör canlı durumu güncellendi.");
       queryClient.invalidateQueries({ queryKey: ["invoice-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Durum güncellenirken hata oluştu.");
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function handleCancelInvoice() {
+    if (!invoice?.id) return;
+    const isSent =
+      invoice.status === "SENT" ||
+      invoice.status === "ACCEPTED" ||
+      invoice.status === "PROCESSING" ||
+      invoice.status === "PENDING";
+
+    const profile = (invoice.profile_id || invoice.profileId || "").toUpperCase();
+    if ((profile === "TICARIFATURA" || profile === "TEMELFATURA") && isSent) {
+      alert(
+        "GİB mevzuatı gereği alıcıya iletilmiş Ticari/Temel e-Faturalar tek taraflı iptal edilemez. Alıcının 8 gün içinde RET yanıtı vermesi veya İade Faturası düzenlemesi gerekmektedir."
+      );
+      return;
+    }
+
+    const reason = window.prompt(
+      "Bu faturayı iptal etmek istediğinize emin misiniz? Lütfen iptal gerekçesini giriniz:",
+      "Müşteri talebi ve fatura iptali"
+    );
+    if (!reason || !reason.trim()) return;
+
+    setCancelling(true);
+    try {
+      if (isSent) {
+        const res = await fetch("/api/edm/invoice/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: invoice.id, cancelReason: reason.trim() }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.message || "İptal işlemi başarısız.");
+        }
+      } else {
+        const { error } = await supabase.rpc("cancel_sales_invoice", {
+          p_invoice_id: invoice.id,
+          p_cancel_reason: reason.trim(),
+        });
+        if (error) throw error;
+      }
+      toast.success("Fatura başarıyla iptal edildi ve yerel muhasebe/stok kayıtları terslendi.");
+      queryClient.invalidateQueries({ queryKey: ["invoice-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "İptal işlemi sırasında hata oluştu.");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -80,7 +134,7 @@ function InvoiceDetailPage() {
   return (
     <AppShell
       title={`Fatura Detayı: ${invoice.invoice_number || invoice.ettn}`}
-      subtitle="Fatura mali özeti, kalemler ve EDM Bilişim entegratör canlı durumu"
+      subtitle="Fatura mali özeti, kalemler ve özel entegratör canlı durumu"
       actions={
         <div className="flex gap-2">
           <Button variant="outline" asChild>
@@ -97,8 +151,19 @@ function InvoiceDetailPage() {
           )}
           <Button disabled={refreshing} onClick={handleRefreshStatus} className="gap-1">
             <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Sorgulanıyor..." : "EDM Durumunu Güncelle"}
+            {refreshing ? "Sorgulanıyor..." : "Entegratör Durumunu Güncelle"}
           </Button>
+          {invoice.status !== "IPTAL" && invoice.status !== "CANCELLED" && (
+            <Button
+              disabled={cancelling}
+              variant="destructive"
+              onClick={handleCancelInvoice}
+              className="gap-1"
+            >
+              <XCircle className={`size-4 ${cancelling ? "animate-spin" : ""}`} />
+              {cancelling ? "İptal Ediliyor..." : "İptal Et"}
+            </Button>
+          )}
         </div>
       }
     >
@@ -128,7 +193,7 @@ function InvoiceDetailPage() {
               <span className="font-semibold text-sm">{invoice.provider || "EDM"}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block">EDM Referans (TRXID)</span>
+              <span className="text-muted-foreground block">Entegratör Referans (TRXID)</span>
               <span className="font-mono font-semibold text-sm">{invoice.provider_reference || invoice.trx_id || "Henüz Alınmadı"}</span>
             </div>
             <div>
@@ -147,11 +212,11 @@ function InvoiceDetailPage() {
           <Card className="border-destructive/50 bg-destructive/10">
             <CardHeader className="py-3">
               <CardTitle className="text-sm font-semibold text-destructive flex items-center gap-2">
-                <AlertCircle className="size-4" /> EDM İşlem Hatası Bildirimi
+                <AlertCircle className="size-4" /> Entegratör İşlem Hatası Bildirimi
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs space-y-1 text-destructive">
-              <p className="font-semibold">{invoice.error_message || invoice.edm_return_message || "EDM servisi işlemi tamamlayamadı."}</p>
+              <p className="font-semibold">{invoice.error_message || invoice.edm_return_message || "Entegratör servisi işlemi tamamlayamadı."}</p>
               {invoice.edm_return_code && <p className="font-mono text-[11px]">Hata Kodu: {invoice.edm_return_code}</p>}
             </CardContent>
           </Card>

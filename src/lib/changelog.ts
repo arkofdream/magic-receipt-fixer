@@ -19,12 +19,12 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-08-15",
     title: "Fatura – Cari – Stok entegrasyonu",
     summary:
-      "Fatura GİB'e gönderildiğinde cari borç kaydı ve stok çıkışı otomatik oluşuyor; fatura arşivinde ödeme takibi başladı.",
+      "Fatura onaylandığında cari borç kaydı ve stok çıkışı otomatik oluşuyor; fatura arşivinde ödeme takibi başladı.",
     changes: [
       { type: "Yeni", text: "Fatura kesme ekranında kayıtlı cari ve depo seçimi." },
       {
         type: "Yeni",
-        text: "GİB'e gönderilen faturalar için otomatik cari hareketi ve stok çıkışı.",
+        text: "Onaylanan faturalar için otomatik cari hareketi ve stok çıkışı.",
       },
       {
         type: "Yeni",

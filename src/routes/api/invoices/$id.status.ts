@@ -25,7 +25,9 @@ export const Route = createFileRoute("/api/invoices/$id/status")({
             );
           }
 
-          if (!invoice.ettn) {
+          const cleanEttn = (invoice.ettn || "").trim().toLowerCase();
+
+          if (!cleanEttn) {
             return Response.json(
               {
                 success: false,
@@ -33,7 +35,7 @@ export const Route = createFileRoute("/api/invoices/$id/status")({
                 data: null,
                 error: {
                   code: "INVALID_ETTN",
-                  message: "EDM durum sorgulaması için ETTN zorunludur.",
+                  message: "Entegratör durum sorgulaması için ETTN zorunludur.",
                 },
               },
               { status: 400 }
@@ -41,20 +43,20 @@ export const Route = createFileRoute("/api/invoices/$id/status")({
           }
 
           const provider = getEInvoiceProvider(invoice.provider || "EDM");
-          const statusResult = await provider.getInvoiceStatus(invoice.ettn);
+          const statusResult = await provider.getInvoiceStatus(cleanEttn);
 
           if (statusResult.success) {
-            await updateInvoiceResultRecord(invoice.ettn, {
+            await updateInvoiceResultRecord(cleanEttn, {
               success: statusResult.status !== "FAILED",
               message: statusResult.message,
               invoiceNumber: statusResult.invoiceNumber || invoice.invoice_number,
-              uuid: invoice.ettn,
+              uuid: cleanEttn,
               edmReference: invoice.provider_reference || invoice.trx_id,
               status: statusResult.status || "PROCESSING",
             });
           }
 
-          const updatedInvoice = await getInvoiceById(invoice.ettn);
+          const updatedInvoice = await getInvoiceById(invoice.id || cleanEttn);
 
           return Response.json({
             success: statusResult.success,

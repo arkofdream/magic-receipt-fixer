@@ -51,4 +51,5 @@ export interface IEInvoiceProvider {
   testConnection(): Promise<{ success: boolean; message: string }>;
   sendInvoice(data: EInvoiceData): Promise<EInvoiceResult>;
   getInvoiceStatus(uuid: string): Promise<EInvoiceResult>;
+  cancelInvoice?(uuid: string, invoiceNumber?: string, reason?: string): Promise<EInvoiceResult>;
 }

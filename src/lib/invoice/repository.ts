@@ -77,15 +77,14 @@ export async function findInvoiceByEttnOrNumber(
     try {
       let query = supabaseAdmin
         .from("invoices")
-        .select("*")
-        .eq("provider", provider);
+        .select("*");
 
       if (cleanEttn && cleanNo) {
-        query = query.or(`ettn.eq.${cleanEttn},invoice_number.eq.${cleanNo}`);
+        query = query.or(`ettn.ilike.${cleanEttn},invoice_number.ilike.${cleanNo}`);
       } else if (cleanEttn) {
-        query = query.eq("ettn", cleanEttn);
+        query = query.ilike("ettn", cleanEttn);
       } else if (cleanNo) {
-        query = query.eq("invoice_number", cleanNo);
+        query = query.ilike("invoice_number", cleanNo);
       } else {
         return null;
       }
@@ -124,9 +123,11 @@ export async function createPendingInvoiceRecord(
   // Rule: Do not send e-invoices without database connection in production!
   assertDatabaseAvailable(allowTestFallback);
 
+  const cleanEttn = data.uuid.trim().toLowerCase();
+
   const record = {
     user_id: userId,
-    ettn: data.uuid,
+    ettn: cleanEttn,
     invoice_number: data.invoiceNumber,
     type: data.invoiceTypeCode,
     status: "PENDING",
@@ -158,6 +159,34 @@ export async function createPendingInvoiceRecord(
   };
 
   if (isDatabaseConfigured()) {
+    // Check if an existing invoice already exists in DB
+    const existing = await findInvoiceByEttnOrNumber(cleanEttn, data.invoiceNumber, provider);
+    if (existing) {
+      const updateData: Record<string, any> = {
+        status: "PENDING",
+        provider,
+        raw_ubl_xml: rawUblXml,
+        seller_tax_number: data.seller.taxNumber,
+        seller_name: data.seller.name,
+        buyer_tax_number: data.buyer.taxNumber,
+        buyer_name: data.buyer.name,
+        sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const { error: updateErr } = await supabaseAdmin
+        .from("invoices")
+        .update(updateData)
+        .eq("id", existing.id);
+
+      if (!updateErr) {
+        return {
+          id: existing.id,
+          ettn: existing.ettn || cleanEttn,
+          invoiceNumber: existing.invoice_number || data.invoiceNumber,
+        };
+      }
+    }
+
     let insertResult = await supabaseAdmin
       .from("invoices")
       .insert([record])
@@ -168,7 +197,7 @@ export async function createPendingInvoiceRecord(
       // Fallback: DB schema lacks optional extended columns, insert standard record with JSON customer
       const standardRecord = {
         user_id: userId,
-        ettn: data.uuid,
+        ettn: cleanEttn,
         invoice_number: data.invoiceNumber,
         type: data.invoiceTypeCode,
         status: "PENDING",
@@ -220,7 +249,7 @@ export async function createPendingInvoiceRecord(
 
     if (error) {
       if (error.code === "23505" || error.message?.includes("unique") || error.message?.includes("duplicate")) {
-        const err = new Error(`[409] Mükerrer Fatura Kaydı Engellendi: ETTN "${data.uuid}" veya Numarası "${data.invoiceNumber}" veritabanında zaten kayıtlı.`);
+        const err = new Error(`[409] Mükerrer Fatura Kaydı Engellendi: ETTN "${cleanEttn}" veya Numarası "${data.invoiceNumber}" veritabanında zaten kayıtlı.`);
         (err as any).statusCode = 409;
         (err as any).code = "DUPLICATE_PERSISTED_INVOICE";
         throw err;
@@ -230,7 +259,7 @@ export async function createPendingInvoiceRecord(
         console.warn("[InvoiceRepository] RLS policy active without Service Role Key. Using test fallback.");
         const id = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         testFallbackInvoices.set(id, { ...record, id });
-        return { id, ettn: data.uuid, invoiceNumber: data.invoiceNumber };
+        return { id, ettn: cleanEttn, invoiceNumber: data.invoiceNumber };
       }
 
       throw new Error(`Veritabanı PENDING kayıt hatası: ${error.message}`);
@@ -282,12 +311,13 @@ export async function updateInvoiceResultRecord(
   ettn: string,
   result: EdmSendInvoiceResult
 ): Promise<void> {
+  const cleanEttn = ettn ? ettn.trim().toLowerCase() : "";
   const isSuccess = result.success;
   const mappedStatus = isSuccess ? (result.status || "SENT") : "FAILED";
   const processedAt = new Date().toISOString();
 
   // Check current status before updating
-  const existing = await findInvoiceByEttnOrNumber(ettn, "", "EDM");
+  const existing = await findInvoiceByEttnOrNumber(cleanEttn, "", "EDM");
   if (existing && !isAllowedStatusTransition(existing.status, mappedStatus)) {
     console.warn(`[InvoiceRepository] Status geçişi engellendi: ${existing.status} -> ${mappedStatus}`);
     return;
@@ -309,21 +339,30 @@ export async function updateInvoiceResultRecord(
 
   if (isDatabaseConfigured()) {
     try {
-      const { error } = await supabaseAdmin
-        .from("invoices")
-        .update(updatePayload)
-        .eq("ettn", ettn);
+      const targetId = existing?.id;
+      let query = supabaseAdmin.from("invoices").update(updatePayload);
+      if (targetId) {
+        query = query.eq("id", targetId);
+      } else {
+        query = query.ilike("ettn", cleanEttn);
+      }
+      const { error } = await query;
 
       if (error) {
         console.warn("[InvoiceRepository] Supabase full update notice, trying standard update fallback:", error.message);
-        await supabaseAdmin
+        let fallbackQuery = supabaseAdmin
           .from("invoices")
           .update({
             status: mappedStatus,
             notes: result.message ? `[EDM] ${result.message}` : undefined,
             updated_at: processedAt,
-          })
-          .eq("ettn", ettn);
+          });
+        if (targetId) {
+          fallbackQuery = fallbackQuery.eq("id", targetId);
+        } else {
+          fallbackQuery = fallbackQuery.ilike("ettn", cleanEttn);
+        }
+        await fallbackQuery;
       }
     } catch (e) {
       console.warn("[InvoiceRepository] Supabase update warning:", e);
@@ -332,7 +371,7 @@ export async function updateInvoiceResultRecord(
 
   // Fallback update for test runner
   for (const [id, inv] of testFallbackInvoices.entries()) {
-    if (inv.ettn === ettn) {
+    if (inv.ettn?.toLowerCase() === cleanEttn) {
       testFallbackInvoices.set(id, { ...inv, ...updatePayload });
     }
   }
@@ -418,7 +457,7 @@ export async function getInvoiceById(idOrEttn: string): Promise<any | null> {
       const { data, error } = await supabaseAdmin
         .from("invoices")
         .select("*")
-        .or(`id.eq.${target},ettn.eq.${target},invoice_number.eq.${target}`)
+        .or(`id.eq.${target},ettn.ilike.${target},invoice_number.ilike.${target}`)
         .limit(1)
         .maybeSingle();
 

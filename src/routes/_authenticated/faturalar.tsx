@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText, RefreshCw, Send } from "lucide-react";
+import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -29,7 +29,7 @@ import {
 } from "@/lib/invoice";
 import { downloadInvoicesPdf, type InvoiceRecord, type SellerInfo } from "@/lib/pdf/invoice-pdf";
 
-export const Route = createFileRoute("/_authenticated/faturalar/")({
+export const Route = createFileRoute("/_authenticated/faturalar")({
   head: () => ({
     meta: [
       { title: "Fatura Arşivi & Gelen/Giden Faturalar | e-Fatura Portalı" },
@@ -89,111 +89,6 @@ function InvoicesPage() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [batchSending, setBatchSending] = useState(false);
-
-  async function handleBatchSendEdm() {
-    if (selected.length === 0) return;
-    const selectedInvoices = invoices.filter((inv) => selected.includes(inv.id));
-    
-    const confirmMsg = `Seçilen ${selectedInvoices.length} adet fatura özel entegratör sistemine canlı olarak gönderilecek. Devam etmek istiyor musunuz?`;
-    if (!window.confirm(confirmMsg)) return;
-
-    setBatchSending(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const inv of selectedInvoices) {
-      try {
-        const customer = (inv.customer as any) || {};
-        const payload = {
-          uuid: (inv.ettn || "").trim().toLowerCase() || undefined,
-          invoiceNumber: inv.invoice_number,
-          issueDate: inv.invoice_date,
-          currency: inv.currency || "TRY",
-          profileId: "EARSIVFATURA",
-          invoiceTypeCode: inv.type || "SATIS",
-          seller: { taxNumber: "3230512384", name: "Fuat Ekiz Teknoloji A.Ş." },
-          buyer: {
-            taxNumber: customer.vkn_tckn || customer.tax_number || customer.vknTckn || "2222222222",
-            name: customer.title || customer.name || "Müşteri",
-            taxOffice: customer.tax_office || "",
-            address: customer.address || "",
-            city: customer.city || "",
-            district: customer.district || "",
-          },
-          lines: Array.isArray(inv.items) && inv.items.length > 0
-            ? inv.items
-            : [{ name: "Ürün/Hizmet Bedeli", quantity: 1, unitPrice: Number(inv.grand_total) || 100, vatRate: 20 }],
-          note: inv.notes || "Toplu entegratör gönderimi",
-        };
-
-        const res = await fetch("/api/edm/invoice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const json = await res.json();
-        if (res.ok && json.success) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch {
-        failCount++;
-      }
-    }
-
-    setBatchSending(false);
-    toast.success(`Toplu Entegratör Gönderimi Tamamlandı: ${successCount} Başarılı, ${failCount} Başarısız.`);
-    setSelected([]);
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
-  }
-
-  async function handleBatchDelete() {
-    if (selected.length === 0) return;
-    if (!window.confirm(`Seçilen ${selected.length} adet faturayı silmek istediğinizden emin misiniz?`)) return;
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      for (const id of selected) {
-        await safeSoftDelete("invoices", id, userId);
-      }
-      toast.success(`${selected.length} adet fatura silindi.`);
-      setSelected([]);
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Fatura silme hatası.");
-    }
-  }
-
-  const { data: summaryStats } = useQuery({
-    queryKey: ["invoices-summary"],
-    queryFn: async () => {
-      const res = await fetch("/api/invoices/summary");
-      const json = await res.json();
-      if (!res.ok || !json.success) return null;
-      return json.data;
-    },
-  });
-
-  async function handleBatchSync() {
-    setSyncing(true);
-    try {
-      const res = await fetch("/api/invoices/sync", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.message || "Senkronizasyon hatası.");
-      toast.success(json.message);
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
-    } catch (err: any) {
-      toast.error(err.message || "Toplu senkronizasyon başarısız.");
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -339,38 +234,18 @@ function InvoicesPage() {
   });
 
   const cancel = useMutation({
-    mutationFn: async ({ inv, reason }: { inv: InvoiceRow; reason: string }) => {
+    mutationFn: async (inv: InvoiceRow) => {
       const isPurchase = inv.type === "ALIS" || inv.type === "GELEN_FATURA" || inv.type === "GELEN_E_ARSIV";
-      const isSentToEdm =
-        inv.status === "SENT" ||
-        inv.status === "ACCEPTED" ||
-        inv.status === "PROCESSING" ||
-        inv.status === "PENDING" ||
-        Boolean(inv.provider_reference || inv.trx_id);
-
-      const profile = (inv.profile_id || (inv as any).profileId || "").toUpperCase();
-      if ((profile === "TICARIFATURA" || profile === "TEMELFATURA") && isSentToEdm) {
-        throw new Error(
-          "GİB mevzuatı gereği alıcıya iletilmiş e-Faturalar tek taraflı iptal edilemez. Alıcının 8 gün içinde RET yanıtı vermesi veya İade Faturası düzenlemesi gerekmektedir."
-        );
-      }
-
-      if (isSentToEdm && !isPurchase) {
-        const res = await fetch("/api/edm/invoice/cancel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ invoiceId: inv.id, cancelReason: reason }),
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.message || "Entegratör iptal işlemi başarısız oldu.");
-        }
-        return json;
-      } else {
-        const rpcName = isPurchase ? "cancel_purchase_invoice" : "cancel_sales_invoice";
-        const { error } = await supabase.rpc(rpcName, {
+      if (isPurchase) {
+        const { data: _result, error } = await supabase.rpc("cancel_purchase_invoice", {
           p_invoice_id: inv.id,
-          p_cancel_reason: reason || "Kullanıcı tarafından iptal edildi",
+          p_cancel_reason: "Kullanıcı tarafından iptal edildi",
+        });
+        if (error) throw error;
+      } else {
+        const { data: _result, error } = await supabase.rpc("cancel_sales_invoice", {
+          p_invoice_id: inv.id,
+          p_cancel_reason: "Kullanıcı tarafından iptal edildi",
         });
         if (error) throw error;
       }
@@ -378,7 +253,6 @@ function InvoicesPage() {
     onSuccess: () => {
       toast.success("Fatura iptal edildi; ilgili cari, muhasebe ve stok kayıtları terslendi.");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices-summary"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
@@ -511,15 +385,6 @@ function InvoicesPage() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="gap-1 text-xs"
-            disabled={syncing}
-            onClick={handleBatchSync}
-          >
-            <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Senkronize Ediliyor..." : "Entegratör Durumunu Güncelle"}
-          </Button>
-          <Button
-            variant="outline"
             className="gap-2"
             disabled={selected.length === 0 || downloading}
             onClick={downloadSelected}
@@ -527,54 +392,20 @@ function InvoicesPage() {
             <FileDown className="size-4" />
             {downloading ? "Hazırlanıyor…" : `Seçilenleri İndir (${selected.length})`}
           </Button>
-          <Button
-            className="gap-1 bg-primary text-primary-foreground"
-            asChild
-          >
-            <Link to="/faturalar/yeni"><Plus className="mr-1 size-4" /> Yeni e-Fatura (EDM)</Link>
+          <Button variant="outline" asChild>
+            <Link to="/fatura-kes" search={{ mode: "ALIS" }}>
+              <Plus className="mr-1 size-4" /> Alış Faturası Girişi
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/fatura-kes" search={{ mode: "SATIS" }}>
+              <Plus className="mr-1 size-4" /> Yeni Satış Faturası
+            </Link>
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
-        {/* Veritabanı Fatura Özet Kartları */}
-        {summaryStats ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-xs">
-            <Card className="p-3 bg-card">
-              <span className="text-muted-foreground block text-[11px]">Toplam Fatura</span>
-              <span className="text-base font-bold font-mono">{summaryStats.total}</span>
-            </Card>
-            <Card className="p-3 bg-muted/20">
-              <span className="text-muted-foreground block text-[11px]">Taslak</span>
-              <span className="text-base font-bold font-mono">{summaryStats.draft}</span>
-            </Card>
-            <Card className="p-3 bg-amber-500/10">
-              <span className="text-amber-600 dark:text-amber-400 block text-[11px]">Bekliyor</span>
-              <span className="text-base font-bold font-mono text-amber-600 dark:text-amber-400">{summaryStats.pending}</span>
-            </Card>
-            <Card className="p-3 bg-blue-500/10">
-              <span className="text-blue-600 dark:text-blue-400 block text-[11px]">İşleniyor</span>
-              <span className="text-base font-bold font-mono text-blue-600 dark:text-blue-400">{summaryStats.processing}</span>
-            </Card>
-            <Card className="p-3 bg-indigo-500/10">
-              <span className="text-indigo-600 dark:text-indigo-400 block text-[11px]">Entegratöre Gönderildi</span>
-              <span className="text-base font-bold font-mono text-indigo-600 dark:text-indigo-400">{summaryStats.sent}</span>
-            </Card>
-            <Card className="p-3 bg-emerald-500/10">
-              <span className="text-emerald-600 dark:text-emerald-400 block text-[11px]">Kabul Edildi</span>
-              <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">{summaryStats.accepted}</span>
-            </Card>
-            <Card className="p-3 bg-rose-500/10">
-              <span className="text-rose-600 dark:text-rose-400 block text-[11px]">Hatalı</span>
-              <span className="text-base font-bold font-mono text-rose-600 dark:text-rose-400">{summaryStats.failed}</span>
-            </Card>
-            <Card className="p-3 bg-red-500/10">
-              <span className="text-red-600 dark:text-red-400 block text-[11px]">Reddedildi</span>
-              <span className="text-base font-bold font-mono text-red-600 dark:text-red-400">{summaryStats.rejected}</span>
-            </Card>
-          </div>
-        ) : null}
-
         {/* Kategori Sekmeleri */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-3 sm:flex sm:flex-wrap h-auto p-1 gap-1">
@@ -678,29 +509,6 @@ function InvoicesPage() {
               <CardTitle className="text-base">Faturalar ({filtered.length})</CardTitle>
               <CardDescription>Resmi şekil şartlarına uygun çıktılar ve durum takibi</CardDescription>
             </div>
-            {selected.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground font-semibold px-2 py-1 bg-muted rounded">
-                  {selected.length} Fatura Seçildi
-                </span>
-                <Button
-                  variant="default"
-                  size="sm"
-                  disabled={batchSending}
-                  onClick={handleBatchSendEdm}
-                  className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                >
-                  <Send className={`size-3.5 ${batchSending ? "animate-spin" : ""}`} />
-                  {batchSending ? "Gönderiliyor..." : "Seçilenleri Entegratöre Gönder"}
-                </Button>
-                <Button variant="outline" size="sm" onClick={downloadSelected} disabled={downloading} className="gap-1">
-                  <Download className="size-3.5" /> Toplu PDF İndir
-                </Button>
-                <Button variant="destructive" size="sm" onClick={handleBatchDelete} className="gap-1">
-                  <Trash2 className="size-3.5" /> Seçilenleri Sil
-                </Button>
-              </div>
-            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -818,17 +626,6 @@ function InvoicesPage() {
                           </td>
                           <td className="py-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1 px-2 text-xs"
-                                asChild
-                              >
-                                <Link to="/faturalar/$id" params={{ id: inv.id }}>
-                                  <FileText className="size-3.5" /> Detay
-                                </Link>
-                              </Button>
-
                               {/* Yalnızca Taslak Faturalar Düzenlenebilir */}
                               {inv.status === "TASLAK" && !inv.posted ? (
                                 <Button
@@ -922,26 +719,12 @@ function InvoicesPage() {
                                   variant="ghost"
                                   className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
                                   onClick={() => {
-                                    const isSent =
-                                      inv.status === "SENT" ||
-                                      inv.status === "ACCEPTED" ||
-                                      inv.status === "PROCESSING" ||
-                                      inv.status === "PENDING";
-                                    const profile = (inv.profile_id || (inv as any).profileId || "").toUpperCase();
-
-                                    if ((profile === "TICARIFATURA" || profile === "TEMELFATURA") && isSent) {
-                                      alert(
-                                        "GİB mevzuatı gereği alıcıya iletilmiş Ticari/Temel e-Faturalar tek taraflı iptal edilemez. Alıcının 8 gün içinde RET yanıtı vermesi veya İade Faturası düzenlemesi gerekmektedir."
-                                      );
-                                      return;
-                                    }
-
-                                    const reason = window.prompt(
-                                      "Bu faturayı iptal etmek istediğinize emin misiniz? Lütfen iptal gerekçesini giriniz:",
-                                      "Müşteri talebi ve fatura iptali"
-                                    );
-                                    if (reason && reason.trim()) {
-                                      cancel.mutate({ inv: row, reason: reason.trim() });
+                                    if (
+                                      confirm(
+                                        "Bu faturayı iptal etmek istediğinize emin misiniz? Stok ve cari hareketleri dengelenecektir.",
+                                      )
+                                    ) {
+                                      cancel.mutate(row);
                                     }
                                   }}
                                 >

@@ -436,7 +436,7 @@ function NewInvoicePage() {
             : editId
               ? "Fatura başarıyla güncellendi."
               : newStatus === "ONAYLANDI"
-                ? "Fatura GİB'e iletildi; cari ve stok hareketleri işlendi."
+                ? "Fatura başarıyla onaylandı; cari ve stok hareketleri işlendi."
                 : "Fatura taslak olarak başarıyla kaydedildi.",
       );
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -994,7 +994,7 @@ function NewInvoicePage() {
                         ? "Alış İadesini Onayla"
                         : editId
                           ? "Faturayı Güncelle & Onayla"
-                          : "GİB'e Gönder / Onayla"}
+                          : "Kaydet ve Onayla"}
                 </Button>
               </div>
             </CardContent>

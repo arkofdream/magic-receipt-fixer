@@ -328,7 +328,7 @@ export async function getInvoiceStatusFromEdm(uuid: string): Promise<EdmInvoiceS
       throw new Error("Durum sorgulaması için geçerli bir UUID/ETTN gereklidir.");
     }
 
-    const cleanUuid = uuid.trim();
+    const cleanUuid = uuid.trim().toLowerCase();
     const { sessionId, serviceUrl } = await getEdmSessionId();
     const nowIso = new Date().toISOString();
 
@@ -406,6 +406,117 @@ export async function getInvoiceStatusFromEdm(uuid: string): Promise<EdmInvoiceS
       success: false,
       message: `EDM Durum Sorgulama Hatası: ${message}`,
       uuid,
+    };
+  }
+}
+
+export interface EdmCancelResult {
+  success: boolean;
+  message: string;
+  uuid?: string;
+  invoiceNumber?: string;
+  errorCode?: string;
+  returnCode?: string;
+  returnMessage?: string;
+  rawResponse?: string;
+}
+
+/**
+ * Executes real EDM SOAP CancelInvoiceRequest operation to cancel an e-Archive invoice in EDM.
+ */
+export async function cancelInvoiceInEdm(
+  uuid: string,
+  invoiceNumber?: string,
+  cancelReason = "Müşteri talebi ve fatura iptali"
+): Promise<EdmCancelResult> {
+  try {
+    if (!uuid || !uuid.trim()) {
+      throw new Error("İptal işlemi için geçerli bir UUID/ETTN gereklidir.");
+    }
+
+    const cleanUuid = uuid.trim().toLowerCase();
+    const { sessionId, serviceUrl } = await getEdmSessionId();
+    const nowIso = new Date().toISOString();
+
+    const soapPayload = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://tempuri.org/">
+  <soap:Body>
+    <ns:CancelInvoiceRequest>
+      <REQUEST_HEADER>
+        <SESSION_ID>${sessionId}</SESSION_ID>
+        <ACTION_DATE>${nowIso}</ACTION_DATE>
+        <REASON>CANCEL_INVOICE</REASON>
+        <APPLICATION_NAME>MagicReceipt</APPLICATION_NAME>
+        <HOSTNAME>localhost</HOSTNAME>
+        <CHANNEL_NAME>XML</CHANNEL_NAME>
+      </REQUEST_HEADER>
+      <INVOICE UUID="${cleanUuid}">
+        <HEADER>
+          <CANCEL_REASON>${cancelReason}</CANCEL_REASON>
+          <CANCEL_DATE>${nowIso}</CANCEL_DATE>
+        </HEADER>
+      </INVOICE>
+    </ns:CancelInvoiceRequest>
+  </soap:Body>
+</soap:Envelope>`;
+
+    const response = await fetch(serviceUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/xml; charset=utf-8",
+        SOAPAction: "CancelInvoiceRequest",
+      },
+      body: soapPayload,
+    });
+
+    const responseText = await response.text();
+
+    const faultString = extractXmlTagValue(responseText, "faultstring");
+    const errorCode = extractXmlTagValue(responseText, "ERROR_CODE");
+    const errorShortDes = extractXmlTagValue(responseText, "ERROR_SHORT_DES");
+    const errorLongDes = extractXmlTagValue(responseText, "ERROR_LONG_DES");
+
+    if (errorCode || errorShortDes || errorLongDes || faultString || !response.ok) {
+      const code = errorCode || (faultString?.includes("11049") ? "11049" : "UNKNOWN_FAULT");
+      let userFriendlyMsg = errorShortDes || errorLongDes || faultString || "EDM iptal servisi işlemi tamamlayamadı.";
+
+      if (code === "11049") {
+        userFriendlyMsg = "Fatura henüz entegratör tarafından işleniyor (PACKAGE - PROCESSING). İptal edilebilmesi için işlemin tamamlanmasını bekleyin.";
+      } else if (code === "11017") {
+        userFriendlyMsg = "Fatura entegratör sisteminde bulunamadı veya daha önce iptal edilmiş.";
+      }
+
+      return {
+        success: false,
+        message: userFriendlyMsg,
+        uuid: cleanUuid,
+        invoiceNumber,
+        errorCode: code,
+        returnMessage: errorLongDes || errorShortDes || faultString,
+      };
+    }
+
+    const returnCode = extractXmlTagValue(responseText, "RETURN_CODE") || "0";
+    const returnMsg =
+      extractXmlTagValue(responseText, "RETURN_MSG") ||
+      extractXmlTagValue(responseText, "RESPONSE_DESCRIPTION") ||
+      "Fatura entegratör üzerinden başarıyla iptal edildi.";
+
+    return {
+      success: returnCode === "0",
+      message: returnMsg,
+      uuid: cleanUuid,
+      invoiceNumber,
+      returnCode,
+      returnMessage: returnMsg,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Bilinmeyen iptal hatası";
+    return {
+      success: false,
+      message: `EDM İptal Hatası: ${message}`,
+      uuid,
+      invoiceNumber,
     };
   }
 }

@@ -51,7 +51,7 @@ function Dashboard() {
   return (
     <AppShell
       title="Kontrol Paneli"
-      subtitle="GİB E-Fatura ve E-Arşiv işlemleri yönetimi"
+      subtitle="e-Fatura ve e-Arşiv işlemleri yönetimi"
       actions={
         <Button asChild>
           <Link to="/fatura-kes">Yeni Fatura Kes</Link>

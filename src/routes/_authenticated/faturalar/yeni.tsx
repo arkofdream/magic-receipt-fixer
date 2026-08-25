@@ -181,6 +181,15 @@ function NewInvoicePage() {
   }
 
   function validateForm(): boolean {
+    if (customInvoiceNumber.trim()) {
+      const INVOICE_NUMBER_REGEX = /^[A-Za-z0-9]{3}(?:19|20)\d{2}\d{9}$/;
+      if (!INVOICE_NUMBER_REGEX.test(customInvoiceNumber.trim())) {
+        toast.error(
+          "Geçersiz Fatura Numarası: 3 hane seri ön eki, 4 hane yıl ve 9 hane sıra numarasından (toplam 16 karakter) oluşmalıdır (Örn: EAR2026000000001)."
+        );
+        return false;
+      }
+    }
     if (!buyerName.trim()) {
       toast.error("Lütfen alıcı unvanını/adını giriniz.");
       return false;

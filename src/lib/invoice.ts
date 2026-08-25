@@ -228,10 +228,10 @@ export const INVOICE_STATUSES: Record<
   TASLAK: { label: "Taslak", tone: "draft" },
   DRAFT: { label: "Taslak", tone: "draft" },
   PENDING: { label: "Gönderim Bekliyor", tone: "draft" },
-  PROCESSING: { label: "EDM İşliyor", tone: "draft" },
-  SENT: { label: "EDM'ye Gönderildi", tone: "sent" },
+  PROCESSING: { label: "İşleniyor", tone: "draft" },
+  SENT: { label: "Entegratöre Gönderildi", tone: "sent" },
   ACCEPTED: { label: "Kabul Edildi", tone: "sent" },
-  ONAYLANDI: { label: "GİB'e İletildi / Onaylı", tone: "sent" },
+  ONAYLANDI: { label: "Onaylandı", tone: "sent" },
   REJECTED: { label: "Reddedildi", tone: "cancel" },
   FAILED: { label: "Hatalı", tone: "cancel" },
   IPTAL: { label: "İptal Edildi", tone: "cancel" },
@@ -471,8 +471,8 @@ export function formatDate(value: string | null | undefined) {
   }
 }
 
-export function generateEttn() {
-  return crypto.randomUUID().toUpperCase();
+export function generateEttn(): string {
+  return crypto.randomUUID().toLowerCase();
 }
 
 /**
