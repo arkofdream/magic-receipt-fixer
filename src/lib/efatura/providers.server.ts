@@ -373,6 +373,31 @@ class IntegratorProvider implements EInvoiceProvider {
         if (invoice["xmlContent"]) {
           const blob = new Blob([String(invoice["xmlContent"])], { type: "application/xml" });
           formData.append("File", blob, `${ettn}.xml`);
+        } else {
+          const { createUblTrInvoice } = await import("../ubl");
+          const ublXml = createUblTrInvoice({
+            uuid: ettn,
+            invoiceNumber: (invoice["invoiceNumber"] as string) || "EAR2026000000001",
+            issueDate: new Date().toISOString().split("T")[0],
+            seller: {
+              taxNumber: (invoice["sellerTaxNumber"] as string) || "1111111111",
+              name: (invoice["sellerName"] as string) || "Satıcı Firma",
+            },
+            buyer: {
+              taxNumber: (invoice["buyerTaxNumber"] as string) || (invoice["customerTaxNumber"] as string) || "2222222222",
+              name: (invoice["buyerName"] as string) || (invoice["customerName"] as string) || "Müşteri Firma",
+            },
+            lines: Array.isArray(invoice["items"])
+              ? (invoice["items"] as Record<string, unknown>[]).map((it) => ({
+                  name: String(it.name || "Ürün/Hizmet"),
+                  quantity: Number(it.quantity) || 1,
+                  unitPrice: Number(it.unitPrice || it.unit_price) || 100,
+                  vatRate: Number(it.vatRate || it.vat_rate) || 20,
+                }))
+              : [{ name: "Ürün/Hizmet", quantity: 1, unitPrice: Number(invoice["grandTotal"]) || 100, vatRate: 20 }],
+          });
+          const blob = new Blob([ublXml], { type: "application/xml" });
+          formData.append("File", blob, `${ettn}.xml`);
         }
 
         const res = await fetch(testUrl, {

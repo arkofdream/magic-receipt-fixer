@@ -426,6 +426,30 @@ function NewInvoicePage() {
             p_prefix: cleanPrefix,
           });
           if (error) throw error;
+
+          if (newStatus === "ONAYLANDI" && (operationMode === "SATIS" || type === "E_ARSIV" || type === "SATIS")) {
+            try {
+              const { sendInvoiceToProvider } = await import("@/lib/efatura-settings.functions");
+              const res = await sendInvoiceToProvider({
+                data: {
+                  ettn,
+                  invoiceNumber: (_result as any)?.invoice_number || ettn,
+                  customerName: customer.name,
+                  customerTaxNumber: customer.vknTckn,
+                  grandTotal: totals.grandTotal,
+                  type,
+                  items: JSON.parse(JSON.stringify(items)),
+                },
+              });
+              if (res && res.ok) {
+                toast.success("Fatura NES Bilgi servisine başarıyla yüklendi!");
+              } else if (res && res.message) {
+                toast.info(`Entegratör Yanıtı: ${res.message}`);
+              }
+            } catch (providerErr) {
+              console.error("Entegratör gönderim uyarısı:", providerErr);
+            }
+          }
         }
       }
     },
