@@ -168,24 +168,48 @@ export async function runConnectionTest(
   userId: string,
   provider: ProviderId,
   client?: SupabaseClient<Database>,
+  overrides?: {
+    apiKey?: string;
+    baseUrl?: string;
+    apiUsername?: string;
+    integratorName?: string;
+  },
 ) {
   const row = await loadSettings(userId, client);
+
+  const rawSecret =
+    overrides?.apiKey && overrides.apiKey.trim().length > 0
+      ? overrides.apiKey
+      : row.integrator_api_key_encrypted
+        ? decryptSecret(row.integrator_api_key_encrypted)
+        : "";
+
+  const baseUrl =
+    overrides?.baseUrl && overrides.baseUrl.trim().length > 0
+      ? overrides.baseUrl.trim()
+      : row.integrator_base_url || "";
+
+  const username =
+    overrides?.apiUsername !== undefined
+      ? overrides.apiUsername.trim()
+      : row.integrator_api_username || "";
+
+  const integratorName = overrides?.integratorName || row.integrator_provider || "Entegratör";
+
   const credentials =
     provider === "GIB"
       ? {
           provider,
           username: row.gib_username,
-          secret: row.gib_password_encrypted ? decryptSecret(row.gib_password_encrypted) : "",
+          secret: row.gib_password_encrypted ? decryptSecret(row.gib_password_encrypted).trim() : "",
           environment: row.gib_environment,
         }
       : {
           provider,
-          username: row.integrator_api_username,
-          secret: row.integrator_api_key_encrypted
-            ? decryptSecret(row.integrator_api_key_encrypted)
-            : "",
-          baseUrl: row.integrator_base_url,
-          integratorName: row.integrator_provider,
+          username,
+          secret: rawSecret.trim(),
+          baseUrl,
+          integratorName,
         };
 
   let result = { ok: false, message: "Bağlantı test edilemedi." };
@@ -193,6 +217,18 @@ export async function runConnectionTest(
     result = await getProvider(provider).testConnection(credentials);
   } catch (error) {
     result = { ok: false, message: error instanceof Error ? error.message : "Bilinmeyen hata." };
+  }
+
+  // If test was successful AND overrides were provided, automatically save working settings!
+  if (result.ok && provider === "INTEGRATOR" && overrides?.apiKey && overrides.apiKey.trim().length > 0) {
+    const autoSavePatch: Patch = {
+      integrator_enabled: true,
+      integrator_provider: integratorName,
+      integrator_base_url: baseUrl,
+      integrator_api_username: username,
+      integrator_api_key_encrypted: encryptSecret(rawSecret.trim()),
+    };
+    await update(userId, autoSavePatch, client);
   }
 
   const now = new Date().toISOString();
