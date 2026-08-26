@@ -45,6 +45,7 @@ import {
   type ConnectionSettingsView,
 } from "@/lib/efatura-settings.functions";
 import { getMyCompanyProfile, updateMyCompanyProfile } from "@/lib/profile.functions";
+import { getIntegratorConfig } from "@/lib/efatura/integrators.config";
 
 export const Route = createFileRoute("/_authenticated/ayarlar")({
   head: () => ({
@@ -470,35 +471,44 @@ function SettingsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Servis Uç Noktası (API URL)</Label>
-                    <Input
-                      value={intForm.baseUrl}
-                      onChange={(e) => setIntForm((f) => ({ ...f, baseUrl: e.target.value }))}
-                      placeholder="https://api.entegrator.com"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>API Kullanıcı Adı</Label>
-                    <Input
-                      value={intForm.apiUsername}
-                      onChange={(e) => setIntForm((f) => ({ ...f, apiUsername: e.target.value }))}
-                      placeholder="api_kullanici_kodu"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>API Anahtarı / Gizli Anahtar (Secret)</Label>
-                    <Input
-                      type="password"
-                      value={intForm.apiKey}
-                      onChange={(e) => setIntForm((f) => ({ ...f, apiKey: e.target.value }))}
-                      placeholder={
-                        settings?.integrator.hasApiKey
-                          ? "•••••••• (kayıtlı anahtar korunuyor)"
-                          : "API anahtarını girin"
-                      }
-                    />
-                  </div>
+                  {(() => {
+                    const currentConfig = getIntegratorConfig(intForm.provider);
+                    return (
+                      <>
+                        <div className="grid gap-2">
+                          <Label>{currentConfig.baseUrlLabel}</Label>
+                          <Input
+                            value={intForm.baseUrl}
+                            onChange={(e) => setIntForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                            placeholder={currentConfig.baseUrlPlaceholder}
+                          />
+                        </div>
+                        {currentConfig.requiresUsername ? (
+                          <div className="grid gap-2">
+                            <Label>{currentConfig.usernameLabel || "API Kullanıcı Adı"}</Label>
+                            <Input
+                              value={intForm.apiUsername}
+                              onChange={(e) => setIntForm((f) => ({ ...f, apiUsername: e.target.value }))}
+                              placeholder={currentConfig.usernamePlaceholder || "api_kullanici_kodu"}
+                            />
+                          </div>
+                        ) : null}
+                        <div className="grid gap-2">
+                          <Label>{currentConfig.apiKeyLabel}</Label>
+                          <Input
+                            type="password"
+                            value={intForm.apiKey}
+                            onChange={(e) => setIntForm((f) => ({ ...f, apiKey: e.target.value }))}
+                            placeholder={
+                              settings?.integrator.hasApiKey
+                                ? "•••••••• (kayıtlı anahtar korunuyor)"
+                                : currentConfig.apiKeyPlaceholder
+                            }
+                          />
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {settings?.integrator.lastError ? (
