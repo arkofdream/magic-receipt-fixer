@@ -82,3 +82,21 @@ export const testConnection = createServerFn({ method: "POST" })
       });
     },
   );
+
+const sendInvoiceSchema = z.object({
+  ettn: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  customerName: z.string().optional(),
+  customerTaxNumber: z.string().optional(),
+  grandTotal: z.number().optional(),
+  type: z.string().optional(),
+  items: z.array(z.record(z.unknown())).optional(),
+});
+
+export const sendInvoiceToProvider = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => sendInvoiceSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { sendInvoiceToActiveProvider } = await import("@/lib/efatura/settings.server");
+    return sendInvoiceToActiveProvider(context.userId, data, context.supabase);
+  });
