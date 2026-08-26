@@ -208,6 +208,56 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
   };
 }
 
+function renderPartyXml(party: UblParty, defaultCity: string): string {
+  const schemeId = party.taxNumber.length === 11 ? "TCKN" : "VKN";
+  const taxOfficeXml = party.taxOffice
+    ? `<cac:PartyTaxScheme><cac:TaxScheme><cbc:Name>${escapeXml(party.taxOffice)}</cbc:Name></cac:TaxScheme></cac:PartyTaxScheme>`
+    : "";
+
+  if (schemeId === "TCKN") {
+    const nameParts = party.name.trim().split(/\s+/);
+    const familyName = nameParts.length > 1 ? nameParts.pop()! : ".";
+    const firstName = nameParts.join(" ") || familyName;
+
+    return `<cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="TCKN">${party.taxNumber}</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PostalAddress>
+        <cbc:StreetName>${escapeXml(party.address || "Adres Belirtilmedi")}</cbc:StreetName>
+        <cbc:CitySubdivisionName>${escapeXml(party.district || "Merkez")}</cbc:CitySubdivisionName>
+        <cbc:CityName>${escapeXml(party.city || defaultCity)}</cbc:CityName>
+        <cac:Country>
+          <cbc:Name>Türkiye</cbc:Name>
+        </cac:Country>
+      </cac:PostalAddress>
+      ${taxOfficeXml}
+      <cac:Person>
+        <cbc:FirstName>${escapeXml(firstName)}</cbc:FirstName>
+        <cbc:FamilyName>${escapeXml(familyName)}</cbc:FamilyName>
+      </cac:Person>
+    </cac:Party>`;
+  } else {
+    return `<cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="VKN">${party.taxNumber}</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyName>
+        <cbc:Name>${escapeXml(party.name)}</cbc:Name>
+      </cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:StreetName>${escapeXml(party.address || "Adres Belirtilmedi")}</cbc:StreetName>
+        <cbc:CitySubdivisionName>${escapeXml(party.district || "Merkez")}</cbc:CitySubdivisionName>
+        <cbc:CityName>${escapeXml(party.city || defaultCity)}</cbc:CityName>
+        <cac:Country>
+          <cbc:Name>Türkiye</cbc:Name>
+        </cac:Country>
+      </cac:PostalAddress>
+      ${taxOfficeXml}
+    </cac:Party>`;
+  }
+}
+
 /**
  * Generates GİB UBL-TR 2.1 compliant XML content.
  */
@@ -257,43 +307,11 @@ export function createUblTrInvoice(data: UblInvoiceData): string {
   <cbc:LineCountNumeric>${validated.lines.length}</cbc:LineCountNumeric>
 
   <cac:AccountingSupplierParty>
-    <cac:Party>
-      <cac:PartyIdentification>
-        <cbc:ID schemeID="${sellerSchemeId}">${validated.seller.taxNumber}</cbc:ID>
-      </cac:PartyIdentification>
-      <cac:PartyName>
-        <cbc:Name>${escapeXml(validated.seller.name)}</cbc:Name>
-      </cac:PartyName>
-      <cac:PostalAddress>
-        <cbc:StreetName>${escapeXml(validated.seller.address || "Adres Belirtilmedi")}</cbc:StreetName>
-        <cbc:CitySubdivisionName>${escapeXml(validated.seller.district || "Merkez")}</cbc:CitySubdivisionName>
-        <cbc:CityName>${escapeXml(validated.seller.city || "İstanbul")}</cbc:CityName>
-        <cac:Country>
-          <cbc:Name>Türkiye</cbc:Name>
-        </cac:Country>
-      </cac:PostalAddress>
-      ${validated.seller.taxOffice ? `<cac:PartyTaxScheme><cac:TaxScheme><cbc:Name>${escapeXml(validated.seller.taxOffice)}</cbc:Name></cac:TaxScheme></cac:PartyTaxScheme>` : ""}
-    </cac:Party>
+    ${renderPartyXml(validated.seller, "İstanbul")}
   </cac:AccountingSupplierParty>
 
   <cac:AccountingCustomerParty>
-    <cac:Party>
-      <cac:PartyIdentification>
-        <cbc:ID schemeID="${buyerSchemeId}">${validated.buyer.taxNumber}</cbc:ID>
-      </cac:PartyIdentification>
-      <cac:PartyName>
-        <cbc:Name>${escapeXml(validated.buyer.name)}</cbc:Name>
-      </cac:PartyName>
-      <cac:PostalAddress>
-        <cbc:StreetName>${escapeXml(validated.buyer.address || "Adres Belirtilmedi")}</cbc:StreetName>
-        <cbc:CitySubdivisionName>${escapeXml(validated.buyer.district || "Merkez")}</cbc:CitySubdivisionName>
-        <cbc:CityName>${escapeXml(validated.buyer.city || "Ankara")}</cbc:CityName>
-        <cac:Country>
-          <cbc:Name>Türkiye</cbc:Name>
-        </cac:Country>
-      </cac:PostalAddress>
-      ${validated.buyer.taxOffice ? `<cac:PartyTaxScheme><cac:TaxScheme><cbc:Name>${escapeXml(validated.buyer.taxOffice)}</cbc:Name></cac:TaxScheme></cac:PartyTaxScheme>` : ""}
-    </cac:Party>
+    ${renderPartyXml(validated.buyer, "Ankara")}
   </cac:AccountingCustomerParty>
 
   <cac:TaxTotal>
