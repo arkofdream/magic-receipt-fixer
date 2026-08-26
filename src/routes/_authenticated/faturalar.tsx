@@ -204,6 +204,33 @@ function InvoicesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const sendToNes = useMutation({
+    mutationFn: async (inv: InvoiceRow) => {
+      const cust = inv.customer as { title?: string; name?: string; vknTckn?: string } | null;
+      const { sendInvoiceToProvider } = await import("@/lib/efatura-settings.functions");
+      const res = await sendInvoiceToProvider({
+        data: {
+          ettn: inv.ettn,
+          invoiceNumber: inv.invoice_number,
+          customerName: cust?.title || cust?.name || "",
+          customerTaxNumber: cust?.vknTckn || "",
+          grandTotal: Number(inv.grand_total),
+          type: inv.type,
+          isDirectSend: "true",
+        },
+      });
+      if (!res.ok) {
+        throw new Error(res.message);
+      }
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(res.message || "Fatura NES servisine başarıyla yüklendi.");
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    },
+    onError: (e: Error) => toast.error(`Entegratör Gönderim Hatası: ${e.message}`),
+  });
+
   const collect = useMutation({
     mutationFn: async ({ inv, amount }: { inv: InvoiceRow; amount: number }) => {
       if (!inv.customer_id)
@@ -652,6 +679,17 @@ function InvoicesPage() {
                                 onClick={() => downloadSingle(inv)}
                               >
                                 <Download className="size-4" />
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1 px-2 text-xs border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                                title="NES Bilgi Portalına e-Fatura / e-Arşiv Gönder"
+                                onClick={() => sendToNes.mutate(row)}
+                                disabled={sendToNes.isPending}
+                              >
+                                NES'e Gönder
                               </Button>
 
                               {inv.status === "TASLAK" ? (

@@ -353,13 +353,17 @@ class IntegratorProvider implements EInvoiceProvider {
 
     if (integrator === "Nes Bilgi" || integrator === "NES Bilgi" || integrator.toLowerCase().includes("nes")) {
       if (!credentials.baseUrl) {
+        console.log("[INVOICE] NES API URL'i tanımlı değil.");
         return { ok: false, message: "NES API URL'i tanımlı değil.", ettn };
       }
       const testUrl = buildIntegratorTestUrl(integrator, credentials.baseUrl);
+      console.log(`[INVOICE] Gönderim başlatıldı. ETTN: ${ettn}`);
+      console.log(`[INVOICE] Backend endpoint: ${testUrl}`);
 
       try {
         const formData = new FormData();
-        formData.append("IsDirectSend", invoice["isDirectSend"] !== undefined ? String(invoice["isDirectSend"]) : "true");
+        const isDirectSendVal = invoice["isDirectSend"] !== undefined ? String(invoice["isDirectSend"]) : "true";
+        formData.append("IsDirectSend", isDirectSendVal);
         formData.append("PreviewType", (invoice["previewType"] as string) || "Html");
         formData.append("SourceApp", "MagicReceiptApp");
 
@@ -370,9 +374,12 @@ class IntegratorProvider implements EInvoiceProvider {
           formData.append("ReceiverAlias", String(invoice["receiverAlias"]));
         }
 
+        console.log("[INVOICE] Request oluşturuldu (IsDirectSend: " + isDirectSendVal + ")");
+
         if (invoice["xmlContent"]) {
           const blob = new Blob([String(invoice["xmlContent"])], { type: "application/xml" });
           formData.append("File", blob, `${ettn}.xml`);
+          console.log("[INVOICE] XML/UBL mevcut içerik ile eklendi");
         } else {
           const { createUblTrInvoice } = await import("../ubl");
           const ublXml = createUblTrInvoice({
@@ -398,8 +405,10 @@ class IntegratorProvider implements EInvoiceProvider {
           });
           const blob = new Blob([ublXml], { type: "application/xml" });
           formData.append("File", blob, `${ettn}.xml`);
+          console.log("[INVOICE] XML/UBL dinamik olarak oluşturuldu");
         }
 
+        console.log("[INVOICE] Entegratör API çağrısı başladı");
         const res = await fetch(testUrl, {
           method: "POST",
           headers: {
@@ -408,8 +417,12 @@ class IntegratorProvider implements EInvoiceProvider {
           body: formData,
         });
 
+        console.log(`[INVOICE] API HTTP status: ${res.status}`);
         const text = await res.text().catch(() => "");
+        console.log(`[INVOICE] API response alındı (${text.length} bayt)`);
+
         if (res.ok) {
+          console.log("[INVOICE] Gönderim sonucu: BAŞARILI");
           return {
             ok: true,
             message: "Fatura NES servisine başarıyla yüklendi.",
@@ -418,6 +431,7 @@ class IntegratorProvider implements EInvoiceProvider {
           };
         }
 
+        console.log(`[INVOICE] Gönderim sonucu: HATALI (${res.status})`);
         if (res.status === 401 || res.status === 403) {
           return {
             ok: false,
@@ -435,6 +449,7 @@ class IntegratorProvider implements EInvoiceProvider {
         };
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[INVOICE] Gönderim istisnası: ${errMsg}`);
         return {
           ok: false,
           message: `NES fatura gönderim hatası: ${errMsg}`,
