@@ -1,51 +1,38 @@
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-
+import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-export type ConnectionStatus = "NOT_CONFIGURED" | "CONNECTED" | "FAILED";
-export type ActiveProvider = "NONE" | "GIB" | "INTEGRATOR";
-
-export type ConnectionSettingsView = {
-  activeProvider: ActiveProvider;
-  gib: {
-    enabled: boolean;
-    environment: string;
-    username: string;
-    hasPassword: boolean;
-    status: ConnectionStatus;
-    lastTestedAt: string | null;
-    lastError: string;
-  };
-  integrator: {
-    enabled: boolean;
-    provider: string;
-    baseUrl: string;
-    apiUsername: string;
-    hasApiKey: boolean;
-    status: ConnectionStatus;
-    lastTestedAt: string | null;
-    lastError: string;
-  };
-};
+import type { ConnectionSettingsView } from "@/lib/efatura/settings.server";
 
 const gibSchema = z.object({
   enabled: z.boolean(),
   environment: z.enum(["TEST", "PROD"]),
-  username: z.string().trim().max(120),
-  password: z.string().max(400).optional(),
+  username: z.string().trim().min(1, "GİB kullanıcı kodu zorunludur."),
+  password: z.string().trim().optional(),
 });
 
 const integratorSchema = z.object({
   enabled: z.boolean(),
-  provider: z.string().trim().max(80),
-  baseUrl: z.string().trim().max(300),
-  apiUsername: z.string().trim().max(120).optional().default(""),
-  apiKey: z.string().max(400).optional(),
+  provider: z.string().trim().min(1, "Sağlayıcı seçimi zorunludur."),
+  baseUrl: z
+    .string()
+    .trim()
+    .min(1, "Servis adresi zorunludur.")
+    .url("Geçerli bir URL girmelisiniz (örn: https://apitest.nes.com.tr)."),
+  apiUsername: z.string().trim().optional().default(""),
+  apiKey: z.string().trim().optional(),
 });
 
-const activeProviderSchema = z.object({ activeProvider: z.enum(["NONE", "GIB", "INTEGRATOR"]) });
-const testSchema = z.object({ provider: z.enum(["GIB", "INTEGRATOR"]) });
+const activeProviderSchema = z.object({
+  activeProvider: z.enum(["NONE", "GIB", "INTEGRATOR"]),
+});
+
+const testSchema = z.object({
+  provider: z.enum(["GIB", "INTEGRATOR"]),
+  apiKey: z.string().trim().optional(),
+  baseUrl: z.string().trim().optional(),
+  apiUsername: z.string().trim().optional(),
+  integratorName: z.string().trim().optional(),
+});
 
 export const getConnectionSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -87,6 +74,11 @@ export const testConnection = createServerFn({ method: "POST" })
       context,
     }): Promise<{ ok: boolean; message: string; settings: ConnectionSettingsView }> => {
       const { runConnectionTest } = await import("@/lib/efatura/settings.server");
-      return runConnectionTest(context.userId, data.provider, context.supabase);
+      return runConnectionTest(context.userId, data.provider, context.supabase, {
+        apiKey: data.apiKey,
+        baseUrl: data.baseUrl,
+        apiUsername: data.apiUsername,
+        integratorName: data.integratorName,
+      });
     },
   );

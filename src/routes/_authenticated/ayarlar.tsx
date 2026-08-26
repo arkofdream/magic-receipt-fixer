@@ -202,7 +202,19 @@ function SettingsPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: (provider: "GIB" | "INTEGRATOR") => runTest({ data: { provider } }),
+    mutationFn: (provider: "GIB" | "INTEGRATOR") =>
+      runTest({
+        data:
+          provider === "INTEGRATOR"
+            ? {
+                provider: "INTEGRATOR",
+                apiKey: intForm.apiKey,
+                baseUrl: intForm.baseUrl,
+                apiUsername: intForm.apiUsername,
+                integratorName: intForm.provider,
+              }
+            : { provider: "GIB" },
+      }),
     onSuccess: (result) => {
       applySettings(result.settings);
       if (result.ok) toast.success(result.message);
@@ -542,8 +554,6 @@ function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <EdmTestCard />
 
             <div className="flex items-center gap-2 rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-primary" />
