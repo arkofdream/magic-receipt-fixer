@@ -189,7 +189,7 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
     issueDate,
     issueTime,
     currency: (data.currency || "TRY").toUpperCase(),
-    profileId: data.profileId || "EARSIVFATURA",
+    profileId: !data.profileId || data.profileId === "EARSIVFATURA" ? "TICARIFATURA" : data.profileId,
     invoiceTypeCode: data.invoiceTypeCode || "SATIS",
     seller: {
       ...data.seller,
