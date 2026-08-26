@@ -1,20 +1,19 @@
 /**
  * Modüler ve genişletilebilir e-Fatura & GİB Sağlayıcı Katmanı (Server-Side Only).
  *
- * Gerçek entegratör (Uyumsoft, Foriba, QNB e-Finans, GİB Portal, Generic)
+ * Gerçek entegratör (Uyumsoft, Foriba, QNB e-Finans, GİB Portal, NES Bilgi, Generic vb.)
  * adaptörleri bu arayüzü uygular.
  * Canlı API erişimi olmadığında sahte "Bağlantı Başarılı" yanıtı verilmez;
  * yapılandırma durumu ve gerçek bağlantı gereksinimleri net olarak bildirilir.
  */
 
-export type ProviderId = "GIB" | "INTEGRATOR";
+import { getIntegratorConfig } from "./integrators.config";
 
-export type IntegratorType =
-  "FORIBA" | "UYUMSOFT" | "LOGO" | "QNB" | "NES_BILGI" | "DIGITAL_PLANET" | "IZIBIZ" | "GENERIC";
+export type ProviderId = "GIB" | "INTEGRATOR";
 
 export type ConnectionCredentials = {
   provider: ProviderId;
-  /** GİB: kullanıcı kodu (VKN/TCKN veya GİB portal kullanıcı kodu) | Entegratör: API kullanıcı adı */
+  /** GİB: kullanıcı kodu | Entegratör: API kullanıcı adı (gerekli ise) */
   username: string;
   /** GİB: şifre | Entegratör: API anahtarı / şifre (sunucu tarafında çözülmüş) */
   secret: string;
@@ -87,38 +86,48 @@ export interface EInvoiceProvider {
   ): Promise<CancelInvoiceResult>;
 }
 
-function validateBasicCredentials(credentials: ConnectionCredentials): ConnectionTestResult | null {
-  if (!credentials.username || !credentials.username.trim()) {
-    return { ok: false, message: "Kullanıcı adı / Kullanıcı kodu zorunludur." };
+function validateCredentials(credentials: ConnectionCredentials): ConnectionTestResult | null {
+  const providerName = credentials.integratorName || "Entegratör";
+  const config = getIntegratorConfig(providerName);
+
+  if (credentials.provider === "GIB") {
+    if (!credentials.username || !credentials.username.trim()) {
+      return { ok: false, message: "GİB Portal kullanıcı kodu zorunludur." };
+    }
+    if (!credentials.secret || !credentials.secret.trim()) {
+      return { ok: false, message: "GİB Portal şifresi zorunludur." };
+    }
+    return null;
   }
-  if (!credentials.secret || !credentials.secret.trim()) {
-    return { ok: false, message: "Şifre / API anahtarı zorunludur." };
+
+  if (config.requiresUsername && (!credentials.username || !credentials.username.trim())) {
+    return { ok: false, message: `${providerName} için kullanıcı adı / kullanıcı kodu zorunludur.` };
+  }
+  if (config.requiresApiKey && (!credentials.secret || !credentials.secret.trim())) {
+    return { ok: false, message: `${providerName} için şifre veya API anahtarı zorunludur.` };
   }
   return null;
 }
 
 /**
  * GİB Portal Adaptörü (e-Arşiv / e-Fatura İnteraktif Portal).
- * Canlı API veya test ortamı kimlik doğrulaması.
  */
 class GibPortalProvider implements EInvoiceProvider {
   id: ProviderId = "GIB";
   label = "GİB Portal (Gelir İdaresi Başkanlığı)";
 
   async testConnection(credentials: ConnectionCredentials): Promise<ConnectionTestResult> {
-    const invalid = validateBasicCredentials(credentials);
+    const invalid = validateCredentials(credentials);
     if (invalid) return invalid;
 
     const isProd = credentials.environment === "PROD";
     const envLabel = isProd ? "Canlı (GİB Üretim)" : "Test";
 
-    // GİB İnteraktif Portal veya e-Arşiv Portal servis uç noktası
     const endpoint = isProd
       ? "https://earsivportal.gib.gov.tr/earsiv-services/dispatch"
       : "https://earsivportaltest.gib.gov.tr/earsiv-services/dispatch";
 
     try {
-      // Endpoint erişilebilirlik ve oturum açma testi
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
@@ -156,7 +165,6 @@ class GibPortalProvider implements EInvoiceProvider {
         }
       }
 
-      // Servis yanıt vermiyor veya kimlik bilgileri bekleyen durumda
       return {
         ok: false,
         message: `GİB ${envLabel} portalına kimlik bilgileri kaydedildi. Doğrudan GİB canlı oturum açma yanıtı alınamadı (${res.status}). Bilgilerinizi kontrol ediniz.`,
@@ -174,7 +182,7 @@ class GibPortalProvider implements EInvoiceProvider {
     credentials: ConnectionCredentials,
     invoice: InvoicePayload,
   ): Promise<SendInvoiceResult> {
-    const invalid = validateBasicCredentials(credentials);
+    const invalid = validateCredentials(credentials);
     if (invalid) return { ok: false, message: invalid.message };
 
     const ettn = (invoice["ettn"] as string) || crypto.randomUUID().toUpperCase();
@@ -188,7 +196,7 @@ class GibPortalProvider implements EInvoiceProvider {
 
   async getInvoiceStatus(
     _credentials: ConnectionCredentials,
-    ettn: string,
+    _ettn: string,
   ): Promise<InvoiceStatusResult> {
     return {
       ok: true,
@@ -220,14 +228,14 @@ class GibPortalProvider implements EInvoiceProvider {
 }
 
 /**
- * Özel Entegratör Adaptörü (Uyumsoft, Foriba, Logo, QNB e-Finans, Generic REST/SOAP).
+ * Özel Entegratör Adaptörü (NES Bilgi, EDM, Uyumsoft, Foriba, Logo, QNB, Generic REST/SOAP).
  */
 class IntegratorProvider implements EInvoiceProvider {
   id: ProviderId = "INTEGRATOR";
   label = "Özel Entegratör";
 
   async testConnection(credentials: ConnectionCredentials): Promise<ConnectionTestResult> {
-    const invalid = validateBasicCredentials(credentials);
+    const invalid = validateCredentials(credentials);
     if (invalid) return invalid;
 
     if (!credentials.baseUrl || !credentials.baseUrl.trim()) {
@@ -245,19 +253,27 @@ class IntegratorProvider implements EInvoiceProvider {
     }
 
     const integrator = credentials.integratorName || "Entegratör";
+    const config = getIntegratorConfig(integrator);
 
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      // Entegratör auth/ping test endpoint çağrısı
       const pingUrl = credentials.baseUrl.replace(/\/+$/, "") + "/auth/test";
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (config.authType === "BEARER_TOKEN" || config.authType === "API_KEY") {
+        headers["Authorization"] = `Bearer ${credentials.secret}`;
+        headers["X-API-KEY"] = credentials.secret;
+      } else {
+        headers["Authorization"] = `Basic ${Buffer.from(`${credentials.username || ""}:${credentials.secret}`).toString("base64")}`;
+      }
+
       const res = await fetch(pingUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Basic ${Buffer.from(`${credentials.username}:${credentials.secret}`).toString("base64")}`,
-        },
+        headers,
         body: JSON.stringify({ ping: true }),
         signal: controller.signal,
       }).finally(() => clearTimeout(timeout));
@@ -272,19 +288,19 @@ class IntegratorProvider implements EInvoiceProvider {
       if (res.status === 401 || res.status === 403) {
         return {
           ok: false,
-          message: `${integrator} API yetkilendirme hatası: API kullanıcı adı veya anahtarı geçersiz.`,
+          message: `${integrator} API yetkilendirme hatası: Girilen kimlik bilgileri geçersiz.`,
         };
       }
 
       return {
         ok: false,
-        message: `${integrator} API servisine ulaşıldı ancak yetkilendirme doğrulanamadı (HTTP ${res.status}). Entegratör API anahtarınızı kontrol ediniz.`,
+        message: `${integrator} API servisine ulaşıldı ancak yanıt doğrulanamadı (HTTP ${res.status}). API bilgilerinizi kontrol ediniz.`,
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       return {
         ok: false,
-        message: `${integrator} servis adresine (${credentials.baseUrl}) ulaşılamadı: ${errMsg}. Canlı entegratör API bilgilerinizin doğruluğunu kontrol ediniz.`,
+        message: `${integrator} servis adresine (${credentials.baseUrl}) ulaşılamadı: ${errMsg}. Servis adresini ve internet bağlantınızı kontrol ediniz.`,
       };
     }
   }
@@ -293,7 +309,7 @@ class IntegratorProvider implements EInvoiceProvider {
     credentials: ConnectionCredentials,
     invoice: InvoicePayload,
   ): Promise<SendInvoiceResult> {
-    const invalid = validateBasicCredentials(credentials);
+    const invalid = validateCredentials(credentials);
     if (invalid) return { ok: false, message: invalid.message };
 
     const ettn = (invoice["ettn"] as string) || crypto.randomUUID().toUpperCase();
@@ -301,7 +317,7 @@ class IntegratorProvider implements EInvoiceProvider {
 
     return {
       ok: false,
-      message: `${integrator} fatura gönderimi için geçerli üretim API anahtarları gereklidir.`,
+      message: `${integrator} fatura gönderimi için aktif API bağlantısı gereklidir.`,
       ettn,
     };
   }

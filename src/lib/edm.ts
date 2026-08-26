@@ -138,8 +138,8 @@ export function resolveEdmConfig(): { username: string; password: string; servic
     if (process.env.EDM_TEST_USERNAME === "" || process.env.EDM_TEST_PASSWORD === "") {
       throw new Error("EDM_TEST_USERNAME veya EDM_TEST_PASSWORD ortam değişkenleri tanımlı değil.");
     }
-    username = process.env.EDM_TEST_USERNAME || "fuatekiz";
-    password = process.env.EDM_TEST_PASSWORD || "1234567Edm";
+    username = process.env.EDM_TEST_USERNAME || "";
+    password = process.env.EDM_TEST_PASSWORD || "";
     serviceUrl = process.env.EDM_TEST_SERVICE_URL || DEFAULT_EDM_TEST_URL;
 
     if (!username || !password) {
