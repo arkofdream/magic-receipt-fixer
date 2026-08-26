@@ -51,7 +51,7 @@ export const getConnectionSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ConnectionSettingsView> => {
     const { loadSettings, toView } = await import("@/lib/efatura/settings.server");
-    return toView(await loadSettings(context.userId));
+    return toView(await loadSettings(context.userId, context.supabase));
   });
 
 export const saveGibSettings = createServerFn({ method: "POST" })
@@ -59,7 +59,7 @@ export const saveGibSettings = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => gibSchema.parse(data))
   .handler(async ({ data, context }): Promise<ConnectionSettingsView> => {
     const { saveGib } = await import("@/lib/efatura/settings.server");
-    return saveGib(context.userId, data);
+    return saveGib(context.userId, data, context.supabase);
   });
 
 export const saveIntegratorSettings = createServerFn({ method: "POST" })
@@ -67,7 +67,7 @@ export const saveIntegratorSettings = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => integratorSchema.parse(data))
   .handler(async ({ data, context }): Promise<ConnectionSettingsView> => {
     const { saveIntegrator } = await import("@/lib/efatura/settings.server");
-    return saveIntegrator(context.userId, data);
+    return saveIntegrator(context.userId, data, context.supabase);
   });
 
 export const setActiveProvider = createServerFn({ method: "POST" })
@@ -75,7 +75,7 @@ export const setActiveProvider = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => activeProviderSchema.parse(data))
   .handler(async ({ data, context }): Promise<ConnectionSettingsView> => {
     const { setActive } = await import("@/lib/efatura/settings.server");
-    return setActive(context.userId, data.activeProvider);
+    return setActive(context.userId, data.activeProvider, context.supabase);
   });
 
 export const testConnection = createServerFn({ method: "POST" })
@@ -87,6 +87,6 @@ export const testConnection = createServerFn({ method: "POST" })
       context,
     }): Promise<{ ok: boolean; message: string; settings: ConnectionSettingsView }> => {
       const { runConnectionTest } = await import("@/lib/efatura/settings.server");
-      return runConnectionTest(context.userId, data.provider);
+      return runConnectionTest(context.userId, data.provider, context.supabase);
     },
   );

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { decryptSecret, encryptSecret } from "./crypto.server";
 import { getProvider, type ProviderId } from "./providers.server";
@@ -15,8 +16,11 @@ async function admin() {
   return supabaseAdmin;
 }
 
-export async function loadSettings(userId: string): Promise<Row> {
-  const db = await admin();
+export async function loadSettings(
+  userId: string,
+  client?: SupabaseClient<Database>,
+): Promise<Row> {
+  const db = client ?? (await admin());
   const { data, error } = await db
     .from("efatura_connection_settings")
     .select("*")
@@ -34,9 +38,13 @@ export async function loadSettings(userId: string): Promise<Row> {
   return created as Row;
 }
 
-async function update(userId: string, patch: Patch): Promise<Row> {
-  const db = await admin();
-  await loadSettings(userId);
+async function update(
+  userId: string,
+  patch: Patch,
+  client?: SupabaseClient<Database>,
+): Promise<Row> {
+  const db = client ?? (await admin());
+  await loadSettings(userId, client);
   const { data, error } = await db
     .from("efatura_connection_settings")
     .update(patch)
@@ -75,6 +83,7 @@ export function toView(row: Row): ConnectionSettingsView {
 export async function saveGib(
   userId: string,
   input: { enabled: boolean; environment: string; username: string; password?: string | undefined },
+  client?: SupabaseClient<Database>,
 ): Promise<ConnectionSettingsView> {
   const patch: Patch = {
     gib_enabled: input.enabled,
@@ -86,7 +95,7 @@ export async function saveGib(
   if (input.password && input.password.length > 0) {
     patch["gib_password_encrypted"] = encryptSecret(input.password);
   }
-  return toView(await update(userId, patch));
+  return toView(await update(userId, patch, client));
 }
 
 export async function saveIntegrator(
@@ -98,6 +107,7 @@ export async function saveIntegrator(
     apiUsername: string;
     apiKey?: string | undefined;
   },
+  client?: SupabaseClient<Database>,
 ): Promise<ConnectionSettingsView> {
   const patch: Patch = {
     integrator_enabled: input.enabled,
@@ -110,12 +120,13 @@ export async function saveIntegrator(
   if (input.apiKey && input.apiKey.length > 0) {
     patch["integrator_api_key_encrypted"] = encryptSecret(input.apiKey);
   }
-  return toView(await update(userId, patch));
+  return toView(await update(userId, patch, client));
 }
 
 export async function setActive(
   userId: string,
   activeProvider: ActiveProvider,
+  client?: SupabaseClient<Database>,
 ): Promise<ConnectionSettingsView> {
   const patch: Patch = { active_provider: activeProvider };
   if (activeProvider === "GIB") {
@@ -125,12 +136,12 @@ export async function setActive(
     patch["integrator_enabled"] = true;
     patch["gib_enabled"] = false;
   }
-  return toView(await update(userId, patch));
+  return toView(await update(userId, patch, client));
 }
 
 /** Aktif bağlantının çözülmüş kimlik bilgileri — yalnızca sunucu tarafı kullanır. */
-export async function getActiveConnection(userId: string) {
-  const row = await loadSettings(userId);
+export async function getActiveConnection(userId: string, client?: SupabaseClient<Database>) {
+  const row = await loadSettings(userId, client);
   if (row.active_provider === "GIB") {
     return {
       provider: "GIB" as ProviderId,
@@ -153,8 +164,12 @@ export async function getActiveConnection(userId: string) {
   return null;
 }
 
-export async function runConnectionTest(userId: string, provider: ProviderId) {
-  const row = await loadSettings(userId);
+export async function runConnectionTest(
+  userId: string,
+  provider: ProviderId,
+  client?: SupabaseClient<Database>,
+) {
+  const row = await loadSettings(userId, client);
   const credentials =
     provider === "GIB"
       ? {
@@ -194,6 +209,6 @@ export async function runConnectionTest(userId: string, provider: ProviderId) {
           integrator_last_error: result.ok ? "" : result.message,
         };
 
-  const settings = toView(await update(userId, patch));
+  const settings = toView(await update(userId, patch, client));
   return { ...result, settings };
 }
