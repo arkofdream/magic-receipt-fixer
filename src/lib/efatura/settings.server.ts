@@ -310,16 +310,69 @@ export async function sendInvoiceToActiveProvider(
   invoiceData: Record<string, unknown>,
   client?: SupabaseClient<Database>,
 ) {
+  const ettn = (invoiceData["ettn"] as string) || "";
   const row = await loadSettings(userId, client);
   const credentials = resolveActiveCredentials(row);
 
   if (!credentials) {
     return {
       ok: false,
-      message: "Aktif bir e-Fatura entegratör / GİB bağlantısı bulunamadı. Lütfen Ayarlar sayfasından entegratör ayarlarınızı kaydedip aktif hale getirin.",
+      message:
+        "Aktif bir e-Fatura entegratör / GİB bağlantısı bulunamadı. Lütfen Ayarlar sayfasından entegratör ayarlarınızı kaydedip aktif hale getirin.",
     };
   }
 
+  // Duplicate Transmission Prevention Guard
+  if (client && ettn) {
+    const { data: existingInv } = await client
+      .from("invoices")
+      .select("edm_status, provider_reference")
+      .eq("ettn", ettn)
+      .maybeSingle();
+
+    if (existingInv && existingInv.edm_status === "SENT") {
+      console.log(`[INVOICE] Mükerrer gönderim engellendi. ETTN ${ettn} zaten gönderilmiş.`);
+      return {
+        ok: true,
+        message: "Bu fatura zaten NES servisine başarıyla iletilmiş.",
+        ettn: existingInv.provider_reference || ettn,
+      };
+    }
+  }
+
   const provider = getProvider(credentials.provider);
-  return provider.sendInvoice(credentials, invoiceData);
+  const result = await provider.sendInvoice(credentials, invoiceData);
+
+  // Update DB status upon transmission result
+  if (client && ettn) {
+    try {
+      const now = new Date().toISOString();
+      if (result.ok) {
+        await client
+          .from("invoices")
+          .update({
+            edm_status: "SENT",
+            sent_at: now,
+            provider: credentials.integratorName || "NES Bilgi",
+            provider_reference: result.ettn || ettn,
+            error_message: null,
+          })
+          .eq("ettn", ettn);
+        console.log(`[INVOICE] Supabase status güncellendi: SENT (${ettn})`);
+      } else {
+        await client
+          .from("invoices")
+          .update({
+            edm_status: "ERROR",
+            error_message: result.message,
+          })
+          .eq("ettn", ettn);
+        console.log(`[INVOICE] Supabase status güncellendi: ERROR (${ettn})`);
+      }
+    } catch (dbErr) {
+      console.error("[INVOICE] Supabase status güncelleme hatası:", dbErr);
+    }
+  }
+
+  return result;
 }
