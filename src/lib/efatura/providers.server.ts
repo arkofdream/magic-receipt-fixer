@@ -367,9 +367,10 @@ class IntegratorProvider implements EInvoiceProvider {
         formData.append("PreviewType", (invoice["previewType"] as string) || "Html");
         formData.append("SourceApp", "MagicReceiptApp");
 
-        if (invoice["senderAlias"]) {
-          formData.append("SenderAlias", String(invoice["senderAlias"]));
-        }
+        const senderAlias = String(invoice["senderAlias"] || credentials.username || "defaultgb").trim() || "defaultgb";
+        formData.append("SenderAlias", senderAlias);
+        console.log(`[INVOICE] SenderAlias eklendi: ${senderAlias}`);
+
         if (invoice["receiverAlias"]) {
           formData.append("ReceiverAlias", String(invoice["receiverAlias"]));
         }
