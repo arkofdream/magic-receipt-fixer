@@ -40,7 +40,7 @@ const integratorSchema = z.object({
   enabled: z.boolean(),
   provider: z.string().trim().max(80),
   baseUrl: z.string().trim().max(300),
-  apiUsername: z.string().trim().max(120),
+  apiUsername: z.string().trim().max(120).optional().default(""),
   apiKey: z.string().max(400).optional(),
 });
 
