@@ -112,7 +112,7 @@ function validateCredentials(credentials: ConnectionCredentials): ConnectionTest
 function buildIntegratorTestUrl(integratorName: string, baseUrl: string): string {
   let cleanUrl = baseUrl.trim().replace(/\/+$/, "");
 
-  if (integratorName === "Nes Bilgi") {
+  if (integratorName === "Nes Bilgi" || integratorName === "NES Bilgi" || integratorName.toLowerCase().includes("nes")) {
     if (cleanUrl.endsWith("/einvoice/v1/uploads/document")) {
       return cleanUrl;
     }
@@ -351,7 +351,7 @@ class IntegratorProvider implements EInvoiceProvider {
     const ettn = (invoice["ettn"] as string) || crypto.randomUUID().toUpperCase();
     const integrator = credentials.integratorName || "Entegratör";
 
-    if (integrator === "Nes Bilgi") {
+    if (integrator === "Nes Bilgi" || integrator === "NES Bilgi" || integrator.toLowerCase().includes("nes")) {
       if (!credentials.baseUrl) {
         return { ok: false, message: "NES API URL'i tanımlı değil.", ettn };
       }
