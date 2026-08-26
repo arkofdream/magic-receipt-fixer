@@ -359,7 +359,7 @@ class IntegratorProvider implements EInvoiceProvider {
 
       try {
         const formData = new FormData();
-        formData.append("IsDirectSend", (invoice["isDirectSend"] as string) || "false");
+        formData.append("IsDirectSend", invoice["isDirectSend"] !== undefined ? String(invoice["isDirectSend"]) : "true");
         formData.append("PreviewType", (invoice["previewType"] as string) || "Html");
         formData.append("SourceApp", "MagicReceiptApp");
 

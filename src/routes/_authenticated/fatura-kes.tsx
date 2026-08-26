@@ -438,6 +438,7 @@ function NewInvoicePage() {
                   customerTaxNumber: customer.vknTckn,
                   grandTotal: totals.grandTotal,
                   type,
+                  isDirectSend: "true",
                   items: JSON.parse(JSON.stringify(items)),
                 },
               });
