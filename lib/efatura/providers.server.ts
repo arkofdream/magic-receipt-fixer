@@ -109,6 +109,28 @@ function validateCredentials(credentials: ConnectionCredentials): ConnectionTest
   return null;
 }
 
+function buildIntegratorTestUrl(integratorName: string, baseUrl: string): string {
+  let cleanUrl = baseUrl.trim().replace(/\/+$/, "");
+
+  if (integratorName === "Nes Bilgi") {
+    if (cleanUrl.endsWith("/einvoice/v1/uploads/document")) {
+      return cleanUrl;
+    }
+    if (cleanUrl.endsWith("/einvoice/v1")) {
+      return cleanUrl + "/uploads/document";
+    }
+    if (cleanUrl.endsWith("/einvoice")) {
+      return cleanUrl + "/v1/uploads/document";
+    }
+    return cleanUrl + "/einvoice/v1/uploads/document";
+  }
+
+  if (cleanUrl.endsWith("/auth/test")) {
+    return cleanUrl;
+  }
+  return cleanUrl + "/auth/test";
+}
+
 /**
  * GİB Portal Adaptörü (e-Arşiv / e-Fatura İnteraktif Portal).
  */
@@ -248,59 +270,73 @@ class IntegratorProvider implements EInvoiceProvider {
       return {
         ok: false,
         message:
-          "Entegratör servis adresi geçerli bir URL olmalıdır (örn. https://api.entegrator.com).",
+          "Entegratör servis adresi geçerli bir URL olmalıdır (örn. https://apitest.nes.com.tr).",
       };
     }
 
     const integrator = credentials.integratorName || "Entegratör";
     const config = getIntegratorConfig(integrator);
+    const testUrl = buildIntegratorTestUrl(integrator, credentials.baseUrl);
+    const cleanBaseUrl = credentials.baseUrl.trim().replace(/\/+$/, "");
 
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      const pingUrl = credentials.baseUrl.replace(/\/+$/, "") + "/auth/test";
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+      const headers: Record<string, string> = {};
 
       if (config.authType === "BEARER_TOKEN" || config.authType === "API_KEY") {
         headers["Authorization"] = `Bearer ${credentials.secret}`;
-        headers["X-API-KEY"] = credentials.secret;
       } else {
         headers["Authorization"] = `Basic ${Buffer.from(`${credentials.username || ""}:${credentials.secret}`).toString("base64")}`;
       }
 
-      const res = await fetch(pingUrl, {
+      const res = await fetch(testUrl, {
         method: "POST",
         headers,
-        body: JSON.stringify({ ping: true }),
         signal: controller.signal,
+      }).catch(async () => {
+        return await fetch(cleanBaseUrl, {
+          method: "GET",
+          headers,
+          signal: controller.signal,
+        });
       }).finally(() => clearTimeout(timeout));
 
-      if (res.ok) {
+      if (res.ok || res.status === 400 || res.status === 415 || res.status === 422) {
         return {
           ok: true,
           message: `${integrator} API bağlantısı ve kimlik bilgileri başarıyla doğrulandı.`,
+          statusCode: res.status,
         };
       }
 
       if (res.status === 401 || res.status === 403) {
         return {
           ok: false,
-          message: `${integrator} API yetkilendirme hatası: Girilen kimlik bilgileri geçersiz.`,
+          message: `${integrator} API yetkilendirme hatası: Girilen API anahtarı veya kimlik bilgisi geçersiz (HTTP ${res.status}). Lütfen API anahtarınızı kontrol ediniz.`,
+          statusCode: res.status,
+        };
+      }
+
+      if (res.status === 404) {
+        return {
+          ok: false,
+          message: `${integrator} servis adresine (${testUrl}) ulaşıldı ancak uç nokta adresi bulunamadı (HTTP 404). Lütfen API URL adresini kontrol ediniz.`,
+          statusCode: res.status,
         };
       }
 
       return {
         ok: false,
         message: `${integrator} API servisine ulaşıldı ancak yanıt doğrulanamadı (HTTP ${res.status}). API bilgilerinizi kontrol ediniz.`,
+        statusCode: res.status,
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       return {
         ok: false,
-        message: `${integrator} servis adresine (${credentials.baseUrl}) ulaşılamadı: ${errMsg}. Servis adresini ve internet bağlantınızı kontrol ediniz.`,
+        message: `${integrator} servis adresine (${credentials.baseUrl}) ulaşıldı ancak erişim sağlanamadı: ${errMsg}. Servis adresini ve internet bağlantınızı kontrol ediniz.`,
       };
     }
   }
@@ -314,6 +350,73 @@ class IntegratorProvider implements EInvoiceProvider {
 
     const ettn = (invoice["ettn"] as string) || crypto.randomUUID().toUpperCase();
     const integrator = credentials.integratorName || "Entegratör";
+
+    if (integrator === "Nes Bilgi") {
+      if (!credentials.baseUrl) {
+        return { ok: false, message: "NES API URL'i tanımlı değil.", ettn };
+      }
+      const testUrl = buildIntegratorTestUrl(integrator, credentials.baseUrl);
+
+      try {
+        const formData = new FormData();
+        formData.append("IsDirectSend", (invoice["isDirectSend"] as string) || "false");
+        formData.append("PreviewType", (invoice["previewType"] as string) || "Html");
+        formData.append("SourceApp", "MagicReceiptApp");
+
+        if (invoice["senderAlias"]) {
+          formData.append("SenderAlias", String(invoice["senderAlias"]));
+        }
+        if (invoice["receiverAlias"]) {
+          formData.append("ReceiverAlias", String(invoice["receiverAlias"]));
+        }
+
+        if (invoice["xmlContent"]) {
+          const blob = new Blob([String(invoice["xmlContent"])], { type: "application/xml" });
+          formData.append("File", blob, `${ettn}.xml`);
+        }
+
+        const res = await fetch(testUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${credentials.secret}`,
+          },
+          body: formData,
+        });
+
+        const text = await res.text().catch(() => "");
+        if (res.ok) {
+          return {
+            ok: true,
+            message: "Fatura NES servisine başarıyla yüklendi.",
+            ettn,
+            statusCode: String(res.status),
+          };
+        }
+
+        if (res.status === 401 || res.status === 403) {
+          return {
+            ok: false,
+            message: "NES yetkilendirme hatası: API Anahtarı geçersiz.",
+            ettn,
+            statusCode: String(res.status),
+          };
+        }
+
+        return {
+          ok: false,
+          message: `NES fatura yükleme yanıtı (${res.status}): ${text || "Belge işlenemedi."}`,
+          ettn,
+          statusCode: String(res.status),
+        };
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        return {
+          ok: false,
+          message: `NES fatura gönderim hatası: ${errMsg}`,
+          ettn,
+        };
+      }
+    }
 
     return {
       ok: false,
