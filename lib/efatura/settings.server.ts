@@ -1,88 +1,135 @@
+/**
+ * e-Fatura & Entegratör Bağlantı Ayarları (Server-side).
+ * Supabase `efatura_connection_settings` tablosundan ayarları okur/yazar.
+ * Hassas şifreler / API anahtarları AES-256-GCM ile şifrelenir.
+ */
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { decryptSecret, encryptSecret } from "./crypto.server";
-import { getProvider, type ProviderId } from "./providers.server";
-import type {
-  ActiveProvider,
-  ConnectionSettingsView,
-  ConnectionStatus,
-} from "@/lib/efatura-settings.functions";
+import {
+  getProvider,
+  type ConnectionCredentials,
+  type ProviderId,
+} from "./providers.server";
 
-type Row = Database["public"]["Tables"]["efatura_connection_settings"]["Row"];
-type Patch = Database["public"]["Tables"]["efatura_connection_settings"]["Update"];
+export type ActiveProvider = "NONE" | "GIB" | "INTEGRATOR";
 
-async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
-}
+export type EfaturaConnectionSettingsRow =
+  Database["public"]["Tables"]["efatura_connection_settings"]["Row"];
+
+export type ConnectionSettingsView = {
+  activeProvider: ActiveProvider;
+  gib: {
+    enabled: boolean;
+    environment: "TEST" | "PROD";
+    username: string;
+    hasPassword: boolean;
+    status: string;
+    lastTestedAt: string | null;
+    lastError: string | null;
+  };
+  integrator: {
+    enabled: boolean;
+    provider: string;
+    baseUrl: string;
+    apiUsername: string;
+    hasApiKey: boolean;
+    status: string;
+    lastTestedAt: string | null;
+    lastError: string | null;
+  };
+};
+
+type Patch = Partial<Database["public"]["Tables"]["efatura_connection_settings"]["Insert"]>;
 
 export async function loadSettings(
   userId: string,
   client?: SupabaseClient<Database>,
-): Promise<Row> {
-  const db = client ?? (await admin());
-  const { data, error } = await db
+): Promise<EfaturaConnectionSettingsRow> {
+  if (!client) {
+    throw new Error("Supabase istemcisi yüklenemedi.");
+  }
+  const { data, error } = await client
     .from("efatura_connection_settings")
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw error;
-  if (data) return data as Row;
 
-  const { data: created, error: insertError } = await db
-    .from("efatura_connection_settings")
-    .insert({ user_id: userId })
-    .select("*")
-    .single();
-  if (insertError) throw insertError;
-  return created as Row;
+  if (error) {
+    throw new Error(`Bağlantı ayarları yüklenemedi: ${error.message}`);
+  }
+
+  if (!data) {
+    const { data: created, error: createError } = await client
+      .from("efatura_connection_settings")
+      .insert({ user_id: userId })
+      .select("*")
+      .single();
+
+    if (createError) {
+      throw new Error(`Varsayılan ayarlar oluşturulamadı: ${createError.message}`);
+    }
+    return created;
+  }
+
+  return data;
 }
 
-async function update(
-  userId: string,
-  patch: Patch,
-  client?: SupabaseClient<Database>,
-): Promise<Row> {
-  const db = client ?? (await admin());
-  await loadSettings(userId, client);
-  const { data, error } = await db
-    .from("efatura_connection_settings")
-    .update(patch)
-    .eq("user_id", userId)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data as Row;
-}
-
-export function toView(row: Row): ConnectionSettingsView {
+export function toView(row: EfaturaConnectionSettingsRow): ConnectionSettingsView {
   return {
-    activeProvider: row.active_provider as ActiveProvider,
+    activeProvider: (row.active_provider as ActiveProvider) || "NONE",
     gib: {
       enabled: row.gib_enabled,
-      environment: row.gib_environment,
-      username: row.gib_username,
+      environment: (row.gib_environment as "TEST" | "PROD") || "TEST",
+      username: row.gib_username || "",
       hasPassword: Boolean(row.gib_password_encrypted),
-      status: row.gib_status as ConnectionStatus,
+      status: row.gib_status || "NOT_CONFIGURED",
       lastTestedAt: row.gib_last_tested_at,
       lastError: row.gib_last_error,
     },
     integrator: {
       enabled: row.integrator_enabled,
-      provider: row.integrator_provider,
-      baseUrl: row.integrator_base_url,
-      apiUsername: row.integrator_api_username,
+      provider: row.integrator_provider || "NES Bilgi",
+      baseUrl: row.integrator_base_url || "https://apitest.nes.com.tr",
+      apiUsername: row.integrator_api_username || "",
       hasApiKey: Boolean(row.integrator_api_key_encrypted),
-      status: row.integrator_status as ConnectionStatus,
+      status: row.integrator_status || "NOT_CONFIGURED",
       lastTestedAt: row.integrator_last_tested_at,
       lastError: row.integrator_last_error,
     },
   };
 }
 
+export async function update(
+  userId: string,
+  patch: Patch,
+  client?: SupabaseClient<Database>,
+): Promise<EfaturaConnectionSettingsRow> {
+  if (!client) {
+    throw new Error("Supabase istemcisi yüklenemedi.");
+  }
+  const { data, error } = await client
+    .from("efatura_connection_settings")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Ayarlar güncellenemedi: ${error.message}`);
+  }
+  return data;
+}
+
 export async function saveGib(
   userId: string,
-  input: { enabled: boolean; environment: string; username: string; password?: string | undefined },
+  input: {
+    enabled: boolean;
+    environment: "TEST" | "PROD";
+    username: string;
+    password?: string | undefined;
+  },
   client?: SupabaseClient<Database>,
 ): Promise<ConnectionSettingsView> {
   const patch: Patch = {
@@ -94,6 +141,9 @@ export async function saveGib(
   };
   if (input.password && input.password.length > 0) {
     patch["gib_password_encrypted"] = encryptSecret(input.password);
+  }
+  if (input.enabled) {
+    patch["active_provider"] = "GIB";
   }
   return toView(await update(userId, patch, client));
 }
@@ -120,6 +170,9 @@ export async function saveIntegrator(
   if (input.apiKey && input.apiKey.length > 0) {
     patch["integrator_api_key_encrypted"] = encryptSecret(input.apiKey);
   }
+  if (input.enabled) {
+    patch["active_provider"] = "INTEGRATOR";
+  }
   return toView(await update(userId, patch, client));
 }
 
@@ -139,9 +192,9 @@ export async function setActive(
   return toView(await update(userId, patch, client));
 }
 
-/** Aktif bağlantının çözülmüş kimlik bilgileri — yalnızca sunucu tarafı kullanır. */
-export async function getActiveConnection(userId: string, client?: SupabaseClient<Database>) {
-  const row = await loadSettings(userId, client);
+export function resolveActiveCredentials(
+  row: EfaturaConnectionSettingsRow,
+): ConnectionCredentials | null {
   if (row.active_provider === "GIB") {
     return {
       provider: "GIB" as ProviderId,
@@ -150,15 +203,15 @@ export async function getActiveConnection(userId: string, client?: SupabaseClien
       environment: row.gib_environment,
     };
   }
-  if (row.active_provider === "INTEGRATOR") {
+  if (row.active_provider === "INTEGRATOR" || (row.integrator_enabled && row.integrator_api_key_encrypted)) {
     return {
       provider: "INTEGRATOR" as ProviderId,
-      username: row.integrator_api_username,
+      username: row.integrator_api_username || "",
       secret: row.integrator_api_key_encrypted
         ? decryptSecret(row.integrator_api_key_encrypted)
         : "",
-      baseUrl: row.integrator_base_url,
-      integratorName: row.integrator_provider,
+      baseUrl: row.integrator_base_url || "https://apitest.nes.com.tr",
+      integratorName: row.integrator_provider || "NES Bilgi",
     };
   }
   return null;
@@ -187,14 +240,14 @@ export async function runConnectionTest(
   const baseUrl =
     overrides?.baseUrl && overrides.baseUrl.trim().length > 0
       ? overrides.baseUrl.trim()
-      : row.integrator_base_url || "";
+      : row.integrator_base_url || "https://apitest.nes.com.tr";
 
   const username =
     overrides?.apiUsername !== undefined
       ? overrides.apiUsername.trim()
       : row.integrator_api_username || "";
 
-  const integratorName = overrides?.integratorName || row.integrator_provider || "Entegratör";
+  const integratorName = overrides?.integratorName || row.integrator_provider || "NES Bilgi";
 
   const credentials =
     provider === "GIB"
@@ -222,6 +275,7 @@ export async function runConnectionTest(
   // If test was successful AND overrides were provided, automatically save working settings!
   if (result.ok && provider === "INTEGRATOR" && overrides?.apiKey && overrides.apiKey.trim().length > 0) {
     const autoSavePatch: Patch = {
+      active_provider: "INTEGRATOR",
       integrator_enabled: true,
       integrator_provider: integratorName,
       integrator_base_url: baseUrl,
@@ -240,6 +294,8 @@ export async function runConnectionTest(
           gib_last_error: result.ok ? "" : result.message,
         }
       : {
+          active_provider: result.ok ? "INTEGRATOR" : row.active_provider,
+          integrator_enabled: result.ok ? true : row.integrator_enabled,
           integrator_status: result.ok ? "CONNECTED" : "FAILED",
           integrator_last_tested_at: now,
           integrator_last_error: result.ok ? "" : result.message,
@@ -247,4 +303,23 @@ export async function runConnectionTest(
 
   const settings = toView(await update(userId, patch, client));
   return { ...result, settings };
+}
+
+export async function sendInvoiceToActiveProvider(
+  userId: string,
+  invoiceData: Record<string, unknown>,
+  client?: SupabaseClient<Database>,
+) {
+  const row = await loadSettings(userId, client);
+  const credentials = resolveActiveCredentials(row);
+
+  if (!credentials) {
+    return {
+      ok: false,
+      message: "Aktif bir e-Fatura entegratör / GİB bağlantısı bulunamadı. Lütfen Ayarlar sayfasından entegratör ayarlarınızı kaydedip aktif hale getirin.",
+    };
+  }
+
+  const provider = getProvider(credentials.provider);
+  return provider.sendInvoice(credentials, invoiceData);
 }
