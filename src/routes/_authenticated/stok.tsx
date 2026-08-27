@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download, Calculator, Warehouse, Boxes, AlertTriangle, ArrowRightLeft } from "lucide-react";
+import { Download, Calculator, Warehouse, Boxes, AlertTriangle, ArrowRightLeft, Copy, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -70,6 +70,9 @@ function StockPage() {
   const [valuationMethod, setValuationMethod] = useState<ValuationMethod>("WEIGHTED_AVG");
   const [form, setForm] = useState(emptyMovement);
   const [warehouseForm, setWarehouseForm] = useState({ name: "", address: "" });
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [stockStatusFilter, setStockStatusFilter] = useState("ALL");
   const [filters, setFilters] = useState({
     productId: "ALL",
     warehouseId: "ALL",
@@ -245,6 +248,9 @@ function StockPage() {
       analysis.push({
         productId: p.id,
         productName: p.name,
+        code: p.code || "",
+        barcode: p.barcode || "",
+        category: p.category || "",
         unit: p.unit || "Adet",
         stockQty: currentStock,
         salePrice,
@@ -255,11 +261,64 @@ function StockPage() {
         totalCostValue,
         totalSaleValue,
         profitMarginPct,
+        minStock: Number(p.min_stock ?? 0),
+        trackStock: p.track_stock ?? true,
       });
     }
 
     return analysis;
   }, [products, stockMap, allMovements, valuationMethod]);
+
+  // Dinamik Kategori Listesi
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) {
+      if (p.category && p.category.trim()) {
+        set.add(p.category.trim());
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "tr"));
+  }, [products]);
+
+  // FAZ 2C — FİLTRELENMİŞ STOK MALİYET ANALİZİ (İSTEMCİ TARAFINDA ANLIK FİLTRELEME)
+  const filteredProductCostAnalysis = useMemo(() => {
+    return productCostAnalysis.filter((item) => {
+      // 1. Arama Filtresi (Ad, Kod, Barkod, Kategori)
+      if (search.trim()) {
+        const q = search.trim().toLocaleLowerCase("tr");
+        const matchName = item.productName.toLocaleLowerCase("tr").includes(q);
+        const matchCode = item.code.toLocaleLowerCase("tr").includes(q);
+        const matchBarcode = item.barcode.toLocaleLowerCase("tr").includes(q);
+        const matchCategory = item.category.toLocaleLowerCase("tr").includes(q);
+        if (!matchName && !matchCode && !matchBarcode && !matchCategory) {
+          return false;
+        }
+      }
+
+      // 2. Kategori Filtresi
+      if (categoryFilter !== "ALL" && item.category !== categoryFilter) {
+        return false;
+      }
+
+      // 3. Stok Durum Filtresi
+      if (stockStatusFilter === "IN_STOCK" && item.stockQty <= 0) {
+        return false;
+      }
+      if (stockStatusFilter === "OUT_OF_STOCK" && item.stockQty > 0) {
+        return false;
+      }
+      if (stockStatusFilter === "CRITICAL") {
+        const isCritical =
+          item.trackStock === true && item.minStock > 0 && item.stockQty <= item.minStock;
+        if (!isCritical) return false;
+      }
+      if (stockStatusFilter === "NO_TRACK" && item.trackStock !== false) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [productCostAnalysis, search, categoryFilter, stockStatusFilter]);
 
   const costSummary = useMemo(() => {
     let totalStockQty = 0;
@@ -324,6 +383,67 @@ function StockPage() {
       setWarehouseForm({ name: "", address: "" });
       setWarehouseOpen(false);
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyForm, setCopyForm] = useState({
+    code: "",
+    barcode: "",
+    name: "",
+    description: "",
+    category: "",
+    unit: "Adet",
+    purchasePrice: "0",
+    unitPrice: "0",
+    vatRate: "20",
+    discountRate: "0",
+    minStock: "0",
+  });
+
+  function handleOpenCopyModal(p: any) {
+    setCopyForm({
+      code: p.code ? `${p.code}-KOPYA` : "",
+      barcode: "",
+      name: `${p.name} - Kopyası`,
+      description: p.description || "",
+      category: p.category || "",
+      unit: p.unit || "Adet",
+      purchasePrice: String(p.purchase_price ?? 0),
+      unitPrice: String(p.unit_price ?? 0),
+      vatRate: String(p.vat_rate ?? 20),
+      discountRate: String(p.discount_rate ?? 0),
+      minStock: String(p.min_stock ?? 0),
+    });
+    setCopyOpen(true);
+  }
+
+  const duplicateProduct = useMutation({
+    mutationFn: async () => {
+      if (!copyForm.name.trim()) throw new Error("Ürün adı boş olamaz.");
+      const userId = await currentUserId();
+      const { error } = await supabase.from("products").insert({
+        user_id: userId,
+        code: copyForm.code.trim(),
+        barcode: copyForm.barcode.trim(),
+        name: copyForm.name.trim(),
+        description: copyForm.description,
+        category: copyForm.category,
+        unit: copyForm.unit,
+        purchase_price: Number(copyForm.purchasePrice) || 0,
+        unit_price: Number(copyForm.unitPrice) || 0,
+        vat_rate: Number(copyForm.vatRate) || 0,
+        discount_rate: Number(copyForm.discountRate) || 0,
+        min_stock: Number(copyForm.minStock) || 0,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Yeni stok kartı kopyalanarak oluşturuldu.");
+      setCopyOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -445,7 +565,7 @@ function StockPage() {
         "Tahmini Satış Değeri",
         "Kar Marjı (%)",
       ],
-      productCostAnalysis.map((item) => [
+      filteredProductCostAnalysis.map((item) => [
         item.productName,
         item.unit,
         item.stockQty,
@@ -719,35 +839,115 @@ function StockPage() {
           </div>
 
           <Card>
-            <CardHeader className="flex flex-wrap items-center justify-between gap-3 pb-3">
-              <div>
-                <CardTitle className="text-base">Maliyet Hesaplama Yöntemi</CardTitle>
-                <CardDescription>
-                  Seçilen yönteme göre tüm ürünlerin birim maliyetleri ve toplam stok değerleri hesaplanır.
-                </CardDescription>
+            <CardHeader className="space-y-3 pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Maliyet Hesaplama Yöntemi</CardTitle>
+                  <CardDescription>
+                    Seçilen yönteme göre tüm ürünlerin birim maliyetleri ve toplam stok değerleri hesaplanır.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={valuationMethod}
+                    onValueChange={(v) => setValuationMethod(v as ValuationMethod)}
+                  >
+                    <SelectTrigger className="w-64 h-9 text-xs font-semibold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="WEIGHTED_AVG">Ağırlıklı Ortalama Maliyet</SelectItem>
+                      <SelectItem value="FIFO">FIFO (İlk Giren İlk Çıkar)</SelectItem>
+                      <SelectItem value="LAST_PURCHASE">Son Alış Fiyatı Yöntemi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={exportCostAnalysis} className="gap-1.5 text-xs">
+                    <Download className="size-3.5" /> Excel Raporu
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Select
-                  value={valuationMethod}
-                  onValueChange={(v) => setValuationMethod(v as ValuationMethod)}
-                >
-                  <SelectTrigger className="w-64 h-9 text-xs font-semibold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="WEIGHTED_AVG">Ağırlıklı Ortalama Maliyet</SelectItem>
-                    <SelectItem value="FIFO">FIFO (İlk Giren İlk Çıkar)</SelectItem>
-                    <SelectItem value="LAST_PURCHASE">Son Alış Fiyatı Yöntemi</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="sm" onClick={exportCostAnalysis} className="gap-1.5 text-xs">
-                  <Download className="size-3.5" /> Excel Raporu
-                </Button>
+
+              {/* FAZ 2C — GELİŞMİŞ FİLTRE & ARAMA PANELİ */}
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/40">
+                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+                  <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Ara: ad, kod, barkod, kategori..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-8 h-8 text-xs bg-background"
+                    />
+                  </div>
+
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="h-8 text-xs w-[140px] sm:w-[160px] bg-background">
+                      <SelectValue placeholder="Tüm Kategoriler" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Tüm Kategoriler</SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
+                    <SelectTrigger className="h-8 text-xs w-[150px] sm:w-[170px] bg-background">
+                      <SelectValue placeholder="Stok Durumu" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Tüm Stok Durumları</SelectItem>
+                      <SelectItem value="IN_STOCK">Stokta Var</SelectItem>
+                      <SelectItem value="OUT_OF_STOCK">Stokta Yok / Tükenen</SelectItem>
+                      <SelectItem value="CRITICAL">Kritik Stok Seviyesinde</SelectItem>
+                      <SelectItem value="NO_TRACK">Stok Takibi Yok</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {(search || categoryFilter !== "ALL" || stockStatusFilter !== "ALL") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSearch("");
+                        setCategoryFilter("ALL");
+                        setStockStatusFilter("ALL");
+                      }}
+                      className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Temizle
+                    </Button>
+                  )}
+                </div>
+
+                <span className="text-xs text-muted-foreground font-mono shrink-0">
+                  {filteredProductCostAnalysis.length} / {productCostAnalysis.length} ürün
+                </span>
               </div>
             </CardHeader>
             <CardContent>
               {productCostAnalysis.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4">Ürün kartı bulunmuyor.</p>
+              ) : filteredProductCostAnalysis.length === 0 ? (
+                <div className="py-12 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">Filtrelere uygun ürün bulunamadı.</p>
+                  {(search || categoryFilter !== "ALL" || stockStatusFilter !== "ALL") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearch("");
+                        setCategoryFilter("ALL");
+                        setStockStatusFilter("ALL");
+                      }}
+                    >
+                      Filtreleri Temizle
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -760,41 +960,68 @@ function StockPage() {
                         <th className="py-2.5 pr-4 text-right">Son Alış Fiyatı</th>
                         <th className="py-2.5 pr-4 text-right">Satış Fiyatı</th>
                         <th className="py-2.5 pr-4 text-right">Toplam Stok Değeri</th>
-                        <th className="py-2.5 text-right">Kar Marjı</th>
+                        <th className="py-2.5 pr-4 text-right">Kar Marjı</th>
+                        <th className="py-2.5 text-right" />
                       </tr>
                     </thead>
                     <tbody>
-                      {productCostAnalysis.map((item) => (
-                        <tr key={item.productId} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
-                          <td className="py-3 pr-4 font-medium">
-                            {item.productName}
-                            <span className="ml-1 text-xs text-muted-foreground">({item.unit})</span>
-                          </td>
-                          <td className="py-3 pr-4 text-right font-semibold">
-                            {item.stockQty}
-                          </td>
-                          <td className={`py-3 pr-4 text-right ${valuationMethod === "WEIGHTED_AVG" ? "font-bold text-primary" : ""}`}>
-                            {formatMoney(item.weightedAvgCost)}
-                          </td>
-                          <td className={`py-3 pr-4 text-right ${valuationMethod === "FIFO" ? "font-bold text-primary" : ""}`}>
-                            {formatMoney(item.fifoCost)}
-                          </td>
-                          <td className={`py-3 pr-4 text-right ${valuationMethod === "LAST_PURCHASE" ? "font-bold text-primary" : ""}`}>
-                            {formatMoney(item.lastPurchaseCost)}
-                          </td>
-                          <td className="py-3 pr-4 text-right">
-                            {formatMoney(item.salePrice)}
-                          </td>
-                          <td className="py-3 pr-4 text-right font-semibold text-primary">
-                            {formatMoney(item.totalCostValue)}
-                          </td>
-                          <td className="py-3 text-right">
-                            <Badge variant={item.profitMarginPct >= 0 ? "secondary" : "destructive"}>
-                              %{item.profitMarginPct.toFixed(1)}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredProductCostAnalysis.map((item) => {
+                        const originalProduct = products.find((p) => p.id === item.productId);
+                        const isCritical =
+                          item.trackStock === true &&
+                          item.minStock > 0 &&
+                          item.stockQty <= item.minStock;
+
+                        return (
+                          <tr key={item.productId} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
+                            <td className="py-3 pr-4 font-medium">
+                              {item.productName}
+                              <span className="ml-1 text-xs text-muted-foreground">({item.unit})</span>
+                            </td>
+                            <td className="py-3 pr-4 text-right font-semibold">
+                              <span>{item.stockQty}</span>
+                              {isCritical && (
+                                <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5 py-0 leading-tight">
+                                  Kritik
+                                </Badge>
+                              )}
+                            </td>
+                            <td className={`py-3 pr-4 text-right ${valuationMethod === "WEIGHTED_AVG" ? "font-bold text-primary" : ""}`}>
+                              {formatMoney(item.weightedAvgCost)}
+                            </td>
+                            <td className={`py-3 pr-4 text-right ${valuationMethod === "FIFO" ? "font-bold text-primary" : ""}`}>
+                              {formatMoney(item.fifoCost)}
+                            </td>
+                            <td className={`py-3 pr-4 text-right ${valuationMethod === "LAST_PURCHASE" ? "font-bold text-primary" : ""}`}>
+                              {formatMoney(item.lastPurchaseCost)}
+                            </td>
+                            <td className="py-3 pr-4 text-right">
+                              {formatMoney(item.salePrice)}
+                            </td>
+                            <td className="py-3 pr-4 text-right font-semibold text-primary">
+                              {formatMoney(item.totalCostValue)}
+                            </td>
+                            <td className="py-3 pr-4 text-right">
+                              <Badge variant={item.profitMarginPct >= 0 ? "secondary" : "destructive"}>
+                                %{item.profitMarginPct.toFixed(1)}
+                              </Badge>
+                            </td>
+                            <td className="py-3 text-right">
+                              {originalProduct && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Stok Kartını Kopyala"
+                                  className="h-7 text-xs gap-1"
+                                  onClick={() => handleOpenCopyModal(originalProduct)}
+                                >
+                                  <Copy className="size-3.5" /> Kopyala
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1053,6 +1280,135 @@ function StockPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* STOK KARTI KOPYALAMA MODALI */}
+      <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="size-4 text-primary" /> Stok Kartı Kopyala
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-3 bg-muted/60 rounded-md text-xs space-y-1 text-muted-foreground border border-border/60 mb-2">
+            <p className="font-semibold text-foreground">Kopyalama Bilgisi</p>
+            <p>
+              Bu işlem kaynak ürünü değiştirmeden bağımsız yeni bir stok kartı oluşturur. 
+              Yeni ürün <strong>0 stok miktarı</strong> ile başlar. Geçmiş stok hareketleri, faturalar ve muhasebe kayıtları <strong>kopyalanmaz</strong>.
+            </p>
+          </div>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              duplicateProduct.mutate();
+            }}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-code">Ürün Kodu</Label>
+                <Input
+                  id="stok-copy-code"
+                  value={copyForm.code}
+                  onChange={(e) => setCopyForm({ ...copyForm, code: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-barcode">Barkod</Label>
+                <Input
+                  id="stok-copy-barcode"
+                  placeholder="Barkod boş (yeni barkod girebilirsiniz)"
+                  value={copyForm.barcode}
+                  onChange={(e) => setCopyForm({ ...copyForm, barcode: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stok-copy-name">Ürün / Hizmet Adı *</Label>
+              <Input
+                id="stok-copy-name"
+                required
+                value={copyForm.name}
+                onChange={(e) => setCopyForm({ ...copyForm, name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-category">Kategori</Label>
+                <Input
+                  id="stok-copy-category"
+                  value={copyForm.category}
+                  onChange={(e) => setCopyForm({ ...copyForm, category: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-unit">Birim</Label>
+                <Input
+                  id="stok-copy-unit"
+                  value={copyForm.unit}
+                  onChange={(e) => setCopyForm({ ...copyForm, unit: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-purchasePrice">Alış Fiyatı (TL)</Label>
+                <Input
+                  id="stok-copy-purchasePrice"
+                  type="number"
+                  step="0.01"
+                  value={copyForm.purchasePrice}
+                  onChange={(e) => setCopyForm({ ...copyForm, purchasePrice: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-unitPrice">Satış Fiyatı (TL)</Label>
+                <Input
+                  id="stok-copy-unitPrice"
+                  type="number"
+                  step="0.01"
+                  value={copyForm.unitPrice}
+                  onChange={(e) => setCopyForm({ ...copyForm, unitPrice: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-vatRate">KDV %</Label>
+                <Input
+                  id="stok-copy-vatRate"
+                  type="number"
+                  value={copyForm.vatRate}
+                  onChange={(e) => setCopyForm({ ...copyForm, vatRate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stok-copy-discountRate">İskonto %</Label>
+                <Input
+                  id="stok-copy-discountRate"
+                  type="number"
+                  value={copyForm.discountRate}
+                  onChange={(e) => setCopyForm({ ...copyForm, discountRate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stok-copy-minStock">Min. Stok Uyarısı</Label>
+              <Input
+                id="stok-copy-minStock"
+                type="number"
+                value={copyForm.minStock}
+                onChange={(e) => setCopyForm({ ...copyForm, minStock: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setCopyOpen(false)}>
+                İptal
+              </Button>
+              <Button type="submit" disabled={duplicateProduct.isPending}>
+                {duplicateProduct.isPending ? "Kopyalanıyor..." : "Kopyayı Kaydet"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

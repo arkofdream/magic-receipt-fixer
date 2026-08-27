@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -172,6 +172,55 @@ function ProductsPage() {
       setForm(emptyProduct);
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyForm, setCopyForm] = useState(emptyProduct);
+
+  function handleOpenCopyModal(p: any) {
+    setCopyForm({
+      code: p.code ? `${p.code}-KOPYA` : "",
+      barcode: "", // Barkod çakışmasını önlemek için her zaman boş bırakılır
+      name: `${p.name} - Kopyası`,
+      description: p.description || "",
+      category: p.category || "",
+      unit: p.unit || "Adet",
+      purchasePrice: String(p.purchase_price ?? 0),
+      unitPrice: String(p.unit_price ?? 0),
+      vatRate: String(p.vat_rate ?? 20),
+      discountRate: String(p.discount_rate ?? 0),
+      minStock: String(p.min_stock ?? 0),
+    });
+    setCopyOpen(true);
+  }
+
+  const duplicateProduct = useMutation({
+    mutationFn: async () => {
+      if (!copyForm.name.trim()) throw new Error("Ürün adı boş olamaz.");
+      const userId = await currentUserId();
+      const { error } = await supabase.from("products").insert({
+        user_id: userId,
+        code: copyForm.code.trim(),
+        barcode: copyForm.barcode.trim(),
+        name: copyForm.name.trim(),
+        description: copyForm.description,
+        category: copyForm.category,
+        unit: copyForm.unit,
+        purchase_price: Number(copyForm.purchasePrice) || 0,
+        unit_price: Number(copyForm.unitPrice) || 0,
+        vat_rate: Number(copyForm.vatRate) || 0,
+        discount_rate: Number(copyForm.discountRate) || 0,
+        min_stock: Number(copyForm.minStock) || 0,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Yeni stok kartı kopyalanarak oluşturuldu.");
+      setCopyOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -449,10 +498,20 @@ function ProductsPage() {
                             </Badge>
                           ) : null}
                         </td>
-                        <td className="py-3 text-right">
+                        <td className="py-3 text-right space-x-1">
                           <Button
                             variant="ghost"
                             size="sm"
+                            title="Stok Kartını Kopyala"
+                            className="gap-1 text-xs"
+                            onClick={() => handleOpenCopyModal(p)}
+                          >
+                            <Copy className="size-3.5" /> Kopyala
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive text-xs"
                             onClick={() => removeProduct.mutate(p.id)}
                           >
                             Sil
@@ -467,6 +526,135 @@ function ProductsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* STOK KARTI KOPYALAMA MODALI */}
+      <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="size-4 text-primary" /> Stok Kartı Kopyala
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-3 bg-muted/60 rounded-md text-xs space-y-1 text-muted-foreground border border-border/60 mb-2">
+            <p className="font-semibold text-foreground">Kopyalama Bilgisi</p>
+            <p>
+              Bu işlem kaynak ürünü değiştirmeden bağımsız yeni bir stok kartı oluşturur. 
+              Yeni ürün <strong>0 stok miktarı</strong> ile başlar. Geçmiş stok hareketleri, faturalar ve muhasebe kayıtları <strong>kopyalanmaz</strong>.
+            </p>
+          </div>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              duplicateProduct.mutate();
+            }}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="copy-code">Ürün Kodu</Label>
+                <Input
+                  id="copy-code"
+                  value={copyForm.code}
+                  onChange={(e) => setCopyForm({ ...copyForm, code: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="copy-barcode">Barkod</Label>
+                <Input
+                  id="copy-barcode"
+                  placeholder="Barkod boş (yeni barkod girebilirsiniz)"
+                  value={copyForm.barcode}
+                  onChange={(e) => setCopyForm({ ...copyForm, barcode: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="copy-name">Ürün / Hizmet Adı *</Label>
+              <Input
+                id="copy-name"
+                required
+                value={copyForm.name}
+                onChange={(e) => setCopyForm({ ...copyForm, name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="copy-category">Kategori</Label>
+                <Input
+                  id="copy-category"
+                  value={copyForm.category}
+                  onChange={(e) => setCopyForm({ ...copyForm, category: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="copy-unit">Birim</Label>
+                <Input
+                  id="copy-unit"
+                  value={copyForm.unit}
+                  onChange={(e) => setCopyForm({ ...copyForm, unit: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="copy-purchasePrice">Alış Fiyatı (TL)</Label>
+                <Input
+                  id="copy-purchasePrice"
+                  type="number"
+                  step="0.01"
+                  value={copyForm.purchasePrice}
+                  onChange={(e) => setCopyForm({ ...copyForm, purchasePrice: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="copy-unitPrice">Satış Fiyatı (TL)</Label>
+                <Input
+                  id="copy-unitPrice"
+                  type="number"
+                  step="0.01"
+                  value={copyForm.unitPrice}
+                  onChange={(e) => setCopyForm({ ...copyForm, unitPrice: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="copy-vatRate">KDV %</Label>
+                <Input
+                  id="copy-vatRate"
+                  type="number"
+                  value={copyForm.vatRate}
+                  onChange={(e) => setCopyForm({ ...copyForm, vatRate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="copy-discountRate">İskonto %</Label>
+                <Input
+                  id="copy-discountRate"
+                  type="number"
+                  value={copyForm.discountRate}
+                  onChange={(e) => setCopyForm({ ...copyForm, discountRate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="copy-minStock">Min. Stok Uyarısı</Label>
+              <Input
+                id="copy-minStock"
+                type="number"
+                value={copyForm.minStock}
+                onChange={(e) => setCopyForm({ ...copyForm, minStock: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setCopyOpen(false)}>
+                İptal
+              </Button>
+              <Button type="submit" disabled={duplicateProduct.isPending}>
+                {duplicateProduct.isPending ? "Kopyalanıyor..." : "Kopyayı Kaydet"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

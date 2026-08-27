@@ -20,6 +20,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isMissingColumnError } from "@/lib/safe-supabase";
 import {
@@ -76,6 +86,93 @@ export const Route = createFileRoute("/_authenticated/fatura-kes")({
   component: NewInvoicePage,
 });
 
+function ProductCombobox({
+  value,
+  onSelect,
+  disabled,
+  products,
+  isLoading,
+  operationMode,
+}: {
+  value?: string;
+  onSelect: (id: string) => void;
+  disabled?: boolean;
+  products: Array<{ id: string; name: string; code?: string; unit_price?: number; purchase_price?: number }>;
+  isLoading?: boolean;
+  operationMode?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedProduct = products.find((p) => p.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className="h-8 w-full justify-between text-xs bg-background font-normal px-2.5"
+        >
+          <span className="truncate">
+            {selectedProduct ? selectedProduct.name : "Katalogdan ürün seç (isteğe bağlı)..."}
+          </span>
+          <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] sm:w-[360px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Ürün adı veya kodu ara..." className="h-8 text-xs" />
+          <CommandList className="max-h-[220px] overflow-y-auto">
+            {isLoading ? (
+              <div className="p-3 text-xs text-muted-foreground text-center">Ürünler yükleniyor...</div>
+            ) : (
+              <>
+                <CommandEmpty className="py-3 text-xs text-muted-foreground text-center">
+                  Ürün bulunamadı.
+                </CommandEmpty>
+                <CommandGroup>
+                  {products.map((p) => {
+                    const isPurchase = operationMode === "ALIS" || operationMode === "ALIS_IADE";
+                    const priceText = isPurchase
+                      ? `Alış: ${formatMoney(p.purchase_price ?? 0)}`
+                      : `Satış: ${formatMoney(p.unit_price ?? 0)}`;
+                    const isSelected = p.id === value;
+
+                    return (
+                      <CommandItem
+                        key={p.id}
+                        value={`${p.name} ${p.code || ""}`}
+                        onSelect={() => {
+                          onSelect(p.id);
+                          setOpen(false);
+                        }}
+                        className="text-xs flex items-center justify-between py-1.5 px-2 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <Check
+                            className={`size-3.5 text-primary ${
+                              isSelected ? "opacity-100" : "opacity-0"
+                            }`}
+                          />
+                          <span className="truncate font-medium">{p.name}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-mono ml-2 shrink-0">
+                          {priceText}
+                        </span>
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function NewInvoicePage() {
   const navigate = useNavigate();
   const searchParams = Route.useSearch();
@@ -117,7 +214,11 @@ function NewInvoicePage() {
   } = useQuery({
     queryKey: ["products", "catalog"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").order("name");
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .is("deleted_at", null)
+        .order("name");
       if (error) throw error;
       return data ?? [];
     },
@@ -306,6 +407,11 @@ function NewInvoicePage() {
     });
   }
 
+function isInvalidQuantity(qty: number | undefined | null): boolean {
+  if (qty === undefined || qty === null || isNaN(qty)) return true;
+  return qty <= 0;
+}
+
   const saveInvoice = useMutation({
     mutationFn: async (newStatus: "TASLAK" | "ONAYLANDI" = "TASLAK") => {
       if (isNonEditable) {
@@ -316,6 +422,10 @@ function NewInvoicePage() {
       }
       if (items.length === 0 || items.some((i) => !i.name.trim())) {
         throw new Error("En az bir geçerli açıklamayla fatura kalemi girmelisiniz.");
+      }
+      const invalidQtyIndex = items.findIndex((i) => isInvalidQuantity(i.quantity));
+      if (invalidQtyIndex !== -1) {
+        throw new Error(`${invalidQtyIndex + 1}. kalem için miktar 0'dan büyük bir sayı olmalıdır.`);
       }
 
       const { data: userData } = await supabase.auth.getUser();
@@ -779,10 +889,10 @@ function NewInvoicePage() {
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base">Mal / Hizmet Kalemleri</CardTitle>
+                <CardTitle className="text-base">Mal / Hizmet Kalemleri ({items.length})</CardTitle>
                 <CardDescription>
                   {operationMode === "ALIS"
-                    ? "Alış yapılan ürünler ve net birim alış fiyatları (KDV stok maliyetine dahil edilmez)"
+                    ? "Alış yapılan ürünler ve net birim alış fiyatları"
                     : "Satış kalemleri ve KDV oranları"}
                 </CardDescription>
               </div>
@@ -792,141 +902,341 @@ function NewInvoicePage() {
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="space-y-4">
-              {items.map((item, index) => {
-                const t = itemTotals(item);
-                return (
-                  <div
-                    key={item.id}
-                    className="p-3.5 rounded-lg border border-border/70 bg-card/40 space-y-3"
+            <CardContent className="space-y-3">
+              {/* DESKTOP & TABLET KOMPAKT TABLO GÖRÜNÜMÜ */}
+              <div className="hidden md:block overflow-x-auto rounded-md border border-border/60">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border/60 text-muted-foreground font-medium">
+                      <th className="py-2 px-2.5 w-8 text-center">#</th>
+                      <th className="py-2 px-2.5 min-w-[220px]">Katalog & Kalem Açıklaması</th>
+                      <th className="py-2 px-2.5 w-24">Miktar</th>
+                      <th className="py-2 px-2.5 w-28">Birim</th>
+                      <th className="py-2 px-2.5 w-32">
+                        {operationMode === "ALIS" ? "Alış Fiyatı" : "Birim Fiyat"}
+                      </th>
+                      <th className="py-2 px-2.5 w-20">KDV</th>
+                      <th className="py-2 px-2.5 w-20">İsk. %</th>
+                      <th className="py-2 px-2.5 w-32 text-right">Satır Toplamı</th>
+                      {!isNonEditable && <th className="py-2 px-2 w-10 text-center"></th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {items.map((item, index) => {
+                      const t = itemTotals(item);
+                      return (
+                        <tr key={item.id} className="hover:bg-muted/20 transition-colors">
+                          {/* 1. SIRA NO */}
+                          <td className="py-2 px-2.5 text-center font-bold text-muted-foreground font-mono align-top pt-3">
+                            {index + 1}
+                          </td>
+
+                          {/* 2. KATALOG & KALEM AÇIKLAMASI */}
+                          <td className="py-2 px-2.5 space-y-1.5 align-top">
+                            <ProductCombobox
+                              value={item.productId || undefined}
+                              onSelect={(val) => handleProductSelect(item.id, val)}
+                              disabled={isNonEditable}
+                              products={products}
+                              isLoading={productsLoading}
+                              operationMode={operationMode}
+                            />
+                            <Input
+                              className="h-8 text-xs bg-background"
+                              value={item.name}
+                              onChange={(e) => updateItem(item.id, { name: e.target.value })}
+                              placeholder="Ürün veya hizmet açıklaması *"
+                              disabled={isNonEditable}
+                            />
+                          </td>
+
+                          {/* 3. MİKTAR */}
+                          <td className="py-2 px-2.5 align-top pt-2">
+                            {(() => {
+                              const isQtyError = isInvalidQuantity(item.quantity);
+                              return (
+                                <div className="space-y-1">
+                                  <Input
+                                    className={`h-8 text-xs bg-background font-mono ${
+                                      isQtyError
+                                        ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold"
+                                        : ""
+                                    }`}
+                                    type="number"
+                                    min="0.0001"
+                                    step="any"
+                                    value={item.quantity === 0 ? "" : item.quantity}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(",", ".");
+                                      const parsed = val === "" ? 0 : Number(val);
+                                      updateItem(item.id, { quantity: isNaN(parsed) ? 0 : parsed });
+                                    }}
+                                    disabled={isNonEditable}
+                                  />
+                                  {isQtyError && (
+                                    <span className="text-[10px] text-destructive font-medium block leading-tight">
+                                      Miktar &gt; 0 olmalı
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+
+                          {/* 4. BİRİM */}
+                          <td className="py-2 px-2.5 align-top pt-2">
+                            <Select
+                              value={item.unit || "Adet"}
+                              onValueChange={(v) => updateItem(item.id, { unit: v })}
+                              disabled={isNonEditable}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background">
+                                <SelectValue placeholder="Birim" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {UNIT_OPTIONS.map((u) => (
+                                  <SelectItem key={u} value={u}>
+                                    {u}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+
+                          {/* 5. BİRİM FİYAT */}
+                          <td className="py-2 px-2.5 align-top pt-2">
+                            <Input
+                              className="h-8 text-xs bg-background font-mono"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })}
+                              disabled={isNonEditable}
+                            />
+                          </td>
+
+                          {/* 6. KDV */}
+                          <td className="py-2 px-2.5 align-top pt-2">
+                            <Select
+                              value={String(item.vatRate ?? 20)}
+                              onValueChange={(v) => updateItem(item.id, { vatRate: Number(v) })}
+                              disabled={isNonEditable}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {VAT_RATES.map((rate) => (
+                                  <SelectItem key={rate} value={String(rate)}>
+                                    %{rate}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+
+                          {/* 7. İSKONTO */}
+                          <td className="py-2 px-2.5 align-top pt-2">
+                            <Input
+                              className="h-8 text-xs bg-background font-mono"
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={item.discountRate || 0}
+                              onChange={(e) => updateItem(item.id, { discountRate: Number(e.target.value) })}
+                              disabled={isNonEditable}
+                            />
+                          </td>
+
+                          {/* 8. SATIR TOPLAMI */}
+                          <td className="py-2 px-2.5 text-right font-mono align-top pt-2.5">
+                            <div className="font-semibold text-xs text-foreground">
+                              {formatMoney(t.total, currency)}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              Matrah: {formatMoney(t.taxable, currency)}
+                            </div>
+                          </td>
+
+                          {/* 9. İŞLEMLER */}
+                          {!isNonEditable && (
+                            <td className="py-2 px-2 text-center align-top pt-2">
+                              {items.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                  onClick={() => removeItem(item.id)}
+                                  title="Kalemi Sil"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MOBİL UYUMLU KOMPAKT KART GÖRÜNÜMÜ (md:hidden) */}
+              <div className="md:hidden space-y-3">
+                {items.map((item, index) => {
+                  const t = itemTotals(item);
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-lg border border-border/70 bg-card/40 space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-muted-foreground font-mono">
+                          #{index + 1}
+                        </span>
+                        <div className="flex-1 max-w-xs">
+                          <ProductCombobox
+                            value={item.productId || undefined}
+                            onSelect={(val) => handleProductSelect(item.id, val)}
+                            disabled={isNonEditable}
+                            products={products}
+                            isLoading={productsLoading}
+                            operationMode={operationMode}
+                          />
+                        </div>
+                        {!isNonEditable && items.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            onClick={() => removeItem(item.id)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <Input
+                        className="h-8 text-xs"
+                        value={item.name}
+                        onChange={(e) => updateItem(item.id, { name: e.target.value })}
+                        placeholder="Kalem açıklaması"
+                        disabled={isNonEditable}
+                      />
+
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          {(() => {
+                            const isQtyError = isInvalidQuantity(item.quantity);
+                            return (
+                              <>
+                                <Label className={`text-[10px] ${isQtyError ? "text-destructive font-bold" : ""}`}>
+                                  Miktar
+                                </Label>
+                                <Input
+                                  className={`h-8 text-xs font-mono ${
+                                    isQtyError
+                                      ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold"
+                                      : ""
+                                  }`}
+                                  type="number"
+                                  min="0.0001"
+                                  step="any"
+                                  value={item.quantity === 0 ? "" : item.quantity}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(",", ".");
+                                    const parsed = val === "" ? 0 : Number(val);
+                                    updateItem(item.id, { quantity: isNaN(parsed) ? 0 : parsed });
+                                  }}
+                                  disabled={isNonEditable}
+                                />
+                                {isQtyError && (
+                                  <span className="text-[9px] text-destructive font-medium block leading-tight mt-0.5">
+                                    Miktar &gt; 0 olmalı
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                        <div>
+                          <Label className="text-[10px]">Birim</Label>
+                          <Select
+                            value={item.unit || "Adet"}
+                            onValueChange={(v) => updateItem(item.id, { unit: v })}
+                            disabled={isNonEditable}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {UNIT_OPTIONS.map((u) => (
+                                <SelectItem key={u} value={u}>
+                                  {u}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-[10px]">Fiyat</Label>
+                          <Input
+                            className="h-8 text-xs font-mono"
+                            type="number"
+                            value={item.unitPrice}
+                            onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })}
+                            disabled={isNonEditable}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px]">KDV</Label>
+                          <Select
+                            value={String(item.vatRate ?? 20)}
+                            onValueChange={(v) => updateItem(item.id, { vatRate: Number(v) })}
+                            disabled={isNonEditable}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {VAT_RATES.map((rate) => (
+                                <SelectItem key={rate} value={String(rate)}>
+                                  %{rate}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 text-xs">
+                        <span className="text-muted-foreground font-mono text-[11px]">
+                          Matrah: {formatMoney(t.taxable, currency)}
+                        </span>
+                        <span className="font-semibold font-mono text-primary">
+                          Toplam: {formatMoney(t.total, currency)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ALT KALEM EKLE BUTONU */}
+              {!isNonEditable && (
+                <div className="pt-2 flex justify-start">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={addItem}
+                    className="gap-1.5 text-xs border-dashed"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-muted-foreground font-mono">
-                        #{index + 1}
-                      </span>
-                      <div className="flex items-center gap-2 flex-1 max-w-sm">
-                        <Select
-                          value={item.productId || undefined}
-                          onValueChange={(val) => handleProductSelect(item.id, val)}
-                          disabled={isNonEditable}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Katalogdan ürün seç..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((p) => (
-                              <SelectItem key={p.id} value={p.id} className="text-xs">
-                                {p.name} (Alış: {formatMoney(p.purchase_price ?? 0)} / Satış: {formatMoney(p.unit_price ?? 0)})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {!isNonEditable && items.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="grid gap-2.5 sm:grid-cols-12">
-                      <div className="sm:col-span-4 space-y-1">
-                        <Label className="text-xs">Kalem Açıklaması *</Label>
-                        <Input
-                          className="h-9"
-                          value={item.name}
-                          onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                          placeholder="Ürün veya hizmet açıklaması"
-                          disabled={isNonEditable}
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2 space-y-1">
-                        <Label className="text-xs">Miktar</Label>
-                        <Input
-                          className="h-9"
-                          type="number"
-                          min="0.001"
-                          step="0.001"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(item.id, { quantity: Number(e.target.value) })}
-                          disabled={isNonEditable}
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2 space-y-1">
-                        <Label className="text-xs">Birim</Label>
-                        <Select
-                          value={item.unit || "Adet"}
-                          onValueChange={(v) => updateItem(item.id, { unit: v })}
-                          disabled={isNonEditable}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Birim" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {UNIT_OPTIONS.map((u) => (
-                              <SelectItem key={u} value={u}>
-                                {u}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="sm:col-span-2 space-y-1">
-                        <Label className="text-xs">
-                          {operationMode === "ALIS" ? "Alış Fiyatı (TL)" : "Birim Fiyat (TL)"}
-                        </Label>
-                        <Input
-                          className="h-9"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })}
-                          disabled={isNonEditable}
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2 space-y-1">
-                        <Label className="text-xs">KDV %</Label>
-                        <Select
-                          value={String(item.vatRate ?? 20)}
-                          onValueChange={(v) => updateItem(item.id, { vatRate: Number(v) })}
-                          disabled={isNonEditable}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {VAT_RATES.map((rate) => (
-                              <SelectItem key={rate} value={String(rate)}>
-                                %{rate}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-border/50 pt-2 text-xs">
-                      <span className="text-muted-foreground font-mono">
-                        Matrah: {formatMoney(t.taxable, currency)} | KDV: {formatMoney(t.vat, currency)}
-                      </span>
-                      <span className="font-semibold text-sm font-mono text-primary">
-                        Toplam: {formatMoney(t.total, currency)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                    <PlusCircle className="size-3.5" /> Kalem Ekle
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
