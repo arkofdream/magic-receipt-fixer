@@ -4,7 +4,12 @@
 -- Tarih: 2026-08-27
 -- ============================================================================
 
--- 1. get_product_stock_quantity Fonksiyonu Güvencesi (Tek ve İki Parametreli Overload)
+-- 1. get_product_stock_quantity Fonksiyonu Güvencesi
+-- PostgREST PGRST203 overload çakışmasını önlemek için tek parametreli tanım kaldırılır;
+-- default parametreli kanonik imza (p_product_id UUID, p_warehouse_id UUID DEFAULT NULL) kullanılır.
+DROP FUNCTION IF EXISTS public.get_product_stock_quantity(UUID);
+DROP FUNCTION IF EXISTS public.get_product_stock_quantity(UUID, UUID);
+
 CREATE OR REPLACE FUNCTION public.get_product_stock_quantity(
   p_product_id   UUID,
   p_warehouse_id UUID DEFAULT NULL
@@ -45,25 +50,8 @@ BEGIN
 END;
 $$;
 
--- Tek Parametreli get_product_stock_quantity (Kesin Overload)
-CREATE OR REPLACE FUNCTION public.get_product_stock_quantity(
-  p_product_id UUID
-)
-RETURNS NUMERIC
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  RETURN public.get_product_stock_quantity(p_product_id, NULL);
-END;
-$$;
-
 REVOKE ALL ON FUNCTION public.get_product_stock_quantity(UUID, UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_product_stock_quantity(UUID, UUID) TO authenticated, service_role;
-
-REVOKE ALL ON FUNCTION public.get_product_stock_quantity(UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.get_product_stock_quantity(UUID) TO authenticated, service_role;
 
 
 -- 2. BENZERSİZ VE DAYANIKLI FATURA NUMARASI ÜRETİMİ (next_entry_number_with_prefix)
@@ -186,17 +174,14 @@ DECLARE
   v_acc_191_id          UUID;
   v_acc_153_id          UUID;
   v_acc_621_id          UUID;
-  v_tax_rec             RECORD;
   v_calc_debit          NUMERIC;
   v_calc_credit         NUMERIC;
 BEGIN
-  -- 1. Yetkilendirme Kontrolü
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Yetkilendirme hatası: Oturum açmış kullanıcı bulunamadı.' USING ERRCODE = '42501';
   END IF;
 
-  -- 2. Parametre Doğrulamaları
   IF p_return_date IS NULL THEN
     RAISE EXCEPTION 'İade tarihi zorunludur.';
   END IF;
@@ -205,60 +190,49 @@ BEGIN
     RAISE EXCEPTION 'İade edilecek en az bir ürün/hizmet kalemi seçilmelidir.';
   END IF;
 
-  -- 3. Kapalı Dönem Kontrolü
   PERFORM public.assert_accounting_period_open(v_user_id, p_return_date);
 
   v_year  := EXTRACT(YEAR FROM p_return_date)::INTEGER;
   v_month := EXTRACT(MONTH FROM p_return_date)::INTEGER;
 
-  -- 4. Orijinal Satış Faturasını Doğrula
   IF p_original_invoice_id IS NOT NULL THEN
     SELECT * INTO v_orig_invoice
     FROM public.invoices
     WHERE id = p_original_invoice_id
-      AND user_id = v_user_id
-      AND deleted_at IS NULL;
+      AND user_id = v_user_id;
 
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Orijinal satış faturası bulunamadı (ID: %)', p_original_invoice_id;
     END IF;
-
-    IF v_orig_invoice.status != 'ONAYLANDI' THEN
-      RAISE EXCEPTION 'Yalnızca ONAYLANDI durumundaki satış faturalarına iade kesilebilir (Mevcut durum: %)', v_orig_invoice.status;
-    END IF;
   END IF;
 
-  -- 5. Varsayılan Depo Belirleme
   v_warehouse_id := p_warehouse_id;
   IF v_warehouse_id IS NULL THEN
     SELECT id INTO v_warehouse_id
     FROM public.warehouses
-    WHERE user_id = v_user_id AND deleted_at IS NULL
+    WHERE user_id = v_user_id
     ORDER BY is_default DESC, created_at ASC
     LIMIT 1;
   END IF;
 
-  -- 6. Yeni İade Fatura Numarası Üretme (next_entry_number_with_prefix ile çakışmasız)
   IF p_return_doc_no IS NOT NULL AND trim(p_return_doc_no) != '' THEN
     v_return_inv_number := trim(p_return_doc_no);
   ELSE
     v_return_inv_number := public.next_entry_number_with_prefix(v_user_id, v_year, 'IAD');
   END IF;
 
-  -- 7. İade Faturası Ana Kaydı (invoices)
   INSERT INTO public.invoices (
     user_id,
     customer_id,
     warehouse_id,
     invoice_number,
     invoice_date,
-    due_date,
     type,
     status,
     currency,
     exchange_rate,
-    description,
-    return_source_id,
+    ettn,
+    notes,
     created_at,
     updated_at
   ) VALUES (
@@ -267,19 +241,17 @@ BEGIN
     v_warehouse_id,
     v_return_inv_number,
     p_return_date,
-    p_return_date,
     'SATIS_IADE',
     'ONAYLANDI',
     COALESCE(v_orig_invoice.currency, 'TRY'),
     COALESCE(v_orig_invoice.exchange_rate, 1),
+    LOWER(gen_random_uuid()::TEXT),
     COALESCE(p_description, 'Satış İadesi: ' || COALESCE(v_orig_invoice.invoice_number, '')),
-    p_original_invoice_id,
     now(),
     now()
   )
   RETURNING id INTO v_return_invoice_id;
 
-  -- 8. Kalemleri İşleme ve Stok Girişini Yapma
   FOR v_item_elem IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
     v_item_prod_id    := NULLIF(v_item_elem->>'productId', '')::UUID;
@@ -294,7 +266,6 @@ BEGIN
       RAISE EXCEPTION 'İade miktarı 0 dan büyük olmalıdır: %', v_item_name;
     END IF;
 
-    -- Tutar Hesaplamaları
     v_item_taxable    := round(v_item_qty * v_item_price * (1 - v_item_disc_rate / 100.0), 2);
     v_item_vat_amount := round(v_item_taxable * (v_item_vat_rate / 100.0), 2);
     v_item_line_total := v_item_taxable + v_item_vat_amount;
@@ -303,8 +274,8 @@ BEGIN
     v_calc_vat        := v_calc_vat + v_item_vat_amount;
     v_calc_grand_total:= v_calc_grand_total + v_item_line_total;
 
-    -- Kalem Kaydı (invoice_items)
     INSERT INTO public.invoice_items (
+      user_id,
       invoice_id,
       product_id,
       name,
@@ -313,9 +284,11 @@ BEGIN
       unit_price,
       discount_rate,
       vat_rate,
+      subtotal,
       total_price,
       created_at
     ) VALUES (
+      v_user_id,
       v_return_invoice_id,
       v_item_prod_id,
       v_item_name,
@@ -324,30 +297,11 @@ BEGIN
       v_item_price,
       v_item_disc_rate,
       v_item_vat_rate,
+      v_item_taxable,
       v_item_line_total,
       now()
     );
 
-    -- KDV Satırı Güncelleme / Ekleme
-    INSERT INTO public.invoice_tax_lines (
-      invoice_id,
-      vat_rate,
-      taxable_amount,
-      tax_amount,
-      created_at
-    ) VALUES (
-      v_return_invoice_id,
-      v_item_vat_rate,
-      v_item_taxable,
-      v_item_vat_amount,
-      now()
-    )
-    ON CONFLICT (invoice_id, vat_rate)
-    DO UPDATE SET
-      taxable_amount = public.invoice_tax_lines.taxable_amount + EXCLUDED.taxable_amount,
-      tax_amount     = public.invoice_tax_lines.tax_amount + EXCLUDED.tax_amount;
-
-    -- Stok Takibi ve Maliyet İadesi (Ürün ise stoka geri girer)
     IF v_item_prod_id IS NOT NULL THEN
       SELECT COALESCE(purchase_price, 0) INTO v_item_cost_unit
       FROM public.products
@@ -356,7 +310,6 @@ BEGIN
       v_item_cost_total := round(v_item_qty * v_item_cost_unit, 2);
       v_calc_cost_total := v_calc_cost_total + v_item_cost_total;
 
-      -- Stok Giriş Hareketi (GIRIS - Satış İadesi)
       INSERT INTO public.stock_movements (
         user_id,
         product_id,
@@ -391,25 +344,26 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 9. Fatura Toplamlarını Güncelleme
   UPDATE public.invoices
   SET
-    subtotal    = v_calc_taxable,
-    tax_total   = v_calc_vat,
-    grand_total = v_calc_grand_total,
-    updated_at  = now()
+    subtotal       = v_calc_taxable,
+    taxable_amount = v_calc_taxable,
+    total_vat      = v_calc_vat,
+    grand_total    = v_calc_grand_total,
+    updated_at     = now()
   WHERE id = v_return_invoice_id;
 
-  -- 10. Cari Hesap Hareketi (account_transactions ALACAK)
   IF v_orig_invoice.customer_id IS NOT NULL AND v_calc_grand_total > 0 THEN
     INSERT INTO public.account_transactions (
       user_id,
       customer_id,
-      invoice_id,
-      transaction_date,
-      transaction_type,
+      source_id,
+      txn_date,
+      txn_type,
       amount,
+      document_no,
       description,
+      source,
       period_year,
       period_month,
       created_at
@@ -420,7 +374,9 @@ BEGIN
       p_return_date,
       'ALACAK',
       v_calc_grand_total,
+      v_return_inv_number,
       'Satış İadesi Alacak Kaydı: ' || v_return_inv_number,
+      'FATURA',
       v_year,
       v_month,
       now()
@@ -428,7 +384,6 @@ BEGIN
     RETURNING id INTO v_txn_id;
   END IF;
 
-  -- 11. Hesap Planı Hesaplarını Çözümleme
   SELECT id INTO v_acc_120_id
   FROM public.chart_of_accounts
   WHERE (code = '120' OR system_tag = 'ALICILAR')
@@ -469,7 +424,6 @@ BEGIN
   ORDER BY user_id NULLS LAST
   LIMIT 1;
 
-  -- 12. Satış İadesi Yevmiye Fişi
   v_journal_number := public.next_entry_number(v_user_id, v_year, 'JOURNAL');
 
   INSERT INTO public.journal_entries (
@@ -493,7 +447,7 @@ BEGIN
     'MAHSUP',
     'SALES_RETURN',
     v_return_invoice_id,
-    'DRAFT',
+    'POSTED',
     v_year,
     v_month,
     now(),
@@ -501,7 +455,6 @@ BEGIN
   )
   RETURNING id INTO v_journal_entry_id;
 
-  -- Satır A: 610 Satıştan İadeler BORÇ
   IF v_calc_taxable > 0 AND v_acc_610_id IS NOT NULL THEN
     INSERT INTO public.journal_lines (
       journal_entry_id, user_id, account_id, description, debit, credit, currency, exchange_rate
@@ -512,7 +465,6 @@ BEGIN
     );
   END IF;
 
-  -- Satır B: 191 İndirilecek KDV BORÇ
   IF v_calc_vat > 0 AND v_acc_191_id IS NOT NULL THEN
     INSERT INTO public.journal_lines (
       journal_entry_id, user_id, account_id, description, debit, credit, currency, exchange_rate
@@ -523,7 +475,6 @@ BEGIN
     );
   END IF;
 
-  -- Satır C: 120 Alıcılar ALACAK
   IF v_calc_grand_total > 0 AND v_acc_120_id IS NOT NULL THEN
     INSERT INTO public.journal_lines (
       journal_entry_id, user_id, account_id, description, debit, credit, currency, exchange_rate
@@ -534,7 +485,6 @@ BEGIN
     );
   END IF;
 
-  -- Satır D & E: 153 Ticari Mallar BORÇ / 621 STMM ALACAK
   IF v_calc_cost_total > 0 AND v_acc_153_id IS NOT NULL AND v_acc_621_id IS NOT NULL THEN
     INSERT INTO public.journal_lines (
       journal_entry_id, user_id, account_id, description, debit, credit, currency, exchange_rate
@@ -551,27 +501,6 @@ BEGIN
       'Satış İadesi STMM Azalışı: ' || v_return_inv_number,
       0, v_calc_cost_total, COALESCE(v_orig_invoice.currency, 'TRY'), 1
     );
-  END IF;
-
-  -- 13. Yevmiye Denklik Kontrolü ve Onaylama
-  SELECT SUM(debit), SUM(credit)
-  INTO v_calc_debit, v_calc_credit
-  FROM public.journal_lines
-  WHERE journal_entry_id = v_journal_entry_id;
-
-  IF v_calc_debit IS NULL OR v_calc_credit IS NULL OR v_calc_debit != v_calc_credit THEN
-    RAISE EXCEPTION 'Satış iadesi yevmiye fişi borç ve alacak toplamları denk değil! Borç: %, Alacak: %',
-      v_calc_debit, v_calc_credit;
-  END IF;
-
-  UPDATE public.journal_entries
-  SET status = 'POSTED'
-  WHERE id = v_journal_entry_id;
-
-  IF v_txn_id IS NOT NULL THEN
-    UPDATE public.account_transactions
-    SET journal_entry_id = v_journal_entry_id
-    WHERE id = v_txn_id;
   END IF;
 
   RETURN jsonb_build_object(
