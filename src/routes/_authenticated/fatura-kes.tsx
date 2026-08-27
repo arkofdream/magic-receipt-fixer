@@ -1,7 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Trash2, AlertCircle, Info, Check, Edit, PlusCircle, ArrowLeft, ShoppingCart, Send, RotateCcw } from "lucide-react";
+import {
+  Trash2,
+  AlertCircle,
+  Info,
+  Check,
+  Edit,
+  PlusCircle,
+  ArrowLeft,
+  ShoppingCart,
+  Send,
+  RotateCcw,
+  Eye,
+  EyeOff,
+  CornerUpLeft,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -56,31 +70,34 @@ import {
 
 type SearchParams = {
   editId?: string | undefined;
-  mode?: "SATIS" | "ALIS" | "ALIS_IADE" | undefined;
+  mode?: "SATIS" | "SATIS_IADE" | "ALIS" | "ALIS_IADE" | undefined;
   returnInvoiceId?: string | undefined;
 };
 
 export const Route = createFileRoute("/_authenticated/fatura-kes")({
   validateSearch: (search: Record<string, unknown>): SearchParams => {
     const editId = search["editId"];
-    const mode = search["mode"] as "SATIS" | "ALIS" | "ALIS_IADE" | undefined;
+    const mode = search["mode"] as "SATIS" | "SATIS_IADE" | "ALIS" | "ALIS_IADE" | undefined;
     const returnInvoiceId = search["returnInvoiceId"] as string | undefined;
     return {
       editId: typeof editId === "string" ? editId : undefined,
-      mode: mode === "ALIS" || mode === "ALIS_IADE" || mode === "SATIS" ? mode : undefined,
+      mode:
+        mode === "ALIS" || mode === "ALIS_IADE" || mode === "SATIS" || mode === "SATIS_IADE"
+          ? mode
+          : undefined,
       returnInvoiceId: typeof returnInvoiceId === "string" ? returnInvoiceId : undefined,
     };
   },
   head: () => ({
     meta: [
-      { title: "Fatura Kes & Alış Girişi | e-Fatura Portalı" },
+      { title: "Fatura Kes, Satış & Alış İadesi | e-Fatura Portalı" },
       {
         name: "description",
         content:
-          "Satış faturası kesin, tedarikçi alış faturası işleyin veya alış iadesi oluşturun. KDV ve tevkifat otomatik hesaplanır.",
+          "Satış faturası kesin, satış iadesi kaydedin, tedarikçi alış faturası işleyin veya alış iadesi oluşturun. KDV ve tevkifat otomatik hesaplanır.",
       },
-      { property: "og:title", content: "Fatura Kes & Alış Girişi | e-Fatura Portalı" },
-      { property: "og:description", content: "Satış, alış ve iade faturaları yönetimi." },
+      { property: "og:title", content: "Fatura Kes, Satış & Alış İadesi | e-Fatura Portalı" },
+      { property: "og:description", content: "Satış, satış iadesi, alış ve alış iadesi faturaları yönetimi." },
     ],
   }),
   component: NewInvoicePage,
@@ -115,7 +132,7 @@ function ProductCombobox({
           className="h-8 w-full justify-between text-xs bg-background font-normal px-2.5"
         >
           <span className="truncate">
-            {selectedProduct ? selectedProduct.name : "Katalogdan ürün seç (isteğe bağlı)..."}
+            {selectedProduct ? selectedProduct.name : "Katalogdan ürün seç..."}
           </span>
           <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
         </Button>
@@ -178,58 +195,73 @@ function NewInvoicePage() {
   const searchParams = Route.useSearch();
   const editId = searchParams.editId;
   const initialMode = searchParams.mode || "SATIS";
-  const returnInvoiceId = searchParams.returnInvoiceId;
+  const initialReturnInvoiceId = searchParams.returnInvoiceId;
+
   const queryClient = useQueryClient();
 
-  const [operationMode, setOperationMode] = useState<"SATIS" | "ALIS" | "ALIS_IADE">(initialMode);
+  // İşlem Modu: "SATIS" | "SATIS_IADE" | "ALIS" | "ALIS_IADE"
+  const [operationMode, setOperationMode] = useState<"SATIS" | "SATIS_IADE" | "ALIS" | "ALIS_IADE">(initialMode);
   const [type, setType] = useState("SATIS");
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [currency, setCurrency] = useState("TRY");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [customerId, setCustomerId] = useState("");
   const [customer, setCustomer] = useState<InvoiceCustomer>(emptyCustomer);
-  const [customerId, setCustomerId] = useState<string>("");
-  const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState<string>("");
-  const [originalInvoiceId, setOriginalInvoiceId] = useState<string>(returnInvoiceId || "");
-  const [warehouseId, setWarehouseId] = useState<string>("");
-  const [serialPrefix, setSerialPrefix] = useState("EAR");
   const [items, setItems] = useState<InvoiceItem[]>([newItem()]);
-  const [selectedTevkifatCode, setSelectedTevkifatCode] = useState<string>("");
-  const [selectedExemptionCode, setSelectedExemptionCode] = useState<string>("301");
-  const [tevkifatRate, setTevkifatRate] = useState("0");
   const [notes, setNotes] = useState("");
   const [paymentInfo, setPaymentInfo] = useState("");
+  const [serialPrefix, setSerialPrefix] = useState("");
+  const [selectedTevkifatCode, setSelectedTevkifatCode] = useState<string>("");
+  const [isVknValidating, setIsVknValidating] = useState(false);
+  const [warehouseId, setWarehouseId] = useState<string>("");
+  const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState<string>("");
+  const [originalInvoiceId, setOriginalInvoiceId] = useState<string>(initialReturnInvoiceId || "");
 
+  // Kalem Açıklaması Kolonu Göster/Gizle Durumu (Varsayılan Açık)
+  const [showDescription, setShowDescription] = useState(true);
+
+  // Müşteriler & Tedarikçiler
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("title");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const {
-    data: products = [],
-    isLoading: productsLoading,
-    error: productsError,
-  } = useQuery({
-    queryKey: ["products", "catalog"],
-    queryFn: async () => {
       const { data, error } = await supabase
-        .from("products")
+        .from("customers")
         .select("*")
         .is("deleted_at", null)
-        .order("name");
+        .order("title");
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase.from("customers").select("*").order("title");
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
       if (error) throw error;
       return data ?? [];
     },
-    staleTime: 0,
-    refetchOnMount: "always",
   });
 
+  // Depolar
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("warehouses").select("*").order("name");
+      const { data, error } = await supabase
+        .from("warehouses")
+        .select("*")
+        .is("deleted_at", null)
+        .order("created_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Katalog Ürünleri
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("products").select("*").is("deleted_at", null).order("name");
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase.from("products").select("*").order("name");
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
       if (error) throw error;
       return data ?? [];
     },
@@ -237,34 +269,48 @@ function NewInvoicePage() {
 
   // Alış faturaları listesi (Alış iadesi için kaynak fatura seçimi)
   const { data: purchaseInvoices = [] } = useQuery({
-    queryKey: ["invoices", "purchase-list"],
+    queryKey: ["purchase-invoices-for-return"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("*")
+        .select("id, invoice_number, invoice_date, grand_total, customer_id, customer, items, type, status")
         .in("type", ["ALIS", "GELEN_FATURA", "GELEN_E_ARSIV"])
-        .eq("status", "ONAYLANDI")
+        .is("deleted_at", null)
         .order("invoice_date", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
+    enabled: operationMode === "ALIS_IADE",
   });
 
-  // Eğer Düzenleme (editId) modundaysak faturayı yükle
+  // Satış faturaları listesi (Satış iadesi için kaynak fatura seçimi)
+  const { data: salesInvoices = [] } = useQuery({
+    queryKey: ["sales-invoices-for-return"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, invoice_date, grand_total, customer_id, customer, items, type, status")
+        .in("type", ["SATIS", "E_ARSIV", "TEVKIFAT", "ISTISNA", "IHRAC_KAYITLI"])
+        .eq("status", "ONAYLANDI")
+        .is("deleted_at", null)
+        .order("invoice_date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: operationMode === "SATIS_IADE",
+  });
+
+  // Düzenleme modunda mevcut faturayı çek
   const { data: existingInvoice } = useQuery({
-    queryKey: ["invoice-detail", editId],
+    queryKey: ["invoice", editId],
     queryFn: async () => {
       if (!editId) return null;
-      const { data, error } = await supabase.from("invoices").select("*").eq("id", editId).single();
+      const { data, error } = await supabase.from("invoices").select("*").eq("id", editId).maybeSingle();
       if (error) throw error;
       return data;
     },
     enabled: Boolean(editId),
   });
-
-  const isNonEditable = Boolean(
-    existingInvoice && (existingInvoice.status !== "TASLAK" || existingInvoice.posted)
-  );
 
   useEffect(() => {
     if (!existingInvoice) return;
@@ -272,22 +318,21 @@ function NewInvoicePage() {
     setType(invType);
     if (invType === "ALIS" || invType === "GELEN_FATURA" || invType === "GELEN_E_ARSIV") {
       setOperationMode("ALIS");
-      setSupplierInvoiceNumber(existingInvoice.invoice_number || "");
     } else if (invType === "ALIS_IADE") {
       setOperationMode("ALIS_IADE");
+    } else if (invType === "SATIS_IADE" || invType === "GENEL_IADE") {
+      setOperationMode("SATIS_IADE");
     } else {
       setOperationMode("SATIS");
     }
 
+    setDate(existingInvoice.invoice_date || new Date().toISOString().split("T")[0]);
     setCurrency(existingInvoice.currency || "TRY");
-    setDate(existingInvoice.invoice_date || new Date().toISOString().slice(0, 10));
     setCustomerId(existingInvoice.customer_id || "");
-    setWarehouseId(existingInvoice.warehouse_id || "");
     setNotes(existingInvoice.notes || "");
     setPaymentInfo(existingInvoice.payment_info || "");
-
-    const customPrefix = existingInvoice.invoice_number ? existingInvoice.invoice_number.slice(0, 3) : "EAR";
-    setSerialPrefix(customPrefix);
+    setWarehouseId((existingInvoice as any).warehouse_id || "");
+    setSupplierInvoiceNumber(existingInvoice.invoice_number || "");
 
     if (existingInvoice.customer && typeof existingInvoice.customer === "object") {
       const c = existingInvoice.customer as Partial<InvoiceCustomer>;
@@ -310,14 +355,12 @@ function NewInvoicePage() {
     }
   }, [existingInvoice]);
 
-  // Alış İadesi modunda orijinal fatura seçildiğinde kalemleri ve tedarikçiyi otomatik doldur
+  // Alış İadesi modunda orijinal fatura seçildiğinde
   function handleSelectOriginalPurchaseInvoice(invId: string) {
     setOriginalInvoiceId(invId);
     const orig = purchaseInvoices.find((i) => i.id === invId);
     if (orig) {
-      if (orig.customer_id) {
-        setCustomerId(orig.customer_id);
-      }
+      if (orig.customer_id) setCustomerId(orig.customer_id);
       if (orig.customer && typeof orig.customer === "object") {
         const c = orig.customer as Partial<InvoiceCustomer>;
         setCustomer({
@@ -336,114 +379,134 @@ function NewInvoicePage() {
       if (Array.isArray(orig.items) && orig.items.length > 0) {
         setItems(orig.items as InvoiceItem[]);
       }
-      setWarehouseId(orig.warehouse_id || "");
       setSupplierInvoiceNumber(`IADE-${orig.invoice_number || ""}`);
     }
   }
 
-  const isTevkifatli = operationMode === "SATIS" && (type === "TEVKIFAT" || Boolean(selectedTevkifatCode));
-  const activeTevkifatRate = isTevkifatli ? Number(tevkifatRate) || 0 : 0;
-  const totals = invoiceTotals(items, activeTevkifatRate);
-  const wordsAmount = numberToTurkishWords(totals.grandTotal, currency);
-
-  function handleTevkifatCodeChange(code: string) {
-    setSelectedTevkifatCode(code);
-    const found = TEVKIFAT_CODES.find((c) => c.code === code);
-    if (found) {
-      setTevkifatRate(String(found.rate));
+  // Satış İadesi modunda orijinal fatura seçildiğinde
+  function handleSelectOriginalSalesInvoice(invId: string) {
+    setOriginalInvoiceId(invId);
+    const orig = salesInvoices.find((i) => i.id === invId);
+    if (orig) {
+      if (orig.customer_id) setCustomerId(orig.customer_id);
+      if (orig.customer && typeof orig.customer === "object") {
+        const c = orig.customer as Partial<InvoiceCustomer>;
+        setCustomer({
+          vknTckn: c.vknTckn || "",
+          title: c.title || "",
+          taxOffice: c.taxOffice || "",
+          address: c.address || "",
+          city: c.city || "",
+          district: c.district || "",
+          neighborhood: c.neighborhood || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          customPrefix: "",
+        });
+      }
+      if (Array.isArray(orig.items) && orig.items.length > 0) {
+        setItems(orig.items as InvoiceItem[]);
+      }
+      setSupplierInvoiceNumber(`IAD-${orig.invoice_number || ""}`);
     }
   }
 
+  const isTevkifatli = operationMode === "SATIS" && (type === "TEVKIFAT" || Boolean(selectedTevkifatCode));
+
+  const totals = invoiceTotals(items, isTevkifatli);
+
   function addItem() {
-    setItems((prev) => [...prev, newItem()]);
+    setItems([...items, newItem()]);
   }
 
   function removeItem(id: string) {
     if (items.length <= 1) {
-      toast.error("En az bir kalem bulunmalıdır.");
+      toast.error("En az 1 fatura kalemi bulunmalıdır.");
       return;
     }
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    setItems(items.filter((item) => item.id !== id));
   }
 
-  function updateItem(id: string, updates: Partial<InvoiceItem>) {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, patch: Partial<InvoiceItem>) {
+    setItems(items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }
 
   function handleProductSelect(itemId: string, productId: string) {
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
+    const p = products.find((prod) => prod.id === productId);
+    if (!p) return;
+
     const isPurchase = operationMode === "ALIS" || operationMode === "ALIS_IADE";
-    const selectedPrice = isPurchase
-      ? Number(product.purchase_price ?? product.unit_price ?? 0)
-      : Number(product.unit_price ?? 0);
+    const selectedPrice = isPurchase ? Number(p.purchase_price ?? 0) : Number(p.unit_price ?? 0);
 
     updateItem(itemId, {
-      productId: product.id,
-      name: product.name,
-      unit: product.unit || "Adet",
+      productId: p.id,
+      code: p.code || "",
+      name: p.name,
+      unit: p.unit || "Adet",
       unitPrice: selectedPrice,
-      vatRate: Number(product.vat_rate ?? 20),
+      vatRate: Number(p.vat_rate ?? 20),
+      discountRate: Number(p.discount_rate ?? 0),
     });
   }
 
-  function handleSelectCustomer(id: string) {
-    setCustomerId(id);
-    const c = customers.find((cust) => cust.id === id);
-    if (!c) return;
-    const prefix = c.code ? c.code.slice(0, 3).toUpperCase() : serialPrefix;
-    setSerialPrefix(prefix);
-    setCustomer({
-      vknTckn: c.vkn_tckn || "",
-      title: c.title || "",
-      taxOffice: c.tax_office || "",
-      address: c.address || "",
-      city: c.city || "",
-      district: c.district || "",
-      neighborhood: c.neighborhood || "",
-      email: c.email || "",
-      phone: c.phone || "",
-      customPrefix: prefix,
-    });
+  function handleCustomerSelect(cId: string) {
+    setCustomerId(cId);
+    const selected = customers.find((c) => c.id === cId);
+    if (selected) {
+      setCustomer({
+        vknTckn: selected.vkn_tckn || "",
+        title: selected.title || "",
+        taxOffice: selected.tax_office || "",
+        address: selected.address || "",
+        city: selected.city || "",
+        district: selected.district || "",
+        neighborhood: (selected as any).neighborhood || "",
+        email: selected.email || "",
+        phone: selected.phone || "",
+        customPrefix: (selected as any).custom_prefix || customPrefix,
+      });
+      if ((selected as any).custom_prefix) {
+        setSerialPrefix((selected as any).custom_prefix);
+      }
+    }
   }
 
-function isInvalidQuantity(qty: number | undefined | null): boolean {
-  if (qty === undefined || qty === null || isNaN(qty)) return true;
-  return qty <= 0;
-}
+  function isInvalidQuantity(qty: number): boolean {
+    return isNaN(qty) || qty <= 0;
+  }
+
+  const isNonEditable = Boolean(
+    existingInvoice &&
+      (existingInvoice.status === "ONAYLANDI" ||
+        existingInvoice.status === "IPTAL" ||
+        existingInvoice.posted === true),
+  );
 
   const saveInvoice = useMutation({
-    mutationFn: async (newStatus: "TASLAK" | "ONAYLANDI" = "TASLAK") => {
-      if (isNonEditable) {
-        throw new Error("Onaylanmış veya iptal edilmiş faturalar düzenlenemez.");
-      }
-      if (!customer.vknTckn.trim() || !customer.title.trim()) {
-        throw new Error(operationMode === "ALIS" ? "Tedarikçi VKN/TCKN ve unvan bilgileri zorunludur." : "Alıcı VKN/TCKN ve unvan bilgileri zorunludur.");
-      }
-      if (items.length === 0 || items.some((i) => !i.name.trim())) {
-        throw new Error("En az bir geçerli açıklamayla fatura kalemi girmelisiniz.");
-      }
-      const invalidQtyIndex = items.findIndex((i) => isInvalidQuantity(i.quantity));
-      if (invalidQtyIndex !== -1) {
-        throw new Error(`${invalidQtyIndex + 1}. kalem için miktar 0'dan büyük bir sayı olmalıdır.`);
-      }
+    mutationFn: async (newStatus: "TASLAK" | "ONAYLANDI") => {
+      if (!customer.vknTckn.trim()) throw new Error("Müşteri VKN/TCKN zorunludur.");
+      if (!customer.title.trim()) throw new Error("Müşteri Ünvanı zorunludur.");
+      if (items.length === 0) throw new Error("En az 1 fatura kalemi gereklidir.");
 
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error("Oturum bulunamadı. Lütfen yeniden giriş yapınız.");
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (isInvalidQuantity(it.quantity)) {
+          throw new Error(`${i + 1}. kalem için geçerli bir miktar (0'dan büyük) giriniz.`);
+        }
+        if (!it.name.trim()) {
+          throw new Error(`${i + 1}. kalem için ürün adı zorunludur.`);
+        }
+      }
 
       if (operationMode === "ALIS") {
-        // --- 1. ALIŞ FATURASI AKIŞI (create_purchase_invoice) ---
-        if (!customerId) {
-          throw new Error("Tedarikçi seçimi zorunludur.");
-        }
+        // --- 1. ALIŞ FATURASI AKIŞI ---
         if (!supplierInvoiceNumber.trim()) {
           throw new Error("Tedarikçi fatura numarası zorunludur.");
         }
 
         const { data: _result, error } = await supabase.rpc("create_purchase_invoice", {
           p_invoice_date: date,
-          p_supplier_id: customerId,
+          p_supplier_id: customerId || null,
           p_invoice_number: supplierInvoiceNumber.trim(),
           p_warehouse_id: warehouseId || null,
           p_supplier_info: JSON.parse(JSON.stringify(customer)),
@@ -464,7 +527,7 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
         if (error) throw error;
 
       } else if (operationMode === "ALIS_IADE") {
-        // --- 2. ALIŞ İADESİ AKIŞI (create_purchase_return) ---
+        // --- 2. ALIŞ İADESİ AKIŞI ---
         if (!originalInvoiceId) {
           throw new Error("İade edilecek orijinal alış faturası seçilmelidir.");
         }
@@ -482,8 +545,20 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
         });
         if (error) throw error;
 
+      } else if (operationMode === "SATIS_IADE") {
+        // --- 3. SATIŞ İADESİ AKIŞI (create_sales_return) ---
+        const { data: _result, error } = await supabase.rpc("create_sales_return", {
+          p_original_invoice_id: originalInvoiceId || undefined,
+          p_return_date: date,
+          p_items: JSON.parse(JSON.stringify(items)),
+          p_description: notes.trim() || undefined,
+          p_warehouse_id: warehouseId || undefined,
+          p_return_doc_no: supplierInvoiceNumber.trim() || undefined,
+        });
+        if (error) throw error;
+
       } else {
-        // --- 3. SATIŞ FATURASI AKIŞI (Mevcut Mantık Korundu) ---
+        // --- 4. STANDART SATIŞ FATURASI AKIŞI ---
         if (editId && existingInvoice) {
           const shouldPost = newStatus === "ONAYLANDI";
           const { error: updateError } = await supabase
@@ -567,14 +642,16 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
     onSuccess: (_data, newStatus) => {
       toast.success(
         operationMode === "ALIS"
-          ? "Alış faturası başarıyla kaydedildi; 153/191/320 muhasebe fişi ve stok girişi işlendi."
+          ? "Alış faturası kaydedildi; 153/191/320 fişi ve stok girişi işlendi."
           : operationMode === "ALIS_IADE"
-            ? "Alış iadesi başarıyla işlendi; 320/153/191 fişi ve stok çıkışı yapıldı."
-            : editId
-              ? "Fatura başarıyla güncellendi."
-              : newStatus === "ONAYLANDI"
-                ? "Fatura başarıyla onaylandı; cari ve stok hareketleri işlendi."
-                : "Fatura taslak olarak başarıyla kaydedildi.",
+            ? "Alış iadesi işlendi; 320/153/191 fişi ve stok çıkışı yapıldı."
+            : operationMode === "SATIS_IADE"
+              ? "Satış iadesi işlendi; 610/191/120 ve 153/621 stok maliyet iadesi yapıldı."
+              : editId
+                ? "Fatura başarıyla güncellendi."
+                : newStatus === "ONAYLANDI"
+                  ? "Fatura başarıyla onaylandı; cari ve stok hareketleri işlendi."
+                  : "Fatura taslak olarak başarıyla kaydedildi.",
       );
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -593,7 +670,6 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
   const vknWarning = customer.vknTckn.trim() ? !isValidVknTckn(customer.vknTckn) : false;
   const currentTevkifatObj = TEVKIFAT_CODES.find((c) => c.code === selectedTevkifatCode);
 
-  // Müşteri / Tedarikçi Listesi Filtresi
   const filteredPartners = customers.filter((c) => {
     if (operationMode === "ALIS" || operationMode === "ALIS_IADE") {
       return c.partner_type === "TEDARIKCI";
@@ -604,28 +680,58 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
   return (
     <AppShell
       title={
-        editId
-          ? "Faturayı Düzenle"
-          : operationMode === "ALIS"
-            ? "Alış Faturası Girişi (Gelen Fatura)"
-            : operationMode === "ALIS_IADE"
-              ? "Alış İadesi Oluştur (Tedarikçiye İade)"
-              : "Fatura Kes"
+        operationMode === "ALIS"
+          ? "Tedarikçi Alış Faturası Girişi"
+          : operationMode === "ALIS_IADE"
+            ? "Alış İadesi Oluştur"
+            : operationMode === "SATIS_IADE"
+              ? "Satış İadesi Faturası Oluştur"
+              : editId
+                ? "Faturayı Düzenle"
+                : "Yeni Fatura Kes"
       }
       subtitle={
         operationMode === "ALIS"
-          ? "Tedarikçiden gelen alış faturasını kaydedin, 153/191/320 yevmiye fişi ve stok girişi otomatik işlensin."
+          ? "Gelen tedarikçi faturasını işleyin; 153/191/320 muhasebe kaydı ve stok girişi otomatik yapılır."
           : operationMode === "ALIS_IADE"
             ? "Tedarikçiye iade edilen malları kaydedin, stoktan düşülsün ve 320 borç kaydı oluşturulsun."
-            : "E-Arşiv / E-Fatura düzenleyin, KDV ve tevkifatı otomatik hesaplayın."
+            : operationMode === "SATIS_IADE"
+              ? "Müşteriden iade alınan malları kaydedin; 610/191/120 ve 153/621 maliyet iadesi otomatik işlensin."
+              : "e-Fatura / e-Arşiv faturası oluşturun veya taslak olarak kaydedin."
       }
       actions={
-        <div className="flex gap-2">
-          {editId ? (
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: "/faturalar" })}>
-              <ArrowLeft className="mr-1 size-4" /> Vazgeç
-            </Button>
-          ) : null}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate({ to: "/faturalar" })}>
+            <ArrowLeft className="size-4 mr-1.5" /> Geri Dön
+          </Button>
+          {!isNonEditable && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={saveInvoice.isPending}
+                onClick={() => saveInvoice.mutate("TASLAK")}
+              >
+                Taslak Kaydet
+              </Button>
+              <Button
+                size="sm"
+                className="bg-primary text-primary-foreground font-semibold"
+                disabled={saveInvoice.isPending}
+                onClick={() => saveInvoice.mutate("ONAYLANDI")}
+              >
+                {saveInvoice.isPending
+                  ? "İşleniyor..."
+                  : operationMode === "ALIS"
+                    ? "Alış Faturasını Onayla & Kaydet"
+                    : operationMode === "ALIS_IADE"
+                      ? "Alış İadesini Onayla"
+                      : operationMode === "SATIS_IADE"
+                        ? "Satış İadesini Onayla"
+                        : "Faturayı Onayla & Gönder"}
+              </Button>
+            </>
+          )}
         </div>
       }
     >
@@ -635,24 +741,28 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
           <Tabs
             value={operationMode}
             onValueChange={(v) => {
-              const m = v as "SATIS" | "ALIS" | "ALIS_IADE";
+              const m = v as "SATIS" | "SATIS_IADE" | "ALIS" | "ALIS_IADE";
               setOperationMode(m);
               setCustomerId("");
               setCustomer(emptyCustomer);
               if (m === "ALIS") setType("ALIS");
               else if (m === "ALIS_IADE") setType("ALIS_IADE");
+              else if (m === "SATIS_IADE") setType("SATIS_IADE");
               else setType("SATIS");
             }}
           >
-            <TabsList className="grid grid-cols-3 max-w-lg bg-muted/80">
-              <TabsTrigger value="SATIS" className="gap-1.5 font-medium">
-                <Send className="size-4" /> Satış Faturası Kes
+            <TabsList className="grid grid-cols-4 max-w-2xl bg-muted/80">
+              <TabsTrigger value="SATIS" className="gap-1.5 font-medium text-xs">
+                <Send className="size-3.5" /> Satış Faturası
               </TabsTrigger>
-              <TabsTrigger value="ALIS" className="gap-1.5 font-medium">
-                <ShoppingCart className="size-4" /> Alış Faturası İşle
+              <TabsTrigger value="SATIS_IADE" className="gap-1.5 font-medium text-xs">
+                <CornerUpLeft className="size-3.5 text-amber-500" /> Satış İadesi
               </TabsTrigger>
-              <TabsTrigger value="ALIS_IADE" className="gap-1.5 font-medium">
-                <RotateCcw className="size-4" /> Alış İadesi Yap
+              <TabsTrigger value="ALIS" className="gap-1.5 font-medium text-xs">
+                <ShoppingCart className="size-3.5" /> Alış Faturası
+              </TabsTrigger>
+              <TabsTrigger value="ALIS_IADE" className="gap-1.5 font-medium text-xs">
+                <RotateCcw className="size-3.5 text-destructive" /> Alış İadesi
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -671,10 +781,26 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                     ? "Alış Fatura Bilgileri"
                     : operationMode === "ALIS_IADE"
                       ? "Alış İade Bilgileri"
-                      : "Fatura Bilgileri"}
+                      : operationMode === "SATIS_IADE"
+                        ? "Satış İade Bilgileri"
+                        : "Fatura Bilgileri"}
                 </CardTitle>
-                <Badge variant={operationMode === "ALIS" ? "secondary" : operationMode === "ALIS_IADE" ? "destructive" : "default"}>
-                  {operationMode === "ALIS" ? "ALIŞ FATURASI" : operationMode === "ALIS_IADE" ? "ALIŞ İADESİ" : "SATIŞ FATURASI"}
+                <Badge
+                  variant={
+                    operationMode === "ALIS"
+                      ? "secondary"
+                      : operationMode === "ALIS_IADE" || operationMode === "SATIS_IADE"
+                        ? "destructive"
+                        : "default"
+                  }
+                >
+                  {operationMode === "ALIS"
+                    ? "ALIŞ FATURASI"
+                    : operationMode === "ALIS_IADE"
+                      ? "ALIŞ İADESİ"
+                      : operationMode === "SATIS_IADE"
+                        ? "SATIŞ İADESİ"
+                        : "SATIŞ FATURASI"}
                 </Badge>
               </div>
             </CardHeader>
@@ -728,6 +854,24 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                 </div>
               )}
 
+              {operationMode === "SATIS_IADE" && (
+                <div className="space-y-1 sm:col-span-2">
+                  <Label>Orijinal Satış Faturası Seçimi (Opsiyonel)</Label>
+                  <Select value={originalInvoiceId || undefined} onValueChange={handleSelectOriginalSalesInvoice}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="İade alınan satış faturasını seçiniz..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {salesInvoices.map((si) => (
+                        <SelectItem key={si.id} value={si.id}>
+                          {si.invoice_number} - {(si.customer as any)?.title || "Müşteri"} ({formatMoney(si.grand_total)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {operationMode !== "SATIS" && (
                 <div className="space-y-1">
                   <Label>{operationMode === "ALIS" ? "Tedarikçi Fatura No *" : "İade Belge No *"}</Label>
@@ -758,7 +902,7 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                   <SelectContent>
                     {CURRENCY_OPTIONS.map((c) => (
                       <SelectItem key={c.code} value={c.code}>
-                        {c.label} ({c.symbol})
+                        {c.code} ({c.symbol}) - {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -766,126 +910,162 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
               </div>
 
               <div className="space-y-1">
-                <Label>Depo Seçimi</Label>
-                <Select value={warehouseId || "none"} onValueChange={(v) => setWarehouseId(v === "none" ? "" : v)} disabled={isNonEditable}>
+                <Label>İlgili Depo (Stok Giriş / Çıkış)</Label>
+                <Select value={warehouseId} onValueChange={setWarehouseId} disabled={isNonEditable}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Depo Seçiniz (İsteğe bağlı)" />
+                    <SelectValue placeholder="Depo Seçiniz (Varsayılan Depo)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Depo Seçilmedi (Varsayılan)</SelectItem>
                     {warehouses.map((w) => (
                       <SelectItem key={w.id} value={w.id}>
-                        {w.name} {w.code ? `(${w.code})` : ""}
+                        {w.name} {w.is_default ? "(Varsayılan)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* 2. ALICI VEYA TEDARİKÇİ BİLGİLERİ */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">
-                  {operationMode === "ALIS" || operationMode === "ALIS_IADE" ? "Tedarikçi (Satıcı) Bilgileri" : "Alıcı Bilgileri"}
-                </CardTitle>
-                <div className="w-56">
-                  <Select value={customerId || undefined} onValueChange={handleSelectCustomer} disabled={isNonEditable}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder={operationMode === "ALIS" ? "Tedarikçi seçiniz..." : "Kayıtlı cari seç..."} />
+              {isTevkifatli && (
+                <div className="space-y-1 sm:col-span-2">
+                  <Label>Tevkifat Kodu ve Oranı</Label>
+                  <Select
+                    value={selectedTevkifatCode}
+                    onValueChange={(val) => {
+                      setSelectedTevkifatCode(val);
+                      const rate = TEVKIFAT_RATES[val] ?? 0;
+                      setItems(
+                        items.map((it) => ({
+                          ...it,
+                          tevkifatCode: val,
+                          tevkifatRate: rate,
+                        })),
+                      );
+                    }}
+                    disabled={isNonEditable}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tevkifat kodu seçiniz..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {filteredPartners.map((c) => (
-                        <SelectItem key={c.id} value={c.id} className="text-xs">
-                          {c.title} {c.vkn_tckn ? `(${c.vkn_tckn})` : ""}
+                      {TEVKIFAT_CODES.map((t) => (
+                        <SelectItem key={t.code} value={t.code}>
+                          [{t.code}] {t.name} (Tevkifat Oranı: {t.rateText})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="vkn">VKN / TCKN *</Label>
-                <Input
-                  id="vkn"
-                  value={customer.vknTckn}
-                  onChange={(e) => setCustomer({ ...customer, vknTckn: e.target.value })}
-                  placeholder="Vergi / TC Kimlik No"
-                  disabled={isNonEditable}
-                />
-                {vknWarning && (
-                  <p className="text-xs text-amber-600 flex items-center gap-1">
-                    <AlertCircle className="size-3" /> VKN 10 haneli veya TCKN 11 haneli olmalıdır.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="title">Unvan / Ad Soyad *</Label>
-                <Input
-                  id="title"
-                  value={customer.title}
-                  onChange={(e) => setCustomer({ ...customer, title: e.target.value })}
-                  placeholder="Firma Unvanı veya Şahıs Adı"
-                  disabled={isNonEditable}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="taxOffice">Vergi Dairesi</Label>
-                <Input
-                  id="taxOffice"
-                  value={customer.taxOffice}
-                  onChange={(e) => setCustomer({ ...customer, taxOffice: e.target.value })}
-                  placeholder="Vergi Dairesi Adı"
-                  disabled={isNonEditable}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="email">E-posta</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={customer.email}
-                  onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-                  placeholder="fatura@sirket.com"
-                  disabled={isNonEditable}
-                />
-              </div>
-
-              <div className="sm:col-span-2 space-y-1">
-                <Label htmlFor="address">Adres</Label>
-                <Input
-                  id="address"
-                  value={customer.address}
-                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
-                  placeholder="Cadde, Sokak, No, Daire"
-                  disabled={isNonEditable}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <AddressSelect
-                  value={{
-                    city: customer.city,
-                    district: customer.district,
-                    neighborhood: customer.neighborhood,
-                  }}
-                  onChange={({ city, district, neighborhood }) =>
-                    setCustomer({ ...customer, city, district, neighborhood })
-                  }
-                  disabled={isNonEditable}
-                />
-              </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* 3. FATURA KALEMLERİ */}
+          {/* 2. MÜŞTERİ / TEDARİKÇİ BİLGİLERİ */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                {operationMode === "ALIS" || operationMode === "ALIS_IADE" ? "Tedarikçi (Satıcı) Bilgileri" : "Alıcı Bilgileri"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <Label>
+                  {operationMode === "ALIS" || operationMode === "ALIS_IADE"
+                    ? "Kayıtlı Tedarikçilerden Seç"
+                    : "Kayıtlı Müşterilerden Seç"}
+                </Label>
+                <Select value={customerId} onValueChange={handleCustomerSelect} disabled={isNonEditable}>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        operationMode === "ALIS" || operationMode === "ALIS_IADE"
+                          ? "Tedarikçi Seçin (veya elle girin)"
+                          : "Müşteri Seçin (veya elle girin)"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredPartners.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.title} ({c.vkn_tckn})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="vkn">VKN / TCKN *</Label>
+                  <Input
+                    id="vkn"
+                    value={customer.vknTckn}
+                    onChange={(e) => setCustomer({ ...customer, vknTckn: e.target.value })}
+                    disabled={isNonEditable}
+                    maxLength={11}
+                  />
+                  {vknWarning && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      Geçersiz VKN (10 hane) veya TCKN (11 hane) formatı.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="title">Ünvan / Ad Soyad *</Label>
+                  <Input
+                    id="title"
+                    value={customer.title}
+                    onChange={(e) => setCustomer({ ...customer, title: e.target.value })}
+                    disabled={isNonEditable}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="taxOffice">Vergi Dairesi</Label>
+                  <Input
+                    id="taxOffice"
+                    value={customer.taxOffice}
+                    onChange={(e) => setCustomer({ ...customer, taxOffice: e.target.value })}
+                    disabled={isNonEditable}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="email">E-Posta</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={customer.email}
+                    onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+                    disabled={isNonEditable}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="address">Açık Adres</Label>
+                <Textarea
+                  id="address"
+                  rows={2}
+                  value={customer.address}
+                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
+                  disabled={isNonEditable}
+                />
+              </div>
+
+              <AddressSelect
+                city={customer.city}
+                district={customer.district}
+                neighborhood={customer.neighborhood}
+                onChange={({ city, district, neighborhood }) =>
+                  setCustomer({ ...customer, city, district, neighborhood })
+                }
+                disabled={isNonEditable}
+              />
+            </CardContent>
+          </Card>
+
+          {/* 3. MAL / HİZMET KALEMLERİ */}
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
@@ -893,14 +1073,30 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                 <CardDescription>
                   {operationMode === "ALIS"
                     ? "Alış yapılan ürünler ve net birim alış fiyatları"
-                    : "Satış kalemleri ve KDV oranları"}
+                    : operationMode === "ALIS_IADE" || operationMode === "SATIS_IADE"
+                      ? "İadeye konu olan ürünler ve iade birim fiyatları"
+                      : "Satış kalemleri ve KDV oranları"}
                 </CardDescription>
               </div>
-              {!isNonEditable && (
-                <Button size="sm" variant="outline" onClick={addItem} className="gap-1.5 text-xs">
-                  <PlusCircle className="size-3.5" /> Kalem Ekle
+              <div className="flex items-center gap-2">
+                {/* AÇIKLAMA KOLONU GÖSTER / GİZLE BUTONU */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowDescription(!showDescription)}
+                  className="gap-1.5 text-xs h-8"
+                  title="Kalem Açıklaması Kolonunu Göster / Gizle"
+                >
+                  {showDescription ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                  {showDescription ? "Açıklamayı Gizle" : "Açıklama Ekle"}
                 </Button>
-              )}
+
+                {!isNonEditable && (
+                  <Button size="sm" variant="outline" onClick={addItem} className="gap-1.5 text-xs h-8">
+                    <PlusCircle className="size-3.5" /> Kalem Ekle
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {/* DESKTOP & TABLET KOMPAKT TABLO GÖRÜNÜMÜ */}
@@ -909,7 +1105,7 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                   <thead>
                     <tr className="bg-muted/50 border-b border-border/60 text-muted-foreground font-medium">
                       <th className="py-2 px-2.5 w-8 text-center">#</th>
-                      <th className="py-2 px-2.5 min-w-[220px]">Katalog & Kalem Açıklaması</th>
+                      <th className="py-2 px-2.5 min-w-[200px]">Katalog / Ürün Adı</th>
                       <th className="py-2 px-2.5 w-24">Miktar</th>
                       <th className="py-2 px-2.5 w-28">Birim</th>
                       <th className="py-2 px-2.5 w-32">
@@ -918,6 +1114,9 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                       <th className="py-2 px-2.5 w-20">KDV</th>
                       <th className="py-2 px-2.5 w-20">İsk. %</th>
                       <th className="py-2 px-2.5 w-32 text-right">Satır Toplamı</th>
+                      {showDescription && (
+                        <th className="py-2 px-2.5 min-w-[180px]">Kalem Açıklaması</th>
+                      )}
                       {!isNonEditable && <th className="py-2 px-2 w-10 text-center"></th>}
                     </tr>
                   </thead>
@@ -931,8 +1130,8 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                             {index + 1}
                           </td>
 
-                          {/* 2. KATALOG & KALEM AÇIKLAMASI */}
-                          <td className="py-2 px-2.5 space-y-1.5 align-top">
+                          {/* 2. KATALOG SEÇİCİ & KALEM ADI */}
+                          <td className="py-2 px-2.5 space-y-1.5 align-top pt-2">
                             <ProductCombobox
                               value={item.productId || undefined}
                               onSelect={(val) => handleProductSelect(item.id, val)}
@@ -941,13 +1140,15 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                               isLoading={productsLoading}
                               operationMode={operationMode}
                             />
-                            <Input
-                              className="h-8 text-xs bg-background"
-                              value={item.name}
-                              onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                              placeholder="Ürün veya hizmet açıklaması *"
-                              disabled={isNonEditable}
-                            />
+                            {!item.productId && (
+                              <Input
+                                className="h-8 text-xs bg-background"
+                                value={item.name}
+                                onChange={(e) => updateItem(item.id, { name: e.target.value })}
+                                placeholder="Kalem adı / hizmet *"
+                                disabled={isNonEditable}
+                              />
+                            )}
                           </td>
 
                           {/* 3. MİKTAR */}
@@ -1070,7 +1271,20 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                             </div>
                           </td>
 
-                          {/* 9. İŞLEMLER */}
+                          {/* 9. AÇIKLAMA KOLONU (EN SAĞDA) */}
+                          {showDescription && (
+                            <td className="py-2 px-2.5 align-top pt-2">
+                              <Input
+                                className="h-8 text-xs bg-background"
+                                value={item.description || ""}
+                                onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                                placeholder="Ek kalem açıklaması..."
+                                disabled={isNonEditable}
+                              />
+                            </td>
+                          )}
+
+                          {/* 10. İŞLEMLER */}
                           {!isNonEditable && (
                             <td className="py-2 px-2 text-center align-top pt-2">
                               {items.length > 1 && (
@@ -1093,83 +1307,54 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                 </table>
               </div>
 
-              {/* MOBİL UYUMLU KOMPAKT KART GÖRÜNÜMÜ (md:hidden) */}
+              {/* MOBİL GÖRÜNÜM (md:hidden) */}
               <div className="md:hidden space-y-3">
                 {items.map((item, index) => {
                   const t = itemTotals(item);
                   return (
-                    <div
-                      key={item.id}
-                      className="p-3 rounded-lg border border-border/70 bg-card/40 space-y-2.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-muted-foreground font-mono">
-                          #{index + 1}
-                        </span>
-                        <div className="flex-1 max-w-xs">
-                          <ProductCombobox
-                            value={item.productId || undefined}
-                            onSelect={(val) => handleProductSelect(item.id, val)}
-                            disabled={isNonEditable}
-                            products={products}
-                            isLoading={productsLoading}
-                            operationMode={operationMode}
-                          />
-                        </div>
+                    <Card key={item.id} className="p-3 border border-border/80 space-y-2.5">
+                      <div className="flex items-center justify-between pb-1 border-b border-border/50">
+                        <span className="font-bold text-xs">#{index + 1} Kalem</span>
                         {!isNonEditable && items.length > 1 && (
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
+                            size="sm"
+                            className="h-7 text-destructive"
                             onClick={() => removeItem(item.id)}
                           >
-                            <Trash2 className="size-3.5" />
+                            <Trash2 className="size-3.5 mr-1" /> Sil
                           </Button>
                         )}
                       </div>
-
-                      <Input
-                        className="h-8 text-xs"
-                        value={item.name}
-                        onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                        placeholder="Kalem açıklaması"
+                      <ProductCombobox
+                        value={item.productId || undefined}
+                        onSelect={(val) => handleProductSelect(item.id, val)}
                         disabled={isNonEditable}
+                        products={products}
+                        isLoading={productsLoading}
+                        operationMode={operationMode}
                       />
-
-                      <div className="grid grid-cols-4 gap-2">
+                      {!item.productId && (
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="Ürün veya Hizmet Adı *"
+                          value={item.name}
+                          onChange={(e) => updateItem(item.id, { name: e.target.value })}
+                          disabled={isNonEditable}
+                        />
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          {(() => {
-                            const isQtyError = isInvalidQuantity(item.quantity);
-                            return (
-                              <>
-                                <Label className={`text-[10px] ${isQtyError ? "text-destructive font-bold" : ""}`}>
-                                  Miktar
-                                </Label>
-                                <Input
-                                  className={`h-8 text-xs font-mono ${
-                                    isQtyError
-                                      ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold"
-                                      : ""
-                                  }`}
-                                  type="number"
-                                  min="0.0001"
-                                  step="any"
-                                  value={item.quantity === 0 ? "" : item.quantity}
-                                  onChange={(e) => {
-                                    const val = e.target.value.replace(",", ".");
-                                    const parsed = val === "" ? 0 : Number(val);
-                                    updateItem(item.id, { quantity: isNaN(parsed) ? 0 : parsed });
-                                  }}
-                                  disabled={isNonEditable}
-                                />
-                                {isQtyError && (
-                                  <span className="text-[9px] text-destructive font-medium block leading-tight mt-0.5">
-                                    Miktar &gt; 0 olmalı
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
+                          <Label className="text-[10px]">Miktar</Label>
+                          <Input
+                            className="h-8 text-xs font-mono"
+                            type="number"
+                            value={item.quantity === 0 ? "" : item.quantity}
+                            onChange={(e) =>
+                              updateItem(item.id, { quantity: Number(e.target.value) || 0 })
+                            }
+                            disabled={isNonEditable}
+                          />
                         </div>
                         <div>
                           <Label className="text-[10px]">Birim</Label>
@@ -1190,13 +1375,17 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <Label className="text-[10px]">Fiyat</Label>
+                          <Label className="text-[10px]">Birim Fiyat</Label>
                           <Input
                             className="h-8 text-xs font-mono"
                             type="number"
-                            value={item.unitPrice}
-                            onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })}
+                            value={item.unitPrice === 0 ? "" : item.unitPrice}
+                            onChange={(e) =>
+                              updateItem(item.id, { unitPrice: Number(e.target.value) || 0 })
+                            }
                             disabled={isNonEditable}
                           />
                         </div>
@@ -1211,177 +1400,165 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {VAT_RATES.map((rate) => (
-                                <SelectItem key={rate} value={String(rate)}>
-                                  %{rate}
+                              {VAT_RATES.map((r) => (
+                                <SelectItem key={r} value={String(r)}>
+                                  %{r}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
+                        <div>
+                          <Label className="text-[10px]">İskonto %</Label>
+                          <Input
+                            className="h-8 text-xs font-mono"
+                            type="number"
+                            value={item.discountRate === 0 ? "" : item.discountRate}
+                            onChange={(e) =>
+                              updateItem(item.id, { discountRate: Number(e.target.value) || 0 })
+                            }
+                            disabled={isNonEditable}
+                          />
+                        </div>
                       </div>
-
-                      <div className="flex items-center justify-between pt-1 text-xs">
-                        <span className="text-muted-foreground font-mono text-[11px]">
-                          Matrah: {formatMoney(t.taxable, currency)}
-                        </span>
-                        <span className="font-semibold font-mono text-primary">
-                          Toplam: {formatMoney(t.total, currency)}
-                        </span>
+                      {showDescription && (
+                        <div>
+                          <Label className="text-[10px]">Kalem Açıklaması</Label>
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Açıklama..."
+                            value={item.description || ""}
+                            onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                            disabled={isNonEditable}
+                          />
+                        </div>
+                      )}
+                      <div className="pt-1 flex items-center justify-between text-xs font-semibold">
+                        <span className="text-muted-foreground">Satır Toplamı:</span>
+                        <span>{formatMoney(t.total, currency)}</span>
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
 
-              {/* ALT KALEM EKLE BUTONU */}
+          {/* 4. NOTLAR VE ÖDEME BİLGİLERİ */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Fatura Notları & Ödeme Bilgisi</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <Label htmlFor="notes">Fatura Notu</Label>
+                <Textarea
+                  id="notes"
+                  rows={2}
+                  placeholder="Fatura altında görünecek genel notlar..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  disabled={isNonEditable}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="payment">Banka / IBAN / Ödeme Bilgileri</Label>
+                <Input
+                  id="payment"
+                  placeholder="TR00 0000 0000 0000 0000 0000 00 (Ziraat Bankası)"
+                  value={paymentInfo}
+                  onChange={(e) => setPaymentInfo(e.target.value)}
+                  disabled={isNonEditable}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* SAĞ PANEL: ÖZET VE TOPLAMLAR */}
+        <div className="space-y-6">
+          <Card className="sticky top-6 border-primary/20 bg-card">
+            <CardHeader className="pb-3 border-b border-border/50">
+              <CardTitle className="text-base">Genel Toplam Özeti</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-4">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Ara Toplam (Brüt):</span>
+                <span className="font-mono">{formatMoney(totals.subtotal, currency)}</span>
+              </div>
+
+              {totals.totalDiscount > 0 && (
+                <div className="flex justify-between text-xs text-destructive">
+                  <span>Toplam İskonto:</span>
+                  <span className="font-mono">-{formatMoney(totals.totalDiscount, currency)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-xs font-medium">
+                <span>KDV Matrahı:</span>
+                <span className="font-mono">{formatMoney(totals.taxableAmount, currency)}</span>
+              </div>
+
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Toplam KDV:</span>
+                <span className="font-mono">{formatMoney(totals.totalVat, currency)}</span>
+              </div>
+
+              {isTevkifatli && totals.totalTevkifat > 0 && (
+                <>
+                  <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400">
+                    <span>Tevkif Edilen KDV:</span>
+                    <span className="font-mono">-{formatMoney(totals.totalTevkifat, currency)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
+                    <span>Beyan Edilecek KDV:</span>
+                    <span className="font-mono">{formatMoney(totals.payableVat, currency)}</span>
+                  </div>
+                </>
+              )}
+
+              <div className="border-t border-border pt-3 mt-3 flex justify-between items-baseline">
+                <span className="text-sm font-bold">Ödenecek Tutar:</span>
+                <span className="text-xl font-bold font-mono text-primary">
+                  {formatMoney(totals.grandTotal, currency)}
+                </span>
+              </div>
+
+              <div className="pt-2 text-[11px] text-muted-foreground italic leading-tight">
+                Yalnız: {numberToTurkishWords(totals.grandTotal, currency)}
+              </div>
+
               {!isNonEditable && (
-                <div className="pt-2 flex justify-start">
+                <div className="pt-4 space-y-2">
                   <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={addItem}
-                    className="gap-1.5 text-xs border-dashed"
+                    className="w-full bg-primary text-primary-foreground font-semibold h-10"
+                    disabled={saveInvoice.isPending}
+                    onClick={() => saveInvoice.mutate("ONAYLANDI")}
                   >
-                    <PlusCircle className="size-3.5" /> Kalem Ekle
+                    {saveInvoice.isPending
+                      ? "İşleniyor..."
+                      : operationMode === "ALIS"
+                        ? "Alış Faturasını Onayla"
+                        : operationMode === "ALIS_IADE"
+                          ? "Alış İadesini Onayla"
+                          : operationMode === "SATIS_IADE"
+                            ? "Satış İadesini Onayla"
+                            : "Faturayı Onayla & Kaydet"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs"
+                    disabled={saveInvoice.isPending}
+                    onClick={() => saveInvoice.mutate("TASLAK")}
+                  >
+                    Taslak Olarak Sakla
                   </Button>
                 </div>
               )}
             </CardContent>
           </Card>
-
-          {/* 4. EK BİLGİLER */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Ek Bilgiler & Notlar</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="notes">Fatura Notu</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Fatura üzerinde görünecek özel notlar veya sipariş no"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="payment">Ödeme / Banka Bilgileri</Label>
-                <Textarea
-                  id="payment"
-                  value={paymentInfo}
-                  onChange={(e) => setPaymentInfo(e.target.value)}
-                  placeholder="Banka Adı, IBAN ve ödeme vadesi detayları"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* SAĞ TARAF: FATURA ÖZETİ */}
-        <div>
-          <Card className="lg:sticky lg:top-6 space-y-4">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                {operationMode === "ALIS"
-                  ? "Alış Faturası Özeti"
-                  : operationMode === "ALIS_IADE"
-                    ? "Alış İadesi Özeti"
-                    : "Fatura Özeti & Döküm"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <Row label="Mal/Hizmet Toplamı" value={formatMoney(totals.subtotal, currency)} />
-              {totals.totalDiscount > 0 ? (
-                <Row
-                  label="Toplam İskonto"
-                  value={`- ${formatMoney(totals.totalDiscount, currency)}`}
-                />
-              ) : null}
-              <Row label="KDV Matrahı" value={formatMoney(totals.taxableAmount, currency)} />
-              <Row
-                label={
-                  operationMode === "ALIS"
-                    ? "İndirilecek KDV (191)"
-                    : operationMode === "ALIS_IADE"
-                      ? "İade KDV"
-                      : "Hesaplanan KDV (391)"
-                }
-                value={formatMoney(totals.totalVat, currency)}
-              />
-              {totals.totalTevkifat > 0 ? (
-                <Row
-                  label="Tevkifat Kesintisi"
-                  value={`- ${formatMoney(totals.totalTevkifat, currency)}`}
-                />
-              ) : null}
-
-              {/* KDV Dağılımı */}
-              <div className="rounded-md bg-muted/40 p-2.5 space-y-1 text-xs font-mono">
-                <span className="font-semibold text-muted-foreground font-sans">KDV Dilim Dağılımı:</span>
-                {Object.entries(totals.vatBreakdown)
-                  .filter(([_, v]) => v.taxable > 0)
-                  .map(([rate, val]) => (
-                    <div key={rate} className="flex justify-between text-muted-foreground">
-                      <span>%{rate} KDV:</span>
-                      <span>
-                        Matrah: {formatMoney(val.taxable, currency)} | Vergi: {formatMoney(val.vat, currency)}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-lg font-bold">
-                <span>{operationMode === "ALIS" ? "Tedarikçiye Borç (320)" : "Genel Toplam"}</span>
-                <span className="text-primary font-mono">{formatMoney(totals.grandTotal, currency)}</span>
-              </div>
-
-              {/* Yazı İle */}
-              <div className="rounded-md bg-muted p-2.5 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">Yazı İle: </span>
-                <span className="italic">{wordsAmount}</span>
-              </div>
-
-              <div className="space-y-2 pt-3">
-                {operationMode === "SATIS" && !editId && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => saveInvoice.mutate("TASLAK")}
-                    disabled={saveInvoice.isPending}
-                  >
-                    {saveInvoice.isPending ? "Kaydediliyor…" : "Taslak Olarak Kaydet"}
-                  </Button>
-                )}
-                <Button
-                  className="w-full"
-                  onClick={() => saveInvoice.mutate("ONAYLANDI")}
-                  disabled={saveInvoice.isPending}
-                >
-                  {saveInvoice.isPending
-                    ? "İşleniyor…"
-                    : operationMode === "ALIS"
-                      ? "Alış Faturasını Kaydet & Onayla"
-                      : operationMode === "ALIS_IADE"
-                        ? "Alış İadesini Onayla"
-                        : editId
-                          ? "Faturayı Güncelle & Onayla"
-                          : "Kaydet ve Onayla"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </AppShell>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium font-mono">{value}</span>
-    </div>
   );
 }
