@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download, Copy } from "lucide-react";
+import { Download, Copy, Pencil, Plus, Layers, Briefcase, Package } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -26,14 +27,14 @@ import { formatMoney } from "@/lib/invoice";
 export const Route = createFileRoute("/_authenticated/urunler")({
   head: () => ({
     meta: [
-      { title: "Ürün & Stok Kartları | e-Fatura Portalı" },
+      { title: "Ürün & Hizmet Yönetimi | e-Fatura Portalı" },
       {
         name: "description",
         content:
-          "Ürün kartlarını kod, barkod, alış/satış fiyatı, KDV ve kritik stok seviyesiyle yönetin.",
+          "Ürün ve hizmet kartlarını kod, barkod, alış/satış fiyatı, KDV ve kritik stok seviyesiyle yönetin ve güncelleyin.",
       },
-      { property: "og:title", content: "Ürün & Stok Kartları | e-Fatura Portalı" },
-      { property: "og:description", content: "Ürün kartlarınızı ve stok seviyelerinizi yönetin." },
+      { property: "og:title", content: "Ürün & Hizmet Yönetimi | e-Fatura Portalı" },
+      { property: "og:description", content: "Ürün ve hizmet kartlarınızı yönetin ve güncelleyin." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/_authenticated/urunler")({
 });
 
 const emptyProduct = {
+  id: "",
   code: "",
   barcode: "",
   name: "",
@@ -53,6 +55,7 @@ const emptyProduct = {
   vatRate: "20",
   discountRate: "0",
   minStock: "0",
+  trackStock: true,
 };
 
 const PRODUCT_COLUMNS = [
@@ -85,7 +88,12 @@ function ProductsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"ALL" | "PRODUCTS" | "SERVICES">("ALL");
   const [form, setForm] = useState(emptyProduct);
+
+  // Edit Product State
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState(emptyProduct);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
@@ -124,14 +132,21 @@ function ProductsPage() {
   }, [stocks]);
 
   const visible = useMemo(() => {
+    let list = products;
+    if (activeTab === "PRODUCTS") {
+      list = list.filter((p) => (p.category ?? "").toLocaleLowerCase("tr") !== "hizmet" && p.track_stock !== false);
+    } else if (activeTab === "SERVICES") {
+      list = list.filter((p) => (p.category ?? "").toLocaleLowerCase("tr") === "hizmet" || p.track_stock === false);
+    }
+
     const q = search.trim().toLocaleLowerCase("tr");
-    if (!q) return products;
-    return products.filter((p) =>
+    if (!q) return list;
+    return list.filter((p) =>
       [p.name, p.code, p.barcode, p.category]
         .filter(Boolean)
         .some((v) => String(v).toLocaleLowerCase("tr").includes(q)),
     );
-  }, [products, search]);
+  }, [products, search, activeTab]);
 
   const criticalCount = useMemo(
     () =>
@@ -150,39 +165,101 @@ function ProductsPage() {
 
   const createProduct = useMutation({
     mutationFn: async () => {
+      if (!form.name.trim()) throw new Error("Ürün veya hizmet adı boş olamaz.");
       const userId = await currentUserId();
+      const isService = form.category?.toLowerCase() === "hizmet" || !form.trackStock;
       const { error } = await supabase.from("products").insert({
         user_id: userId,
-        code: form.code,
-        barcode: form.barcode,
-        name: form.name,
+        code: form.code.trim(),
+        barcode: form.barcode.trim(),
+        name: form.name.trim(),
         description: form.description,
-        category: form.category,
-        unit: form.unit,
+        category: form.category || (isService ? "Hizmet" : "Genel"),
+        unit: form.unit || (isService ? "Saat" : "Adet"),
         purchase_price: Number(form.purchasePrice) || 0,
         unit_price: Number(form.unitPrice) || 0,
         vat_rate: Number(form.vatRate) || 0,
         discount_rate: Number(form.discountRate) || 0,
-        min_stock: Number(form.minStock) || 0,
+        min_stock: isService ? 0 : Number(form.minStock) || 0,
+        track_stock: !isService,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Ürün/hizmet eklendi.");
+      toast.success("Ürün/hizmet başarıyla eklendi.");
       setForm(emptyProduct);
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const updateProduct = useMutation({
+    mutationFn: async () => {
+      if (!editForm.id) throw new Error("Güncellenecek ürün kimliği bulunamadı.");
+      if (!editForm.name.trim()) throw new Error("Ürün veya hizmet adı boş olamaz.");
+      const userId = await currentUserId();
+      const isService = editForm.category?.toLowerCase() === "hizmet" || !editForm.trackStock;
+
+      const { error } = await supabase
+        .from("products")
+        .update({
+          code: editForm.code.trim(),
+          barcode: editForm.barcode.trim(),
+          name: editForm.name.trim(),
+          description: editForm.description,
+          category: editForm.category,
+          unit: editForm.unit,
+          purchase_price: Number(editForm.purchasePrice) || 0,
+          unit_price: Number(editForm.unitPrice) || 0,
+          vat_rate: Number(editForm.vatRate) || 0,
+          discount_rate: Number(editForm.discountRate) || 0,
+          min_stock: isService ? 0 : Number(editForm.minStock) || 0,
+          track_stock: !isService,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editForm.id)
+        .eq("user_id", userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Ürün / Hizmet kartı başarıyla güncellendi.");
+      setEditOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function handleOpenEditModal(p: any) {
+    setEditForm({
+      id: p.id,
+      code: p.code || "",
+      barcode: p.barcode || "",
+      name: p.name || "",
+      description: p.description || "",
+      category: p.category || "",
+      unit: p.unit || "Adet",
+      purchasePrice: String(p.purchase_price ?? 0),
+      unitPrice: String(p.unit_price ?? 0),
+      vatRate: String(p.vat_rate ?? 20),
+      discountRate: String(p.discount_rate ?? 0),
+      minStock: String(p.min_stock ?? 0),
+      trackStock: p.track_stock !== false,
+    });
+    setEditOpen(true);
+  }
 
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyForm, setCopyForm] = useState(emptyProduct);
 
   function handleOpenCopyModal(p: any) {
     setCopyForm({
+      id: "",
       code: p.code ? `${p.code}-KOPYA` : "",
-      barcode: "", // Barkod çakışmasını önlemek için her zaman boş bırakılır
+      barcode: "",
       name: `${p.name} - Kopyası`,
       description: p.description || "",
       category: p.category || "",
@@ -192,6 +269,7 @@ function ProductsPage() {
       vatRate: String(p.vat_rate ?? 20),
       discountRate: String(p.discount_rate ?? 0),
       minStock: String(p.min_stock ?? 0),
+      trackStock: p.track_stock !== false,
     });
     setCopyOpen(true);
   }
@@ -200,6 +278,7 @@ function ProductsPage() {
     mutationFn: async () => {
       if (!copyForm.name.trim()) throw new Error("Ürün adı boş olamaz.");
       const userId = await currentUserId();
+      const isService = copyForm.category?.toLowerCase() === "hizmet" || !copyForm.trackStock;
       const { error } = await supabase.from("products").insert({
         user_id: userId,
         code: copyForm.code.trim(),
@@ -212,12 +291,13 @@ function ProductsPage() {
         unit_price: Number(copyForm.unitPrice) || 0,
         vat_rate: Number(copyForm.vatRate) || 0,
         discount_rate: Number(copyForm.discountRate) || 0,
-        min_stock: Number(copyForm.minStock) || 0,
+        min_stock: isService ? 0 : Number(copyForm.minStock) || 0,
+        track_stock: !isService,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Yeni stok kartı kopyalanarak oluşturuldu.");
+      toast.success("Yeni kart kopyalanarak oluşturuldu.");
       setCopyOpen(false);
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-stocks"] });
@@ -253,207 +333,320 @@ function ProductsPage() {
         vat_rate: r.vatRate,
         discount_rate: r.discountRate,
         min_stock: r.minStock,
+        track_stock: r.category?.toLowerCase() !== "hizmet",
       })),
     );
     if (error) throw error;
-    toast.success(`${rows.length} kalem içe aktarıldı.`);
     queryClient.invalidateQueries({ queryKey: ["products"] });
   }
 
   function exportProducts() {
-    downloadWorkbook(
-      [...PRODUCT_COLUMNS.map((c) => c.header), "Mevcut Stok"],
-      visible.map((p) => [
-        p.code ?? "",
-        p.barcode ?? "",
-        p.name,
-        p.category ?? "",
-        p.unit,
-        Number(p.purchase_price ?? 0),
-        Number(p.unit_price),
-        Number(p.vat_rate),
-        Number(p.discount_rate ?? 0),
-        Number(p.min_stock ?? 0),
-        stockMap.get(p.id) ?? 0,
-      ]),
-      `urunler-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      "Ürünler",
-    );
+    if (!products.length) {
+      toast.error("Dışa aktarılacak ürün bulunamadı.");
+      return;
+    }
+    const data = products.map((p) => ({
+      "Ürün Kodu": p.code || "",
+      Barkod: p.barcode || "",
+      Ad: p.name,
+      Kategori: p.category || "",
+      Birim: p.unit,
+      "Alış Fiyatı": Number(p.purchase_price ?? 0),
+      "Satış Fiyatı": Number(p.unit_price),
+      "KDV %": Number(p.vat_rate),
+      "İskonto %": Number(p.discount_rate ?? 0),
+      "Min. Stok": Number(p.min_stock ?? 0),
+      "Mevcut Stok": stockMap.get(p.id) ?? 0,
+      Açıklama: p.description || "",
+    }));
+    downloadWorkbook(data, "urunler_listesi", "Ürünler");
+    toast.success("Excel dosyası indirildi.");
   }
-
-  const numberFields: { key: keyof typeof emptyProduct; label: string; step?: string }[] = [
-    { key: "purchasePrice", label: "Alış Fiyatı", step: "0.01" },
-    { key: "unitPrice", label: "Satış Fiyatı", step: "0.01" },
-    { key: "vatRate", label: "KDV %", step: "1" },
-    { key: "discountRate", label: "İskonto %", step: "0.01" },
-    { key: "minStock", label: "Min. Stok", step: "0.01" },
-  ];
 
   return (
     <AppShell
-      title="Ürün & Stok Kartları"
-      subtitle="Fiyat, KDV, barkod ve kritik stok bilgileriyle katalog"
-      actions={
-        <>
-          <Button
-            variant="ghost"
-            className="gap-2"
-            onClick={exportProducts}
-            disabled={visible.length === 0}
-          >
-            <Download className="size-4" />
-            Excel'e Aktar
-          </Button>
-          <ExcelImportDialog<ImportedProduct>
-            title="Excel'den Ürün İçe Aktar"
-            templateName="urun-sablonu.xlsx"
-            columns={PRODUCT_COLUMNS}
-            mapRow={(row: SheetRow) => {
-              const name = pickColumn(row, [
-                "Ad",
-                "Ürün",
-                "Hizmet",
-                "Ürün / Hizmet Adı",
-                "Açıklama",
-                "Adı",
-              ]).trim();
-              const hasAnyData = Object.values(row).some((v) => v && v.trim());
-              if (!hasAnyData) return null;
-              if (!name) return { error: "Ürün veya hizmet adı boş olamaz." };
-              return {
-                data: {
-                  name,
-                  code: pickColumn(row, ["Ürün Kodu", "Kod"]),
-                  barcode: pickColumn(row, ["Barkod"]),
-                  category: pickColumn(row, ["Kategori"]),
-                  unit: pickColumn(row, ["Birim"]) || "Adet",
-                  purchasePrice: parseNumber(pickColumn(row, ["Alış Fiyatı", "Alis Fiyati"])),
-                  unitPrice: parseNumber(pickColumn(row, ["Satış Fiyatı", "Birim Fiyat", "Fiyat"])),
-                  vatRate: parseNumber(pickColumn(row, ["KDV %", "KDV", "KDV Oranı"])) || 20,
-                  discountRate: parseNumber(pickColumn(row, ["İskonto %", "İskonto"])),
-                  minStock: parseNumber(pickColumn(row, ["Min. Stok", "Minimum Stok"])),
+      title="Ürün & Hizmet Yönetimi"
+      subtitle="Fiyat, KDV, stok seviyeleri ve hizmet kartlarınızı tek panelden yönetin ve güncelleyin."
+    >
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Toplam Kart Sayısı
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{products.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Tanımlı ürün ve hizmetler</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Kritik Stok Uyarısı
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${criticalCount > 0 ? "text-destructive" : ""}`}>
+              {criticalCount}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Asgari seviyenin altındaki ürünler</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Hizmet Kartları
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {products.filter((p) => (p.category ?? "").toLocaleLowerCase("tr") === "hizmet" || p.track_stock === false).length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Stoksuz hizmetler</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <CardTitle>Kart Listesi</CardTitle>
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as any)}
+              className="mt-2"
+            >
+              <TabsList className="h-8">
+                <TabsTrigger value="ALL" className="text-xs gap-1.5 px-3">
+                  <Layers className="size-3.5" /> Tümü ({products.length})
+                </TabsTrigger>
+                <TabsTrigger value="PRODUCTS" className="text-xs gap-1.5 px-3">
+                  <Package className="size-3.5" /> Ürünler ({products.filter((p) => (p.category ?? "").toLocaleLowerCase("tr") !== "hizmet" && p.track_stock !== false).length})
+                </TabsTrigger>
+                <TabsTrigger value="SERVICES" className="text-xs gap-1.5 px-3">
+                  <Briefcase className="size-3.5" /> Hizmetler ({products.filter((p) => (p.category ?? "").toLocaleLowerCase("tr") === "hizmet" || p.track_stock === false).length})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={exportProducts} className="gap-2 text-xs">
+              <Download className="size-4" /> Excel'e Aktar
+            </Button>
+            <ExcelImportDialog<ImportedProduct>
+              title="Excel'den Ürün & Hizmet İçe Aktar"
+              columns={PRODUCT_COLUMNS}
+              templateFilename="urun_sablonu"
+              sampleRows={[
+                {
+                  "Ürün Kodu": "U-001",
+                  Barkod: "8690000000001",
+                  Ad: "Laptop Çantası",
+                  Kategori: "Aksesuar",
+                  Birim: "Adet",
+                  "Alış Fiyatı": 250,
+                  "Satış Fiyatı": 450,
+                  "KDV %": 20,
+                  "İskonto %": 0,
+                  "Min. Stok": 5,
                 },
-              };
-            }}
-            onImport={importProducts}
-          />
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>Yeni Kalem</Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Ürün / Hizmet Kartı</DialogTitle>
-              </DialogHeader>
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  createProduct.mutate();
-                }}
-              >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="code">Ürün Kodu</Label>
+                {
+                  "Ürün Kodu": "H-001",
+                  Barkod: "",
+                  Ad: "Yazılım Danışmanlığı",
+                  Kategori: "Hizmet",
+                  Birim: "Saat",
+                  "Alış Fiyatı": 0,
+                  "Satış Fiyatı": 2500,
+                  "KDV %": 20,
+                  "İskonto %": 0,
+                  "Min. Stok": 0,
+                },
+              ]}
+              parseRow={(row: SheetRow) => {
+                const name = pickColumn(row, ["Ad", "Ürün Adı", "Hizmet Adı", "urun", "hizmet"]);
+                if (!name) return { error: "Ürün veya hizmet adı boş olamaz." };
+                return {
+                  data: {
+                    code: pickColumn(row, ["Ürün Kodu", "Kod", "kod"]) || "",
+                    barcode: pickColumn(row, ["Barkod", "barkod"]) || "",
+                    name,
+                    category: pickColumn(row, ["Kategori", "kategori"]) || "",
+                    unit: pickColumn(row, ["Birim", "birim"]) || "Adet",
+                    purchasePrice: parseNumber(pickColumn(row, ["Alış Fiyatı", "Alış"]), 0),
+                    unitPrice: parseNumber(
+                      pickColumn(row, ["Satış Fiyatı", "Birim Fiyat", "Fiyat"]),
+                      0,
+                    ),
+                    vatRate: parseNumber(pickColumn(row, ["KDV %", "KDV", "Kdv"]), 20),
+                    discountRate: parseNumber(pickColumn(row, ["İskonto %", "İskonto"]), 0),
+                    minStock: parseNumber(pickColumn(row, ["Min. Stok", "Asgari Stok"]), 0),
+                  },
+                };
+              }}
+              onImport={importProducts}
+            />
+
+            {/* YENİ ÜRÜN / HİZMET EKLE MODALI */}
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2 text-xs">
+                  <Plus className="size-4" /> Yeni Kart Ekle
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Yeni Ürün / Hizmet Kartı</DialogTitle>
+                </DialogHeader>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    createProduct.mutate();
+                  }}
+                  className="space-y-4 pt-2"
+                >
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="code">Ürün / Hizmet Kodu</Label>
+                      <Input
+                        id="code"
+                        placeholder="Örn: U-001 veya H-01"
+                        value={form.code}
+                        onChange={(e) => setForm({ ...form, code: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="barcode">Barkod</Label>
+                      <Input
+                        id="barcode"
+                        placeholder="8690000000000"
+                        value={form.barcode}
+                        onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="name">Ürün / Hizmet Adı *</Label>
                     <Input
-                      id="code"
-                      value={form.code}
-                      onChange={(e) => setForm({ ...form, code: e.target.value })}
+                      id="name"
+                      required
+                      placeholder="Örn: Web Yazılım Danışmanlığı"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="barcode">Barkod</Label>
-                    <Input
-                      id="barcode"
-                      value={form.barcode}
-                      onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                    />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="category">Kategori</Label>
+                      <Input
+                        id="category"
+                        placeholder="Örn: Hizmet, Elektronik, Gıda"
+                        value={form.category}
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="unit">Birim</Label>
+                      <Input
+                        id="unit"
+                        placeholder="Adet, Saat, Kg vb."
+                        value={form.unit}
+                        onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Ürün / Hizmet Adı</Label>
-                  <Input
-                    id="name"
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Kategori</Label>
-                    <Input
-                      id="category"
-                      value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="purchasePrice">Birim Alış Fiyatı (TL)</Label>
+                      <Input
+                        id="purchasePrice"
+                        type="number"
+                        step="0.01"
+                        value={form.purchasePrice}
+                        onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="unitPrice">Birim Satış Fiyatı (TL) *</Label>
+                      <Input
+                        id="unitPrice"
+                        type="number"
+                        step="0.01"
+                        required
+                        value={form.unitPrice}
+                        onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="unit">Birim</Label>
-                    <Input
-                      id="unit"
-                      value={form.unit}
-                      onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                    />
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="vatRate">KDV Oranı (%)</Label>
+                      <Input
+                        id="vatRate"
+                        type="number"
+                        value={form.vatRate}
+                        onChange={(e) => setForm({ ...form, vatRate: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="discountRate">Varsayılan İskonto (%)</Label>
+                      <Input
+                        id="discountRate"
+                        type="number"
+                        value={form.discountRate}
+                        onChange={(e) => setForm({ ...form, discountRate: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="minStock">Asgari Stok Seviyesi</Label>
+                      <Input
+                        id="minStock"
+                        type="number"
+                        value={form.minStock}
+                        onChange={(e) => setForm({ ...form, minStock: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
+
+                  <div>
                     <Label htmlFor="description">Açıklama</Label>
                     <Input
                       id="description"
+                      placeholder="Kart detayları veya notlar"
                       value={form.description}
                       onChange={(e) => setForm({ ...form, description: e.target.value })}
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                  {numberFields.map((f) => (
-                    <div key={f.key} className="space-y-2">
-                      <Label htmlFor={f.key}>{f.label}</Label>
-                      <Input
-                        id={f.key}
-                        type="number"
-                        step={f.step}
-                        value={form[f.key]}
-                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <Button type="submit" className="w-full" disabled={createProduct.isPending}>
-                  Kaydet
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </>
-      }
-    >
-      {criticalCount > 0 ? (
-        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
-          <span className="font-medium">{criticalCount} üründe kritik stok seviyesi.</span>{" "}
-          <span className="text-muted-foreground">
-            Stok Yönetimi ekranından giriş yapabilirsiniz.
-          </span>
-        </div>
-      ) : null}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="text-base">Katalog ({visible.length})</CardTitle>
-            <Input
-              placeholder="Ara: ad, kod, barkod, kategori…"
-              className="w-full sm:w-72"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+                  <Button type="submit" className="w-full" disabled={createProduct.isPending}>
+                    {createProduct.isPending ? "Kaydediliyor…" : "Kaydet"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="space-y-4">
+          <Input
+            placeholder="Kart adı, kod, barkod veya kategori ile ara…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Yükleniyor…</p>
+            <div className="py-8 text-center text-muted-foreground">Yükleniyor…</div>
           ) : visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Henüz kayıt yok.</p>
+            <div className="py-8 text-center text-muted-foreground">
+              {search ? "Aramaya uygun kart bulunamadı." : "Henüz ürün veya hizmet eklenmemiş."}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -467,51 +660,75 @@ function ProductsPage() {
                     <th className="py-2 pr-4 text-right">Satış</th>
                     <th className="py-2 pr-4">KDV</th>
                     <th className="py-2 pr-4 text-right">Stok</th>
-                    <th className="py-2" />
+                    <th className="py-2 text-right">İşlemler</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visible.map((p) => {
+                    const isService = (p.category ?? "").toLocaleLowerCase("tr") === "hizmet" || p.track_stock === false;
                     const stock = stockMap.get(p.id) ?? 0;
-                    const critical = Number(p.min_stock ?? 0) > 0 && stock <= Number(p.min_stock);
+                    const critical = !isService && Number(p.min_stock ?? 0) > 0 && stock <= Number(p.min_stock);
                     return (
-                      <tr key={p.id} className="border-b border-border/60 last:border-0">
+                      <tr key={p.id} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
                         <td className="py-3 pr-4">
-                          <div>{p.code || "-"}</div>
-                          <div className="text-xs text-muted-foreground">{p.barcode || ""}</div>
+                          <div className="font-mono">{p.code || "-"}</div>
+                          <div className="text-xs text-muted-foreground font-mono">{p.barcode || ""}</div>
                         </td>
-                        <td className="py-3 pr-4 font-medium">{p.name}</td>
-                        <td className="py-3 pr-4">{p.category || "-"}</td>
+                        <td className="py-3 pr-4 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            {p.name}
+                            {isService && (
+                              <Badge variant="secondary" className="text-[10px] py-0 px-1.5">Hizmet</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-4 text-muted-foreground">{p.category || "-"}</td>
                         <td className="py-3 pr-4">{p.unit}</td>
                         <td className="py-3 pr-4 text-right">
                           {formatMoney(Number(p.purchase_price ?? 0))}
                         </td>
-                        <td className="py-3 pr-4 text-right">
+                        <td className="py-3 pr-4 text-right font-medium">
                           {formatMoney(Number(p.unit_price))}
                         </td>
                         <td className="py-3 pr-4">%{Number(p.vat_rate)}</td>
                         <td className="py-3 pr-4 text-right">
-                          <span className="font-medium">{stock}</span>
-                          {critical ? (
-                            <Badge variant="destructive" className="ml-2">
-                              Kritik
-                            </Badge>
-                          ) : null}
+                          {isService ? (
+                            <span className="text-xs text-muted-foreground">Stoksuz</span>
+                          ) : (
+                            <>
+                              <span className="font-medium">{stock}</span>
+                              {critical ? (
+                                <Badge variant="destructive" className="ml-2 text-[10px] py-0">
+                                  Kritik
+                                </Badge>
+                              ) : null}
+                            </>
+                          )}
                         </td>
-                        <td className="py-3 text-right space-x-1">
+                        <td className="py-3 text-right space-x-1 whitespace-nowrap">
+                          {/* GÜNCELLE BUTONU */}
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            title="Stok Kartını Kopyala"
-                            className="gap-1 text-xs"
-                            onClick={() => handleOpenCopyModal(p)}
+                            title="Kartı Güncelle"
+                            className="gap-1 text-xs h-7 px-2"
+                            onClick={() => handleOpenEditModal(p)}
                           >
-                            <Copy className="size-3.5" /> Kopyala
+                            <Pencil className="size-3 text-primary" /> Güncelle
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-destructive text-xs"
+                            title="Kartı Kopyala"
+                            className="gap-1 text-xs h-7 px-2"
+                            onClick={() => handleOpenCopyModal(p)}
+                          >
+                            <Copy className="size-3" /> Kopyala
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive text-xs h-7 px-2 hover:bg-destructive/10"
                             onClick={() => removeProduct.mutate(p.id)}
                           >
                             Sil
@@ -527,6 +744,148 @@ function ProductsPage() {
         </CardContent>
       </Card>
 
+      {/* GÜNCELLEME (EDIT) MODALI */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="size-4 text-primary" /> Ürün / Hizmet Kartını Güncelle
+            </DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateProduct.mutate();
+            }}
+            className="space-y-4 pt-2"
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-code">Ürün / Hizmet Kodu</Label>
+                <Input
+                  id="edit-code"
+                  placeholder="Örn: U-001"
+                  value={editForm.code}
+                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-barcode">Barkod</Label>
+                <Input
+                  id="edit-barcode"
+                  placeholder="8690000000000"
+                  value={editForm.barcode}
+                  onChange={(e) => setEditForm({ ...editForm, barcode: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-name">Ürün / Hizmet Adı *</Label>
+              <Input
+                id="edit-name"
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-category">Kategori</Label>
+                <Input
+                  id="edit-category"
+                  placeholder="Hizmet, Elektronik vb."
+                  value={editForm.category}
+                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-unit">Birim</Label>
+                <Input
+                  id="edit-unit"
+                  value={editForm.unit}
+                  onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-purchasePrice">Birim Alış Fiyatı (TL)</Label>
+                <Input
+                  id="edit-purchasePrice"
+                  type="number"
+                  step="0.01"
+                  value={editForm.purchasePrice}
+                  onChange={(e) => setEditForm({ ...editForm, purchasePrice: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-unitPrice">Birim Satış Fiyatı (TL) *</Label>
+                <Input
+                  id="edit-unitPrice"
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editForm.unitPrice}
+                  onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="edit-vatRate">KDV Oranı (%)</Label>
+                <Input
+                  id="edit-vatRate"
+                  type="number"
+                  value={editForm.vatRate}
+                  onChange={(e) => setEditForm({ ...editForm, vatRate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-discountRate">İskonto (%)</Label>
+                <Input
+                  id="edit-discountRate"
+                  type="number"
+                  value={editForm.discountRate}
+                  onChange={(e) => setEditForm({ ...editForm, discountRate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-minStock">Asgari Stok Seviyesi</Label>
+                <Input
+                  id="edit-minStock"
+                  type="number"
+                  value={editForm.minStock}
+                  onChange={(e) => setEditForm({ ...editForm, minStock: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-description">Açıklama</Label>
+              <Input
+                id="edit-description"
+                placeholder="Kart detayları veya notlar"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setEditOpen(false)}>
+                İptal
+              </Button>
+              <Button type="submit" className="flex-1" disabled={updateProduct.isPending}>
+                {updateProduct.isPending ? "Güncelleniyor…" : "Değişiklikleri Kaydet"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* STOK KARTI KOPYALAMA MODALI */}
       <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
@@ -538,37 +897,39 @@ function ProductsPage() {
           <div className="p-3 bg-muted/60 rounded-md text-xs space-y-1 text-muted-foreground border border-border/60 mb-2">
             <p className="font-semibold text-foreground">Kopyalama Bilgisi</p>
             <p>
-              Bu işlem kaynak ürünü değiştirmeden bağımsız yeni bir stok kartı oluşturur. 
-              Yeni ürün <strong>0 stok miktarı</strong> ile başlar. Geçmiş stok hareketleri, faturalar ve muhasebe kayıtları <strong>kopyalanmaz</strong>.
+              Mevcut kartın tüm birim, KDV ve fiyat bilgileri şablon olarak alındı. Yeni kart için
+              farklı bir isim ve kod belirleyerek kaydedebilirsiniz.
             </p>
           </div>
           <form
-            className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
               duplicateProduct.mutate();
             }}
+            className="space-y-4 pt-2"
           >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="copy-code">Ürün Kodu</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="copy-code">Yeni Ürün Kodu</Label>
                 <Input
                   id="copy-code"
+                  placeholder="Örn: U-002"
                   value={copyForm.code}
                   onChange={(e) => setCopyForm({ ...copyForm, code: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="copy-barcode">Barkod</Label>
+              <div>
+                <Label htmlFor="copy-barcode">Yeni Barkod (Opsiyonel)</Label>
                 <Input
                   id="copy-barcode"
-                  placeholder="Barkod boş (yeni barkod girebilirsiniz)"
+                  placeholder="Yeni barkod girin"
                   value={copyForm.barcode}
                   onChange={(e) => setCopyForm({ ...copyForm, barcode: e.target.value })}
                 />
               </div>
             </div>
-            <div className="space-y-2">
+
+            <div>
               <Label htmlFor="copy-name">Ürün / Hizmet Adı *</Label>
               <Input
                 id="copy-name"
@@ -577,8 +938,9 @@ function ProductsPage() {
                 onChange={(e) => setCopyForm({ ...copyForm, name: e.target.value })}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="space-y-2">
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <Label htmlFor="copy-category">Kategori</Label>
                 <Input
                   id="copy-category"
@@ -586,7 +948,7 @@ function ProductsPage() {
                   onChange={(e) => setCopyForm({ ...copyForm, category: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="copy-unit">Birim</Label>
                 <Input
                   id="copy-unit"
@@ -594,8 +956,11 @@ function ProductsPage() {
                   onChange={(e) => setCopyForm({ ...copyForm, unit: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="copy-purchasePrice">Alış Fiyatı (TL)</Label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="copy-purchasePrice">Birim Alış Fiyatı (TL)</Label>
                 <Input
                   id="copy-purchasePrice"
                   type="number"
@@ -604,20 +969,22 @@ function ProductsPage() {
                   onChange={(e) => setCopyForm({ ...copyForm, purchasePrice: e.target.value })}
                 />
               </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="copy-unitPrice">Satış Fiyatı (TL)</Label>
+              <div>
+                <Label htmlFor="copy-unitPrice">Birim Satış Fiyatı (TL) *</Label>
                 <Input
                   id="copy-unitPrice"
                   type="number"
                   step="0.01"
+                  required
                   value={copyForm.unitPrice}
                   onChange={(e) => setCopyForm({ ...copyForm, unitPrice: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="copy-vatRate">KDV %</Label>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="copy-vatRate">KDV Oranı (%)</Label>
                 <Input
                   id="copy-vatRate"
                   type="number"
@@ -625,8 +992,8 @@ function ProductsPage() {
                   onChange={(e) => setCopyForm({ ...copyForm, vatRate: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="copy-discountRate">İskonto %</Label>
+              <div>
+                <Label htmlFor="copy-discountRate">İskonto (%)</Label>
                 <Input
                   id="copy-discountRate"
                   type="number"
@@ -634,22 +1001,32 @@ function ProductsPage() {
                   onChange={(e) => setCopyForm({ ...copyForm, discountRate: e.target.value })}
                 />
               </div>
+              <div>
+                <Label htmlFor="copy-minStock">Asgari Stok</Label>
+                <Input
+                  id="copy-minStock"
+                  type="number"
+                  value={copyForm.minStock}
+                  onChange={(e) => setCopyForm({ ...copyForm, minStock: e.target.value })}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="copy-minStock">Min. Stok Uyarısı</Label>
+
+            <div>
+              <Label htmlFor="copy-description">Açıklama</Label>
               <Input
-                id="copy-minStock"
-                type="number"
-                value={copyForm.minStock}
-                onChange={(e) => setCopyForm({ ...copyForm, minStock: e.target.value })}
+                id="copy-description"
+                value={copyForm.description}
+                onChange={(e) => setCopyForm({ ...copyForm, description: e.target.value })}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setCopyOpen(false)}>
+
+            <div className="flex gap-2 pt-2">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setCopyOpen(false)}>
                 İptal
               </Button>
-              <Button type="submit" disabled={duplicateProduct.isPending}>
-                {duplicateProduct.isPending ? "Kopyalanıyor..." : "Kopyayı Kaydet"}
+              <Button type="submit" className="flex-1" disabled={duplicateProduct.isPending}>
+                {duplicateProduct.isPending ? "Oluşturuluyor…" : "Kopyayı Oluştur"}
               </Button>
             </div>
           </form>

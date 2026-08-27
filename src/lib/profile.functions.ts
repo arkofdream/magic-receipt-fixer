@@ -40,7 +40,7 @@ export const getMyCompanyProfile = createServerFn({ method: "GET" })
     return {
       id: data.id,
       companyTitle: data.company_title || "",
-      vknTckn: data.vkn_tckn || "",
+      vknTckn: data.vknTckn || "",
       taxOffice: data.tax_office || "",
       address: data.address || "",
       phone: data.phone || "",
@@ -200,4 +200,3 @@ export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
       message: "✕ Mükellef doğrulaması yapılamadı. Resmi NES/GİB servisine erişilemiyor veya yetki gerektiriyor.",
     };
   });
-

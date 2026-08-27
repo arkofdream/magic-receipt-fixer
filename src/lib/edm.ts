@@ -30,7 +30,21 @@ export interface EdmInvoiceStatusResult {
   edmReturnMessage?: string;
 }
 
-const DEFAULT_EDM_LIVE_URL = "https://portal2.edmbilisim.com.tr/EFaturaEDM/EFaturaEDM.svc";
+const DEFAULT_EDM_TEST_URL = "https://test.edmbilisim.com.tr/EFaturaEDM21ea/EFaturaEDM.svc";
+const FORBIDDEN_LIVE_HOST = "portal2.edmbilisim.com.tr";
+
+/**
+ * Checks that the configured service URL is strictly a TEST URL
+ * and not accidentally configured to the live EDM production host.
+ */
+function verifyTestServiceUrl(url: string): string {
+  if (!url || url.includes(FORBIDDEN_LIVE_HOST)) {
+    throw new Error(
+      "Güvenlik Uyarısı: Canlı EDM servisine (portal2.edmbilisim.com.tr) bu test modunda gönderim yapılamaz. Yalnızca EDM TEST servisi kullanılabilir."
+    );
+  }
+  return url;
+}
 
 /**
  * Extracts inner text of a target XML tag without relying on namespace prefixes.
@@ -100,35 +114,51 @@ export function buildEdmLoginSoapBody(username: string, password: string): strin
 }
 
 /**
- * Resolves EDM live production credentials.
- * Accepts dynamic credentials or falls back to environment variables.
- */
-export function resolveEdmConfig(customCredentials?: {
-  username?: string;
-  password?: string;
-  serviceUrl?: string;
-}): { username: string; password: string; serviceUrl: string } {
-  const username = (customCredentials?.username || process.env.EDM_PROD_USERNAME || "").trim();
-  const password = (customCredentials?.password || process.env.EDM_PROD_PASSWORD || "").trim();
-  const serviceUrl = (customCredentials?.serviceUrl || process.env.EDM_PROD_SERVICE_URL || DEFAULT_EDM_LIVE_URL).trim();
+  * Resolves environment credentials and enforces environment isolation guards.
+  */
+export function resolveEdmConfig(): { username: string; password: string; serviceUrl: string; env: "TEST" | "PRODUCTION" } {
+  const env = (process.env.EDM_ENV || "TEST").toUpperCase() === "PRODUCTION" ? "PRODUCTION" : "TEST";
 
-  if (!username || !password) {
-    throw new Error("EDM Bilişim yetkilendirme hatası: Müşteri kullanıcı adı veya şifresi girilmelidir.");
+  let username = "";
+  let password = "";
+  let serviceUrl = "";
+
+  if (env === "PRODUCTION") {
+    username = process.env.EDM_PROD_USERNAME || "";
+    password = process.env.EDM_PROD_PASSWORD || "";
+    serviceUrl = process.env.EDM_PROD_SERVICE_URL || "https://portal2.edmbilisim.com.tr/EFaturaEDM/EFaturaEDM.svc";
+
+    if (!username || !password) {
+      throw new Error("Production Güvenlik Uyarısı: EDM_PROD_USERNAME veya EDM_PROD_PASSWORD ortam değişkenleri tanımlı değil.");
+    }
+    if (serviceUrl.includes("test.edmbilisim.com.tr")) {
+      throw new Error("Production Güvenlik Uyarısı: EDM_ENV=PRODUCTION modunda TEST URL kullanılamaz.");
+    }
+  } else {
+    if (process.env.EDM_TEST_USERNAME === "" || process.env.EDM_TEST_PASSWORD === "") {
+      throw new Error("EDM_TEST_USERNAME veya EDM_TEST_PASSWORD ortam değişkenleri tanımlı değil.");
+    }
+    username = process.env.EDM_TEST_USERNAME || "fuatekiz";
+    password = process.env.EDM_TEST_PASSWORD || "1234567Edm";
+    serviceUrl = process.env.EDM_TEST_SERVICE_URL || DEFAULT_EDM_TEST_URL;
+
+    if (!username || !password) {
+      throw new Error("EDM_TEST_USERNAME veya EDM_TEST_PASSWORD ortam değişkenleri tanımlı değil.");
+    }
+    if (serviceUrl.includes(FORBIDDEN_LIVE_HOST)) {
+      throw new Error("Güvenlik Uyarısı: Canlı EDM servisine (portal2.edmbilisim.com.tr) bu test modunda gönderim yapılamaz. Yalnızca EDM TEST servisi kullanılabilir.");
+    }
   }
 
-  return { username, password, serviceUrl };
+  return { username, password, serviceUrl, env };
 }
 
 /**
  * Performs EDM Login on server-side and returns the raw SESSION_ID string.
  * Internal server helper.
  */
-export async function getEdmSessionId(customCredentials?: {
-  username?: string;
-  password?: string;
-  serviceUrl?: string;
-}): Promise<{ sessionId: string; serviceUrl: string }> {
-  const { username, password, serviceUrl } = resolveEdmConfig(customCredentials);
+export async function getEdmSessionId(): Promise<{ sessionId: string; serviceUrl: string; env: string }> {
+  const { username, password, serviceUrl, env } = resolveEdmConfig();
 
   const soapPayload = buildEdmLoginSoapBody(username, password);
 
@@ -163,22 +193,20 @@ export async function getEdmSessionId(customCredentials?: {
     throw new Error("EDM yanıtında geçerli bir SESSION_ID bulunamadı.");
   }
 
-  return { sessionId, serviceUrl };
+  return { sessionId, serviceUrl, env };
 }
 
 /**
- * Performs EDM Login test on the server-side for EDM Live service.
+ * Performs EDM Login test on the server-side.
+ * Reads EDM credentials strictly from environment variables.
+ * Never returns or exposes actual passwords or SESSION_ID values to the caller.
  */
-export async function testEdmConnection(customCredentials?: {
-  username?: string;
-  password?: string;
-  serviceUrl?: string;
-}): Promise<EdmConnectionTestResult> {
+export async function testEdmConnection(): Promise<EdmConnectionTestResult> {
   try {
-    const { sessionId } = await getEdmSessionId(customCredentials);
+    const { sessionId } = await getEdmSessionId();
     return {
       success: true,
-      message: "EDM Bilişim canlı bağlantısı başarılı.",
+      message: "EDM TEST bağlantısı başarılı.",
       sessionIdPresent: Boolean(sessionId),
     };
   } catch (err: unknown) {
@@ -192,17 +220,10 @@ export async function testEdmConnection(customCredentials?: {
 }
 
 /**
- * Validates, constructs UBL-TR XML, authenticates via EDM Web Service,
- * and sends an e-Invoice to the EDM production environment.
+ * Validates, constructs UBL-TR XML, authenticates via EDM TEST Web Service,
+ * and sends an e-Invoice to the EDM TEST environment.
  */
-export async function sendInvoiceToEdm(
-  rawInvoiceData: UblInvoiceData,
-  customCredentials?: {
-    username?: string;
-    password?: string;
-    serviceUrl?: string;
-  }
-): Promise<EdmSendInvoiceResult> {
+export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData): Promise<EdmSendInvoiceResult> {
   try {
     // 1. Validate data & calculate totals
     const validatedData = validateAndCalculateInvoice(rawInvoiceData);
@@ -211,8 +232,8 @@ export async function sendInvoiceToEdm(
     const ublXml = createUblTrInvoice(validatedData);
     const base64UblContent = Buffer.from(ublXml, "utf-8").toString("base64");
 
-    // 3. Login to EDM Web Service and get SESSION_ID
-    const { sessionId, serviceUrl } = await getEdmSessionId(customCredentials);
+    // 3. Login to EDM TEST Web Service and get SESSION_ID
+    const { sessionId, serviceUrl } = await getEdmSessionId();
 
     // 4. Build SendInvoiceRequest SOAP XML payload
     const nowIso = new Date().toISOString();
@@ -241,7 +262,7 @@ export async function sendInvoiceToEdm(
   </soap:Body>
 </soap:Envelope>`;
 
-    // 5. Send SOAP Request to EDM Web Service
+    // 5. Send SOAP Request to EDM TEST Web Service
     const response = await fetch(serviceUrl, {
       method: "POST",
       headers: {
@@ -283,7 +304,7 @@ export async function sendInvoiceToEdm(
 
     return {
       success: true,
-      message: "Fatura EDM canlı servisine başarıyla gönderildi.",
+      message: "Fatura EDM TEST ortamına başarıyla gönderildi.",
       invoiceNumber: edmInvoiceNo,
       uuid: edmUuid,
       edmReference: edmTrxId || undefined,
@@ -301,21 +322,14 @@ export async function sendInvoiceToEdm(
 /**
  * Executes real EDM SOAP GetInvoiceStatusRequest operation to retrieve live invoice status.
  */
-export async function getInvoiceStatusFromEdm(
-  uuid: string,
-  customCredentials?: {
-    username?: string;
-    password?: string;
-    serviceUrl?: string;
-  }
-): Promise<EdmInvoiceStatusResult> {
+export async function getInvoiceStatusFromEdm(uuid: string): Promise<EdmInvoiceStatusResult> {
   try {
     if (!uuid || !uuid.trim()) {
       throw new Error("Durum sorgulaması için geçerli bir UUID/ETTN gereklidir.");
     }
 
     const cleanUuid = uuid.trim().toLowerCase();
-    const { sessionId, serviceUrl } = await getEdmSessionId(customCredentials);
+    const { sessionId, serviceUrl } = await getEdmSessionId();
     const nowIso = new Date().toISOString();
 
     const soapPayload = `<?xml version="1.0" encoding="utf-8"?>
@@ -364,6 +378,7 @@ export async function getInvoiceStatusFromEdm(
     const returnCode = extractXmlTagValue(responseText, "RETURN_CODE") || "0";
     const returnMsg = extractXmlTagValue(responseText, "RESPONSE_DESCRIPTION") || extractXmlTagValue(responseText, "RETURN_MSG") || edmStatus;
 
+    // Map EDM status to standard invoice status
     let mappedStatus = "PROCESSING";
     const upperEdmStatus = edmStatus.toUpperCase();
 
@@ -412,12 +427,7 @@ export interface EdmCancelResult {
 export async function cancelInvoiceInEdm(
   uuid: string,
   invoiceNumber?: string,
-  cancelReason = "Müşteri talebi ve fatura iptali",
-  customCredentials?: {
-    username?: string;
-    password?: string;
-    serviceUrl?: string;
-  }
+  cancelReason = "Müşteri talebi ve fatura iptali"
 ): Promise<EdmCancelResult> {
   try {
     if (!uuid || !uuid.trim()) {
@@ -425,7 +435,7 @@ export async function cancelInvoiceInEdm(
     }
 
     const cleanUuid = uuid.trim().toLowerCase();
-    const { sessionId, serviceUrl } = await getEdmSessionId(customCredentials);
+    const { sessionId, serviceUrl } = await getEdmSessionId();
     const nowIso = new Date().toISOString();
 
     const soapPayload = `<?xml version="1.0" encoding="utf-8"?>
