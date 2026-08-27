@@ -159,12 +159,14 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
   const sellerTitle = cleanPdfText(seller.companyTitle || "FIRMA UNVANI BELIRTILMEDI");
-  doc.text(doc.splitTextToSize(sellerTitle, 190), margin, 38);
+  const sellerTitleLines = doc.splitTextToSize(sellerTitle, 190);
+  doc.text(sellerTitleLines, margin, 38);
 
   doc.setFont(FONT, "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  let sY = 54;
+  let sY = 38 + (Array.isArray(sellerTitleLines) ? sellerTitleLines.length : 1) * 11 + 2;
+
   const sellerDetails = [
     seller.address ? `Adres: ${cleanPdfText(seller.address)}` : "",
     seller.phone ? `Tel: ${cleanPdfText(seller.phone)}` : "",
@@ -174,8 +176,10 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
   ].filter(Boolean);
 
   for (const line of sellerDetails) {
-    doc.text(doc.splitTextToSize(line, 190), margin, sY);
-    sY += 9.5;
+    const lines = doc.splitTextToSize(line, 190);
+    doc.text(lines, margin, sY);
+    const lineCount = Array.isArray(lines) ? lines.length : 1;
+    sY += lineCount * 9.5;
   }
 
   // ORTA: GİB Logo & e-Arşiv / e-Fatura Başlığı
@@ -257,12 +261,14 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
   doc.text("SAYIN", margin, subY);
 
   doc.setFontSize(8.5);
-  doc.text(cleanPdfText(customer.title || "NIHAI TUKETICI"), margin, subY + 12);
+  const custTitle = cleanPdfText(customer.title || "NIHAI TUKETICI");
+  const custTitleLines = doc.splitTextToSize(custTitle, 260);
+  doc.text(custTitleLines, margin, subY + 12);
 
   doc.setFont(FONT, "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  let cY = subY + 23;
+  let cY = subY + 12 + (Array.isArray(custTitleLines) ? custTitleLines.length : 1) * 10 + 2;
   const customerDetails = [
     cleanPdfText([customer.address, customer.neighborhood, customer.district, customer.city].filter(Boolean).join(", ")),
     customer.email ? `E-Posta: ${customer.email}` : "",
@@ -272,8 +278,10 @@ async function renderInvoice(doc: JsPdf, invoice: InvoiceRecord, seller: SellerI
   ].filter(Boolean);
 
   for (const line of customerDetails) {
-    doc.text(doc.splitTextToSize(line, 260), margin, cY);
-    cY += 9.5;
+    const lines = doc.splitTextToSize(line, 260);
+    doc.text(lines, margin, cY);
+    const lineCount = Array.isArray(lines) ? lines.length : 1;
+    cY += lineCount * 9.5;
   }
 
   // SAĞ: Çerçeveli Fatura Metadata Tablosu
