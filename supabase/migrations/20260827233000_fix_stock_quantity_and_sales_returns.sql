@@ -1,5 +1,5 @@
 -- ============================================================================
--- FAZ 4.1: get_product_stock_quantity GÜVENCESİ & SATIŞ İADESİ MOTORU
+-- FAZ 4.2: DÖNEM KAPATMA, FATURA NUMARASI VE SATIŞ İADESİ GÜVENCESİ
 -- Magic Receipt Ön Muhasebe Sistemi
 -- Tarih: 2026-08-27
 -- ============================================================================
@@ -20,7 +20,6 @@ DECLARE
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
-    -- Trigger veya background context'te product'ın user_id'sini bul
     SELECT user_id INTO v_user_id FROM public.products WHERE id = p_product_id;
   END IF;
 
@@ -67,17 +66,77 @@ REVOKE ALL ON FUNCTION public.get_product_stock_quantity(UUID) FROM PUBLIC, anon
 GRANT EXECUTE ON FUNCTION public.get_product_stock_quantity(UUID) TO authenticated, service_role;
 
 
--- 2. ATOMİK SATIŞ İADESİ RPC'Sİ (create_sales_return)
--- Müşteriden gelen iade faturası / satış iadesi işlemi:
--- 1. Fatura kaydı (type = 'SATIS_IADE', return_source_id = p_original_invoice_id)
--- 2. Stok girişi (movement_type = 'GIRIS', source = 'SATIS_IADE')
--- 3. Muhasebe kaydı:
---    Borç 610 Satıştan İadeler (veya 600)  : Net Matrah
---    Borç 191 İndirilecek KDV             : KDV Tutarı
---    Alacak 120 Alıcılar                  : Genel Toplam
---    Borç 153 Ticari Mallar               : İade Edilen Malın Maliyeti
---    Alacak 621 STMM                      : İade Edilen Malın Maliyeti
--- 4. Cari Hareket (account_transactions ALACAK kaydı)
+-- 2. BENZERSİZ VE DAYANIKLI FATURA NUMARASI ÜRETİMİ (next_entry_number_with_prefix)
+-- Mevcut tablodaki en büyük numarayı dinamik denetler; sayaç uyumsuzluğunu self-heal eder ve duplicate constraint ihlalini kesin olarak önler.
+CREATE OR REPLACE FUNCTION public.next_entry_number_with_prefix(
+  p_user_id    UUID,
+  p_year       INTEGER,
+  p_prefix     TEXT DEFAULT 'EAR'
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_next         BIGINT;
+  v_max_existing BIGINT := 0;
+  v_clean_prefix TEXT;
+  v_pattern      TEXT;
+  v_candidate    TEXT;
+BEGIN
+  v_clean_prefix := UPPER(COALESCE(NULLIF(trim(p_prefix), ''), 'EAR'));
+  IF LENGTH(v_clean_prefix) > 3 THEN
+    v_clean_prefix := SUBSTRING(v_clean_prefix FROM 1 FOR 3);
+  ELSIF LENGTH(v_clean_prefix) < 3 THEN
+    v_clean_prefix := RPAD(v_clean_prefix, 3, 'X');
+  END IF;
+
+  v_pattern := v_clean_prefix || p_year::TEXT || '%';
+
+  -- 1. Invoices tablosunda mevcut en yüksek sıra numarasını bul
+  SELECT COALESCE(MAX(
+    CASE
+      WHEN invoice_number ~ ('^' || v_clean_prefix || p_year::TEXT || '[0-9]{9}$')
+      THEN SUBSTRING(invoice_number FROM 8 FOR 9)::BIGINT
+      ELSE 0
+    END
+  ), 0)
+  INTO v_max_existing
+  FROM public.invoices
+  WHERE user_id = p_user_id
+    AND invoice_number LIKE v_pattern;
+
+  -- 2. Sayacı en yüksek mevcut numara ile senkronize et
+  INSERT INTO public.entry_counters (user_id, year, counter_type, last_number, updated_at)
+  VALUES (p_user_id, p_year, 'INVOICE_' || v_clean_prefix, GREATEST(v_max_existing, 0) + 1, now())
+  ON CONFLICT (user_id, year, counter_type)
+  DO UPDATE SET
+    last_number = GREATEST(entry_counters.last_number, v_max_existing) + 1,
+    updated_at  = now()
+  RETURNING last_number INTO v_next;
+
+  -- 3. Çakışma denetimi (Güvenlik Döngüsü)
+  LOOP
+    v_candidate := v_clean_prefix || p_year::TEXT || LPAD(v_next::TEXT, 9, '0');
+    EXIT WHEN NOT EXISTS (
+      SELECT 1 FROM public.invoices
+      WHERE user_id = p_user_id AND invoice_number = v_candidate
+    );
+    v_next := v_next + 1;
+    UPDATE public.entry_counters
+    SET last_number = v_next, updated_at = now()
+    WHERE user_id = p_user_id AND year = p_year AND counter_type = ('INVOICE_' || v_clean_prefix);
+  END LOOP;
+
+  RETURN v_candidate;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.next_entry_number_with_prefix TO authenticated, service_role;
+
+
+-- 3. ATOMİK SATIŞ İADESİ RPC'Sİ (create_sales_return)
 CREATE OR REPLACE FUNCTION public.create_sales_return(
   p_original_invoice_id UUID,
   p_return_date         DATE,
@@ -179,17 +238,18 @@ BEGIN
     LIMIT 1;
   END IF;
 
-  -- 6. Yeni İade Fatura Numarası Üretme
+  -- 6. Yeni İade Fatura Numarası Üretme (next_entry_number_with_prefix ile çakışmasız)
   IF p_return_doc_no IS NOT NULL AND trim(p_return_doc_no) != '' THEN
     v_return_inv_number := trim(p_return_doc_no);
   ELSE
-    v_return_inv_number := 'IAD-' || to_char(p_return_date, 'YYYYMMDD') || '-' || substring(replace(gen_random_uuid()::text, '-', '') from 1 for 4);
+    v_return_inv_number := public.next_entry_number_with_prefix(v_user_id, v_year, 'IAD');
   END IF;
 
   -- 7. İade Faturası Ana Kaydı (invoices)
   INSERT INTO public.invoices (
     user_id,
     customer_id,
+    warehouse_id,
     invoice_number,
     invoice_date,
     due_date,
@@ -204,6 +264,7 @@ BEGIN
   ) VALUES (
     v_user_id,
     v_orig_invoice.customer_id,
+    v_warehouse_id,
     v_return_inv_number,
     p_return_date,
     p_return_date,
@@ -288,7 +349,6 @@ BEGIN
 
     -- Stok Takibi ve Maliyet İadesi (Ürün ise stoka geri girer)
     IF v_item_prod_id IS NOT NULL THEN
-      -- Ürünün maliyetini bul
       SELECT COALESCE(purchase_price, 0) INTO v_item_cost_unit
       FROM public.products
       WHERE id = v_item_prod_id AND user_id = v_user_id;
@@ -340,7 +400,7 @@ BEGIN
     updated_at  = now()
   WHERE id = v_return_invoice_id;
 
-  -- 10. Cari Hesap Hareketi (account_transactions ALACAK - Müşteri Borcunu Düşür)
+  -- 10. Cari Hesap Hareketi (account_transactions ALACAK)
   IF v_orig_invoice.customer_id IS NOT NULL AND v_calc_grand_total > 0 THEN
     INSERT INTO public.account_transactions (
       user_id,
