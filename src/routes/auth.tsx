@@ -41,18 +41,52 @@ function AuthPage() {
   
   // Firma Kayıt Bilgileri
   const [companyTitle, setCompanyTitle] = useState("");
+  const [companyType, setCompanyType] = useState("Limited Şirket");
   const [vknTckn, setVknTckn] = useState("");
   const [taxOffice, setTaxOffice] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+
+  const [verifyingVkn, setVerifyingVkn] = useState(false);
+  const [vknResult, setVknResult] = useState<import("@/lib/profile.functions").TaxpayerVerificationResult | null>(null);
+  const [isVknVerified, setIsVknVerified] = useState(false);
 
   const [pendingConfirm, setPendingConfirm] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [versions, setVersions] = useState({ membership_terms: "v1.1", kvkk_notice: "v1.0" });
 
-  // Canlı VKN/TCKN doğrulama sonucu
-  const vknValidation = vknTckn.trim().length >= 10 ? validateVknTckn(vknTckn) : null;
+  async function handleVerifyVkn() {
+    if (!vknTckn.trim()) {
+      toast.error("Lütfen önce VKN veya TCKN giriniz.");
+      return;
+    }
+    setVerifyingVkn(true);
+    try {
+      const { verifyTaxpayerVkn } = await import("@/lib/profile.functions");
+      const res = await verifyTaxpayerVkn({
+        data: {
+          vknTckn: vknTckn.trim(),
+          companyTitle: companyTitle.trim(),
+          companyType,
+        },
+      });
+      setVknResult(res);
+      setIsVknVerified(res.verified);
+      if (res.verified) {
+        toast.success(res.message);
+        if (res.taxOffice && !taxOffice.trim()) {
+          setTaxOffice(res.taxOffice);
+        }
+      } else {
+        toast.error(res.message);
+      }
+    } catch (err: any) {
+      toast.error("VKN sorgulama hatası: " + (err.message || "Bilinmeyen hata"));
+    } finally {
+      setVerifyingVkn(false);
+    }
+  }
 
   useEffect(() => {
     getCurrentLegalVersions()
@@ -99,6 +133,11 @@ function AuthPage() {
     const vknCheck = validateVknTckn(cleanVkn);
     if (!vknCheck.isValid) {
       toast.error(vknCheck.message || "Geçersiz VKN / TCKN. Gerçek firma vergi kimlik numarası girmelisiniz.");
+      return;
+    }
+
+    if (!isVknVerified) {
+      toast.error("Firma kaydını tamamlamak için önce 'VKN Sorgula' butonuna basarak mükellef doğrulaması yapmalısınız.");
       return;
     }
 
@@ -267,36 +306,48 @@ function AuthPage() {
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="companyType">Firma Türü *</Label>
+                    <select
+                      id="companyType"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={companyType}
+                      onChange={(e) => setCompanyType(e.target.value)}
+                    >
+                      <option value="Şahıs Şirketi">Şahıs Şirketi (11 Haneli TCKN)</option>
+                      <option value="Limited Şirket">Limited Şirket (10 Haneli VKN)</option>
+                      <option value="Anonim Şirket">Anonim Şirket (10 Haneli VKN)</option>
+                      <option value="Diğer">Diğer İşletme Türleri</option>
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="vknTckn">VKN veya TCKN *</Label>
-                        {vknValidation && (
-                          <span
-                            className={`flex items-center gap-1 text-[11px] font-medium ${
-                              vknValidation.isValid ? "text-emerald-600" : "text-destructive"
-                            }`}
-                          >
-                            {vknValidation.isValid ? (
-                              <>
-                                <CheckCircle2 className="size-3" /> {vknValidation.type} Doğrulandı
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle className="size-3" /> Geçersiz
-                              </>
-                            )}
-                          </span>
-                        )}
+                      <Label htmlFor="vknTckn">VKN veya TCKN *</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="vknTckn"
+                          required
+                          maxLength={11}
+                          value={vknTckn}
+                          onChange={(e) => {
+                            setVknTckn(e.target.value.replace(/\D/g, ""));
+                            setIsVknVerified(false);
+                            setVknResult(null);
+                          }}
+                          placeholder="10 haneli VKN veya 11 haneli TCKN"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={verifyingVkn || !vknTckn.trim()}
+                          onClick={handleVerifyVkn}
+                          className="shrink-0 text-xs font-semibold gap-1"
+                        >
+                          {verifyingVkn ? "Sorgulanıyor..." : "VKN Sorgula"}
+                        </Button>
                       </div>
-                      <Input
-                        id="vknTckn"
-                        required
-                        maxLength={11}
-                        value={vknTckn}
-                        onChange={(e) => setVknTckn(e.target.value.replace(/\D/g, ""))}
-                        placeholder="10 haneli VKN veya 11 haneli TCKN"
-                      />
                     </div>
 
                     <div className="space-y-2">
@@ -310,6 +361,43 @@ function AuthPage() {
                       />
                     </div>
                   </div>
+
+                  {/* VKN Doğrulama Sonuç Kartı */}
+                  {vknResult && (
+                    <div
+                      className={`p-3 rounded-lg border text-xs space-y-1 ${
+                        vknResult.verified
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300"
+                          : "bg-destructive/10 border-destructive/30 text-destructive"
+                      }`}
+                    >
+                      <div className="font-semibold flex items-center gap-1.5 text-sm">
+                        {vknResult.verified ? (
+                          <>
+                            <CheckCircle2 className="size-4 text-emerald-600" /> ✓ VKN Doğrulandı
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="size-4 text-destructive" /> ✕ VKN Doğrulanamadı
+                          </>
+                        )}
+                      </div>
+                      <p>{vknResult.message}</p>
+                      {vknResult.title && (
+                        <p className="font-mono font-medium">
+                          Mükellef: <span className="font-bold">{vknResult.title}</span>
+                        </p>
+                      )}
+                      {vknResult.taxOffice && (
+                        <p>Vergi Dairesi: {vknResult.taxOffice}</p>
+                      )}
+                      {vknResult.titleMismatchWarning && (
+                        <p className="text-amber-600 dark:text-amber-400 font-medium mt-1">
+                          ⚠️ {vknResult.titleMismatchWarning}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">

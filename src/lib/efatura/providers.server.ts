@@ -442,9 +442,45 @@ class IntegratorProvider implements EInvoiceProvider {
           };
         }
 
+        // Try parsing JSON error body safely
+        let jsonErr: any = null;
+        if (res.headers.get("content-type")?.includes("application/json") || text.trim().startsWith("{")) {
+          try {
+            jsonErr = JSON.parse(text);
+          } catch {
+            jsonErr = null;
+          }
+        }
+
+        if (jsonErr && Array.isArray(jsonErr.errors) && jsonErr.errors.length > 0) {
+          const errObj = jsonErr.errors[0];
+          const code = String(errObj.code || "");
+          const desc = String(errObj.description || jsonErr.message || "Hatalı istek.");
+          const detail = errObj.detail ? ` (${errObj.detail})` : "";
+
+          if (code === "1150" || desc.includes("UYUSMUYOR")) {
+            return {
+              ok: false,
+              message: "NES entegrasyonundaki firma VKN/TCKN ile faturadaki gönderen VKN/TCKN uyuşmuyor. Firma ve NES entegrasyon bilgilerini kontrol edin.",
+              ettn,
+              statusCode: String(res.status),
+            };
+          }
+
+          return {
+            ok: false,
+            message: `NES Fatura Hatası [Kod ${code || res.status}]: ${desc}${detail}`,
+            ettn,
+            statusCode: String(res.status),
+          };
+        }
+
+        const isHtml = text.trim().startsWith("<") || text.includes("<html");
         return {
           ok: false,
-          message: `NES fatura yükleme yanıtı (${res.status}): ${text || "Belge işlenemedi."}`,
+          message: isHtml
+            ? `Sunucudan beklenmeyen bir yanıt alındı (HTTP ${res.status}). Lütfen tekrar deneyin.`
+            : `NES fatura yükleme yanıtı (${res.status}): ${text || "Belge işlenemedi."}`,
           ettn,
           statusCode: String(res.status),
         };

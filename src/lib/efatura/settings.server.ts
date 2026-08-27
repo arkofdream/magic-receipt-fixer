@@ -322,21 +322,48 @@ export async function sendInvoiceToActiveProvider(
     };
   }
 
-  // Duplicate Transmission Prevention Guard
-  if (client && ettn) {
-    const { data: existingInv } = await client
-      .from("invoices")
-      .select("edm_status, provider_reference")
-      .eq("ettn", ettn)
+  // Pre-Flight Validation Chain for NES 1150 Error Prevention:
+  // User -> Company Profile VKN -> NES Credentials VKN -> Invoice Seller VKN
+  if (client) {
+    const { data: profile } = await client
+      .from("profiles")
+      .select("vkn_tckn, company_title")
+      .eq("id", userId)
       .maybeSingle();
 
-    if (existingInv && existingInv.edm_status === "SENT") {
-      console.log(`[INVOICE] Mükerrer gönderim engellendi. ETTN ${ettn} zaten gönderilmiş.`);
-      return {
-        ok: true,
-        message: "Bu fatura zaten NES servisine başarıyla iletilmiş.",
-        ettn: existingInv.provider_reference || ettn,
-      };
+    if (profile && profile.vkn_tckn) {
+      const cleanProfileVkn = profile.vkn_tckn.replace(/\D/g, "");
+      const invoiceSellerVkn = (
+        (invoiceData["sellerTaxNumber"] as string) ||
+        (invoiceData["seller_tax_number"] as string) ||
+        cleanProfileVkn
+      ).replace(/\D/g, "");
+
+      const integratorUserVkn = (row.integrator_api_username || "").replace(/\D/g, "");
+
+      // 1. Check if invoice seller VKN matches company profile VKN
+      if (cleanProfileVkn.length >= 10 && invoiceSellerVkn.length >= 10 && cleanProfileVkn !== invoiceSellerVkn) {
+        console.warn(`[INVOICE PREFLIGHT MISMATCH] Profil VKN (${cleanProfileVkn}) ile Fatura Gönderen VKN (${invoiceSellerVkn}) uyuşmuyor.`);
+        return {
+          ok: false,
+          message: "NES entegrasyonundaki firma VKN/TCKN ile faturadaki gönderen VKN/TCKN uyuşmuyor. Firma ve NES entegrasyon bilgilerini kontrol edin.",
+          ettn,
+        };
+      }
+
+      // 2. Check if NES account VKN (if provided in username) matches company profile VKN
+      if (integratorUserVkn.length >= 10 && cleanProfileVkn.length >= 10 && integratorUserVkn !== cleanProfileVkn) {
+        console.warn(`[INVOICE PREFLIGHT MISMATCH] NES Kullanıcı VKN (${integratorUserVkn}) ile Profil VKN (${cleanProfileVkn}) uyuşmuyor.`);
+        return {
+          ok: false,
+          message: "NES entegrasyonundaki firma VKN/TCKN ile faturadaki gönderen VKN/TCKN uyuşmuyor. Firma ve NES entegrasyon bilgilerini kontrol edin.",
+          ettn,
+        };
+      }
+
+      // Ensure invoiceData has the correct sellerTaxNumber from verified profile
+      invoiceData["sellerTaxNumber"] = cleanProfileVkn;
+      invoiceData["sellerName"] = profile.company_title || (invoiceData["sellerName"] as string) || "";
     }
   }
 
