@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Clock, AlertTriangle, Calendar, ShieldAlert, Search, TrendingUp, TrendingDown, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -107,6 +107,44 @@ function CustomersPage() {
   const [paymentDocNo, setPaymentDocNo] = useState("");
   const [paymentDesc, setPaymentDesc] = useState("");
 
+  // FAZ 4.2 — Müşteri Tahsilat Modalı Durumları
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const [collectionCustomer, setCollectionCustomer] = useState<any>(null);
+  const [collectionAmount, setCollectionAmount] = useState("");
+  const [collectionDate, setCollectionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [collectionMethod, setCollectionMethod] = useState("BANKA");
+  const [collectionDocNo, setCollectionDocNo] = useState("");
+  const [collectionDesc, setCollectionDesc] = useState("");
+
+  // FAZ 4.2 — Cari Kart Düzenleme (Güncelle) Modalı Durumları
+  const [editOpen, setEditOpen] = useState(false);
+  const [editCustomer, setEditCustomer] = useState<any>(null);
+  const [editForm, setEditForm] = useState<FormState>({ ...emptyCustomer, ...emptyExtras });
+
+  function handleOpenEditModal(c: any) {
+    setEditCustomer(c);
+    setEditForm({
+      vknTckn: c.vkn_tckn || "",
+      title: c.title || "",
+      taxOffice: c.tax_office || "",
+      address: c.address || "",
+      city: c.city || "",
+      district: c.district || "",
+      neighborhood: c.neighborhood || "",
+      email: c.email || "",
+      phone: c.phone || "",
+      customPrefix: c.custom_prefix || "",
+      code: c.code || "",
+      contactName: c.contact_name || "",
+      partnerGroup: c.partner_group || "",
+      paymentTermDays: Number(c.payment_term_days ?? 0),
+      riskLimit: Number(c.risk_limit ?? 0),
+      openingBalance: Number(c.opening_balance ?? 0),
+      note: c.note || "",
+    });
+    setEditOpen(true);
+  }
+
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
@@ -163,6 +201,33 @@ function CustomersPage() {
       );
   }, [customers, tab, search]);
 
+  // FAZ 3.3 — CARİ YAŞLANDIRMA & VADE TAKİP DURUM STATE'LERİ
+  const [mainTab, setMainTab] = useState<"list" | "aging">("list");
+  const [agingFilter, setAgingFilter] = useState("ALL");
+  const [agingSearch, setAgingSearch] = useState("");
+
+  // Yaşlandırma Analizi İçin Aktif Cari Hareketler Sorgusu
+  const { data: allTransactions = [], isLoading: txnsLoading } = useQuery({
+    queryKey: ["all-account-transactions-aging"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_transactions")
+        .select("*")
+        .is("deleted_at", null)
+        .order("txn_date", { ascending: true });
+      if (error && isMissingColumnError(error)) {
+        const fallback = await supabase
+          .from("account_transactions")
+          .select("*")
+          .order("txn_date", { ascending: true });
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const summary = useMemo(() => {
     let receivable = 0;
     let payable = 0;
@@ -173,6 +238,214 @@ function CustomersPage() {
     }
     return { receivable, payable };
   }, [customers, balanceMap]);
+
+  // FAZ 3.3 — CARİ YAŞLANDIRMA HESAPLAMA MOTORU (%100 BAKİYE MUTABAKATI İLE)
+  const agingAnalysis = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayTime = new Date(todayStr).getTime();
+
+    // 1. Cari Bazlı Yaşlandırma Kırılımı
+    const customerAgingList: {
+      customer: any;
+      balance: number;
+      openingBalance: number;
+      totalDebit: number;
+      totalCredit: number;
+      notDue: number;
+      b0_30: number;
+      b31_60: number;
+      b61_90: number;
+      b91_180: number;
+      b181_365: number;
+      b365Plus: number;
+      noDueDate: number;
+      totalOverdue: number;
+      isRiskExceeded: boolean;
+    }[] = [];
+
+    let grandNotDue = 0;
+    let grand0_30 = 0;
+    let grand31_60 = 0;
+    let grand61_90 = 0;
+    let grand91_180 = 0;
+    let grand181_365 = 0;
+    let grand365Plus = 0;
+    let grandNoDueDate = 0;
+    let grandTotalOverdue = 0;
+    let riskExceededCount = 0;
+
+    for (const c of customers) {
+      const cBalances = balanceMap.get(c.id);
+      const balance = cBalances?.balance ?? 0;
+      const openingBalance = Number(c.opening_balance ?? 0);
+      const totalDebit = cBalances?.debit ?? openingBalance;
+      const totalCredit = cBalances?.credit ?? 0;
+
+      // Cari hareketlerini filtrele
+      const cTxns = allTransactions.filter((t: any) => t.customer_id === c.id);
+
+      let notDue = 0;
+      let b0_30 = 0;
+      let b31_60 = 0;
+      let b61_90 = 0;
+      let b91_180 = 0;
+      let b181_365 = 0;
+      let b365Plus = 0;
+      let noDueDate = 0;
+
+      // Eğer carinin net alacağı varsa (borçlu cari), açık borç hareketlerini vadesine göre dağıt
+      if (balance > 0) {
+        // Borçlandıran hareketler (BORC / ODEME)
+        const debitItems = cTxns.filter((t: any) => t.txn_type === "BORC" || t.txn_type === "ODEME");
+
+        for (const item of debitItems) {
+          const amt = Number(item.amount ?? 0);
+          if (amt <= 0) continue;
+
+          if (!item.due_date) {
+            noDueDate += amt;
+          } else {
+            const itemTime = new Date(item.due_date).getTime();
+            const diffDays = Math.floor((todayTime - itemTime) / (1000 * 60 * 60 * 24));
+
+            if (diffDays <= 0) {
+              notDue += amt;
+            } else if (diffDays <= 30) {
+              b0_30 += amt;
+            } else if (diffDays <= 60) {
+              b31_60 += amt;
+            } else if (diffDays <= 90) {
+              b61_90 += amt;
+            } else if (diffDays <= 180) {
+              b91_180 += amt;
+            } else if (diffDays <= 365) {
+              b181_365 += amt;
+            } else {
+              b365Plus += amt;
+            }
+          }
+        }
+
+        // Açılış bakiyesi varsa ve due_date yoksa noDueDate'e ekle
+        if (openingBalance > 0 && debitItems.length === 0) {
+          noDueDate += openingBalance;
+        }
+      }
+
+      const totalOverdue = b0_30 + b31_60 + b61_90 + b91_180 + b181_365 + b365Plus;
+      const isRiskExceeded = Number(c.risk_limit ?? 0) > 0 && balance > Number(c.risk_limit);
+      if (isRiskExceeded) riskExceededCount++;
+
+      grandNotDue += notDue;
+      grand0_30 += b0_30;
+      grand31_60 += b31_60;
+      grand61_90 += b61_90;
+      grand91_180 += b91_180;
+      grand181_365 += b181_365;
+      grand365Plus += b365Plus;
+      grandNoDueDate += noDueDate;
+      grandTotalOverdue += totalOverdue;
+
+      customerAgingList.push({
+        customer: c,
+        balance,
+        openingBalance,
+        totalDebit,
+        totalCredit,
+        notDue,
+        b0_30,
+        b31_60,
+        b61_90,
+        b91_180,
+        b181_365,
+        b365Plus,
+        noDueDate,
+        totalOverdue,
+        isRiskExceeded,
+      });
+    }
+
+    return {
+      customerAgingList,
+      grandNotDue,
+      grand0_30,
+      grand31_60,
+      grand61_90,
+      grand91_180,
+      grand181_365,
+      grand365Plus,
+      grandNoDueDate,
+      grandTotalOverdue,
+      riskExceededCount,
+    };
+  }, [customers, balanceMap, allTransactions]);
+
+  // Filtrelenmiş Yaşlandırma Listesi
+  const filteredAgingList = useMemo(() => {
+    const q = agingSearch.trim().toLocaleLowerCase("tr");
+    return agingAnalysis.customerAgingList.filter((item) => {
+      const c = item.customer;
+
+      // Arama
+      if (q) {
+        const match = [c.title, c.vkn_tckn, c.code, c.phone, c.email]
+          .filter(Boolean)
+          .some((v) => String(v).toLocaleLowerCase("tr").includes(q));
+        if (!match) return false;
+      }
+
+      // Filtreler
+      if (agingFilter === "MUSTERI" && c.partner_type !== "MUSTERI") return false;
+      if (agingFilter === "TEDARIKCI" && c.partner_type !== "TEDARIKCI") return false;
+      if (agingFilter === "DEBITORS" && item.balance <= 0) return false; // Sadece Alacaklı Olduklarımız
+      if (agingFilter === "CREDITORS" && item.balance >= 0) return false; // Sadece Borçlu Olduklarımız
+      if (agingFilter === "OVERDUE" && item.totalOverdue <= 0) return false; // Sadece Gecikmiş Alacağı Olanlar
+      if (agingFilter === "RISK_EXCEEDED" && !item.isRiskExceeded) return false; // Sadece Risk Limiti Aşanlar
+
+      return true;
+    });
+  }, [agingAnalysis, agingSearch, agingFilter]);
+
+  function exportAgingReport() {
+    downloadWorkbook(
+      [
+        "Cari Ünvanı",
+        "Cari Kodu",
+        "VKN / TCKN",
+        "Tür",
+        "Net Bakiye (TL)",
+        "Risk Limiti (TL)",
+        "Risk Durumu",
+        "Vadesi Gelmemiş (TL)",
+        "0-30 Gün Gecikmiş (TL)",
+        "31-60 Gün Gecikmiş (TL)",
+        "61-90 Gün Gecikmiş (TL)",
+        "91-180 Gün Gecikmiş (TL)",
+        "181-365 Gün Gecikmiş (TL)",
+        "365+ Gün Gecikmiş (TL)",
+        "Vade Tarihi Yok (TL)",
+      ],
+      filteredAgingList.map((row) => [
+        row.customer.title,
+        row.customer.code ?? "",
+        row.customer.vkn_tckn ?? "",
+        row.customer.partner_type === "MUSTERI" ? "Müşteri" : "Tedarikçi",
+        row.balance,
+        Number(row.customer.risk_limit ?? 0),
+        row.isRiskExceeded ? "Risk Limiti Aşıldı" : "Limit Dahilinde",
+        row.notDue,
+        row.b0_30,
+        row.b31_60,
+        row.b61_90,
+        row.b91_180,
+        row.b181_365,
+        row.b365Plus,
+        row.noDueDate,
+      ]),
+      `cari-yaslandirma-ve-vade-takip-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      "Cari Yaşlandırma",
+    );
+  }
 
   async function currentUserId() {
     const { data: userData } = await supabase.auth.getUser();
@@ -263,6 +536,86 @@ function CustomersPage() {
       queryClient.invalidateQueries({ queryKey: ["trial-balance"] });
       queryClient.invalidateQueries({ queryKey: ["reconciliation-summary"] });
       queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // FAZ 4.2 — MÜŞTERİ TAHSİLAT MUTASYONU
+  const makeCustomerCollection = useMutation({
+    mutationFn: async () => {
+      if (!collectionCustomer) throw new Error("Müşteri seçilmedi.");
+      const valStr = collectionAmount.replace(",", ".");
+      const amt = Number(valStr);
+      if (isNaN(amt) || amt <= 0) {
+        throw new Error("Lütfen geçerli ve 0'dan büyük bir tahsilat tutarı girin.");
+      }
+      const userId = await currentUserId();
+      const { error } = await supabase.from("account_transactions").insert({
+        user_id: userId,
+        customer_id: collectionCustomer.id,
+        txn_date: collectionDate,
+        txn_type: "TAHSILAT",
+        amount: amt,
+        document_no: collectionDocNo.trim(),
+        description: collectionDesc.trim() || `Müşteri Tahsilatı - ${collectionCustomer.title}`,
+        source: "MUSTERI_TAHSILATI",
+        source_id: collectionCustomer.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tahsilat kaydı başarıyla oluşturuldu ve cari bakiyeden düşüldü.");
+      setCollectionOpen(false);
+      setCollectionCustomer(null);
+      setCollectionAmount("");
+      setCollectionDocNo("");
+      setCollectionDesc("");
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["all-account-transactions-aging"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-entries-all"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // FAZ 4.2 — CARİ KART GÜNCELLEME MUTASYONU
+  const updateCustomer = useMutation({
+    mutationFn: async () => {
+      if (!editCustomer) return;
+      if (!editForm.vknTckn.trim() || !editForm.title.trim()) {
+        throw new Error("Unvan ve VKN/TCKN alanları zorunludur.");
+      }
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          title: editForm.title.trim(),
+          vkn_tckn: editForm.vknTckn.trim(),
+          code: editForm.code.trim() || null,
+          tax_office: editForm.taxOffice.trim() || null,
+          address: editForm.address.trim() || null,
+          city: editForm.city.trim() || null,
+          district: editForm.district.trim() || null,
+          neighborhood: editForm.neighborhood.trim() || null,
+          email: editForm.email.trim() || null,
+          phone: editForm.phone.trim() || null,
+          contact_name: editForm.contactName.trim() || null,
+          partner_group: editForm.partnerGroup.trim() || null,
+          payment_term_days: Number(editForm.paymentTermDays) || 0,
+          risk_limit: Number(editForm.riskLimit) || 0,
+          opening_balance: Number(editForm.openingBalance) || 0,
+          note: editForm.note.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editCustomer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Cari kart bilgileri başarıyla güncellendi.");
+      setEditOpen(false);
+      setEditCustomer(null);
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -555,132 +908,455 @@ function CustomersPage() {
         </>
       }
     >
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Toplam Alacak (müşterilerden)</p>
-            <p className="text-2xl font-semibold">{formatMoney(summary.receivable)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Toplam Borç (tedarikçilere)</p>
-            <p className="text-2xl font-semibold">{formatMoney(summary.payable)}</p>
-          </CardContent>
-        </Card>
+      {/* FAZ 3.3 — ANA SEKME GEZİNTİSİ (CARİ KARTLAR & CARİ YAŞLANDIRMA) */}
+      <div className="mb-4">
+        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as any)}>
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="list" className="gap-2">
+              <CheckCircle2 className="size-4" /> Cari Kartlar & Bakiyeler
+            </TabsTrigger>
+            <TabsTrigger value="aging" className="gap-2">
+              <Clock className="size-4 text-primary" /> Cari Yaşlandırma & Vade Takip
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              {PARTNER_LABELS[tab]} Listesi ({visible.length})
-            </CardTitle>
-            <Input
-              placeholder="Ara: unvan, VKN, kod, telefon…"
-              className="w-full sm:w-72"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      {mainTab === "list" ? (
+        <>
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Toplam Alacak (Müşterilerden)</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{formatMoney(summary.receivable)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Toplam Borç (Tedarikçilere)</p>
+                <p className="text-2xl font-bold text-destructive mt-1">{formatMoney(summary.payable)}</p>
+              </CardContent>
+            </Card>
           </div>
-          <Tabs value={tab} onValueChange={(v) => setTab(v as PartnerType)}>
-            <TabsList>
-              <TabsTrigger value="MUSTERI">Müşteriler</TabsTrigger>
-              <TabsTrigger value="TEDARIKCI">Tedarikçiler</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Yükleniyor…</p>
-          ) : visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Bu listede kayıt yok.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                    <th className="py-2 pr-4">Kod / VKN</th>
-                    <th className="py-2 pr-4">Unvan</th>
-                    <th className="py-2 pr-4">İletişim</th>
-                    <th className="py-2 pr-4">Vade</th>
-                    <th className="py-2 pr-4 text-right">Borç</th>
-                    <th className="py-2 pr-4 text-right">Alacak</th>
-                    <th className="py-2 pr-4 text-right">Bakiye</th>
-                    <th className="py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((c) => {
-                    const b = balanceMap.get(c.id) ?? { debit: 0, credit: 0, balance: 0 };
-                    const overLimit =
-                      Number(c.risk_limit ?? 0) > 0 && b.balance > Number(c.risk_limit);
-                    return (
-                      <tr key={c.id} className="border-b border-border/60 last:border-0">
-                        <td className="py-3 pr-4">
-                          <div className="font-medium">{c.code || "-"}</div>
-                          <div className="text-xs text-muted-foreground">{c.vkn_tckn}</div>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <div className="font-medium">{c.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {[c.partner_group, c.city].filter(Boolean).join(" · ") || "-"}
-                          </div>
-                        </td>
-                        <td className="py-3 pr-4">{c.email || c.phone || "-"}</td>
-                        <td className="py-3 pr-4">{Number(c.payment_term_days ?? 0)} gün</td>
-                        <td className="py-3 pr-4 text-right">{formatMoney(b.debit)}</td>
-                        <td className="py-3 pr-4 text-right">{formatMoney(b.credit)}</td>
-                        <td className="py-3 pr-4 text-right">
-                          <span className="font-medium">{formatMoney(Math.abs(b.balance))}</span>
-                          <div className="text-xs text-muted-foreground">
-                            {b.balance > 0 ? "Borçlu" : b.balance < 0 ? "Alacaklı" : "Kapalı"}
-                          </div>
-                          {overLimit ? (
-                            <Badge variant="destructive" className="mt-1">
-                              Risk limiti aşıldı
-                            </Badge>
-                          ) : null}
-                        </td>
-                        <td className="py-3 text-right whitespace-nowrap space-x-1">
-                          {c.partner_type === "TEDARIKCI" && (
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="h-8 text-xs"
-                              onClick={() => {
-                                setPaymentSupplier(c);
-                                setPaymentAmount(String(Math.abs(b.balance) || ""));
-                                setPaymentDate(new Date().toISOString().slice(0, 10));
-                                setPaymentDocNo("");
-                                setPaymentDesc(`Tedarikçi Ödemesi - ${c.title}`);
-                                setPaymentOpen(true);
-                              }}
-                            >
-                              Ödeme Yap
-                            </Button>
-                          )}
-                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDetailId(c.id)}>
-                            Ekstre
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => removeCustomer.mutate(c.id)}
-                          >
-                            Sil
-                          </Button>
-                        </td>
+
+          <Card>
+            <CardHeader className="gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-base">
+                  {PARTNER_LABELS[tab]} Listesi ({visible.length})
+                </CardTitle>
+                <Input
+                  placeholder="Ara: unvan, VKN, kod, telefon…"
+                  className="w-full sm:w-72"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <Tabs value={tab} onValueChange={(v) => setTab(v as PartnerType)}>
+                <TabsList>
+                  <TabsTrigger value="MUSTERI">Müşteriler</TabsTrigger>
+                  <TabsTrigger value="TEDARIKCI">Tedarikçiler</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Yükleniyor…</p>
+              ) : visible.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Bu listede kayıt yok.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                        <th className="py-2 pr-4">Kod / VKN</th>
+                        <th className="py-2 pr-4">Unvan</th>
+                        <th className="py-2 pr-4">İletişim</th>
+                        <th className="py-2 pr-4">Vade</th>
+                        <th className="py-2 pr-4 text-right">Borç</th>
+                        <th className="py-2 pr-4 text-right">Alacak</th>
+                        <th className="py-2 pr-4 text-right">Bakiye</th>
+                        <th className="py-2" />
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    </thead>
+                    <tbody>
+                      {visible.map((c) => {
+                        const b = balanceMap.get(c.id) ?? { debit: 0, credit: 0, balance: 0 };
+                        const overLimit =
+                          Number(c.risk_limit ?? 0) > 0 && b.balance > Number(c.risk_limit);
+                        return (
+                          <tr key={c.id} className="border-b border-border/60 last:border-0">
+                            <td className="py-3 pr-4">
+                              <div className="font-medium">{c.code || "-"}</div>
+                              <div className="text-xs text-muted-foreground">{c.vkn_tckn}</div>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <div className="font-medium">{c.title}</div>
+                              {c.contact_name && (
+                                <div className="text-xs text-muted-foreground">{c.contact_name}</div>
+                              )}
+                              {overLimit && (
+                                <Badge variant="destructive" className="mt-1 text-[10px] py-0">
+                                  Risk Limiti Aşıldı
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="py-3 pr-4 text-xs text-muted-foreground">
+                              {c.phone || c.email ? (
+                                <>
+                                  <div>{c.phone}</div>
+                                  <div>{c.email}</div>
+                                </>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
+                            <td className="py-3 pr-4 text-xs">
+                              {Number(c.payment_term_days ?? 0) > 0
+                                ? `${c.payment_term_days} gün`
+                                : "Peşin"}
+                            </td>
+                            <td className="py-3 pr-4 text-right">{formatMoney(b.debit)}</td>
+                            <td className="py-3 pr-4 text-right">{formatMoney(b.credit)}</td>
+                            <td className="py-3 pr-4 text-right font-semibold">
+                              <span
+                                className={
+                                  b.balance > 0
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : b.balance < 0
+                                      ? "text-destructive"
+                                      : ""
+                                }
+                              >
+                                {formatMoney(b.balance)}
+                              </span>
+                            </td>
+                            <td className="py-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleOpenEditModal(c)}
+                                >
+                                  Güncelle
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => setDetailId(c.id)}
+                                >
+                                  Ekstre
+                                </Button>
+                                {c.partner_type === "MUSTERI" ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20"
+                                    onClick={() => {
+                                      setCollectionCustomer(c);
+                                      setCollectionAmount(b.balance > 0 ? String(b.balance) : "");
+                                      setCollectionOpen(true);
+                                    }}
+                                  >
+                                    Tahsilat
+                                  </Button>
+                                ) : (
+                                  b.balance < 0 && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs bg-amber-500/10 text-amber-600 border-amber-500/30 hover:bg-amber-500/20"
+                                      onClick={() => {
+                                        setPaymentSupplier(c);
+                                        setPaymentAmount(String(Math.abs(b.balance)));
+                                        setPaymentOpen(true);
+                                      }}
+                                    >
+                                      Ödeme Yap
+                                    </Button>
+                                  )
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        /* FAZ 3.3 — CARİ YAŞLANDIRMA & VADE TAKİP EKRANI */
+        <div className="space-y-4">
+          {/* ÖZET KARTLARI */}
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <p className="text-[11px] text-muted-foreground uppercase font-semibold tracking-wider">Müşteri Alacağı</p>
+                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                  {formatMoney(summary.receivable)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <p className="text-[11px] text-muted-foreground uppercase font-semibold tracking-wider">Tedarikçi Borcu</p>
+                <p className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-1 font-mono">
+                  {formatMoney(summary.payable)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <p className="text-[11px] text-muted-foreground uppercase font-semibold tracking-wider">Vadesi Gelmemiş</p>
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1 font-mono">
+                  {formatMoney(agingAnalysis.grandNotDue)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-amber-500/5 border-amber-500/30">
+              <CardContent className="pt-4 pb-4">
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 uppercase font-semibold tracking-wider flex items-center gap-1">
+                  <AlertTriangle className="size-3.5" /> Gecikmiş Alacak
+                </p>
+                <p className="text-xl font-bold text-amber-700 dark:text-amber-300 mt-1 font-mono">
+                  {formatMoney(agingAnalysis.grandTotalOverdue)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-rose-500/5 border-rose-500/30">
+              <CardContent className="pt-4 pb-4">
+                <p className="text-[11px] text-rose-700 dark:text-rose-400 uppercase font-semibold tracking-wider flex items-center gap-1">
+                  <ShieldAlert className="size-3.5" /> Risk Limiti Aşan
+                </p>
+                <p className="text-xl font-bold text-rose-700 dark:text-rose-300 mt-1 font-mono">
+                  {agingAnalysis.riskExceededCount} Cari
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* GECİKME KOVALARI GENEL ÖZET TABLOSU */}
+          <Card>
+            <CardHeader className="py-3.5 border-b border-border/60">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Clock className="size-4 text-primary" /> Sistem Geneli Vade & Gecikme Kovaları Dağılımı
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="grid gap-2 sm:grid-cols-4 md:grid-cols-8 text-xs text-center">
+                <div className="p-2.5 rounded-md bg-blue-500/10 border border-blue-500/20">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">Vadesi Gelmemiş</div>
+                  <div className="font-bold font-mono text-blue-600 dark:text-blue-400 mt-1">
+                    {formatMoney(agingAnalysis.grandNotDue)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">0 - 30 Gün</div>
+                  <div className="font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
+                    {formatMoney(agingAnalysis.grand0_30)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">31 - 60 Gün</div>
+                  <div className="font-bold font-mono text-amber-600 dark:text-amber-400 mt-1">
+                    {formatMoney(agingAnalysis.grand31_60)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-md bg-orange-500/10 border border-orange-500/20">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">61 - 90 Gün</div>
+                  <div className="font-bold font-mono text-orange-600 dark:text-orange-400 mt-1">
+                    {formatMoney(agingAnalysis.grand61_90)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-md bg-rose-500/10 border border-rose-500/20">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">91 - 180 Gün</div>
+                  <div className="font-bold font-mono text-rose-600 dark:text-rose-400 mt-1">
+                    {formatMoney(agingAnalysis.grand91_180)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-md bg-purple-500/10 border border-purple-500/20">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">181 - 365 Gün</div>
+                  <div className="font-bold font-mono text-purple-600 dark:text-purple-400 mt-1">
+                    {formatMoney(agingAnalysis.grand181_365)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-md bg-red-600/15 border border-red-600/30">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">365+ Gün</div>
+                  <div className="font-bold font-mono text-red-600 dark:text-red-400 mt-1">
+                    {formatMoney(agingAnalysis.grand365Plus)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-md bg-muted/60 border border-border/60">
+                  <div className="text-[10px] text-muted-foreground font-medium uppercase">Vade Tarihi Yok</div>
+                  <div className="font-bold font-mono text-foreground mt-1">
+                    {formatMoney(agingAnalysis.grandNoDueDate)}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* DETAYLI CARİ YAŞLANDIRMA TABLOSU */}
+          <Card>
+            <CardHeader className="space-y-3 pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span>Cari Bazlı Yaşlandırma & Risk Analizi</span>
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={exportAgingReport} className="gap-1.5 text-xs">
+                  <Download className="size-3.5" /> Yaşlandırma Raporunu Excel'e Aktar
+                </Button>
+              </div>
+
+              {/* FİLTRE VE ARAMA KONTROLLERİ */}
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/40">
+                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+                  <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Cari ara: unvan, kod, VKN..."
+                      value={agingSearch}
+                      onChange={(e) => setAgingSearch(e.target.value)}
+                      className="pl-8 h-8 text-xs bg-background"
+                    />
+                  </div>
+
+                  <Select value={agingFilter} onValueChange={setAgingFilter}>
+                    <SelectTrigger className="h-8 text-xs w-[180px] bg-background">
+                      <SelectValue placeholder="Filtrele" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Tüm Cariler</SelectItem>
+                      <SelectItem value="MUSTERI">Sadece Müşteriler</SelectItem>
+                      <SelectItem value="TEDARIKCI">Sadece Tedarikçiler</SelectItem>
+                      <SelectItem value="DEBITORS">Borçlu Cariler (Alacağımız Var)</SelectItem>
+                      <SelectItem value="CREDITORS">Alacaklı Cariler (Borcumuz Var)</SelectItem>
+                      <SelectItem value="OVERDUE">Gecikmiş Alacağı Olanlar</SelectItem>
+                      <SelectItem value="RISK_EXCEEDED">Risk Limiti Aşanlar</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {(agingSearch || agingFilter !== "ALL") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setAgingSearch("");
+                        setAgingFilter("ALL");
+                      }}
+                      className="h-8 text-xs text-muted-foreground"
+                    >
+                      Temizle
+                    </Button>
+                  )}
+                </div>
+
+                <span className="text-xs text-muted-foreground font-mono shrink-0">
+                  {filteredAgingList.length} / {customers.length} cari listeleniyor
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {txnsLoading ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">Cari hareketler analiz ediliyor...</div>
+              ) : filteredAgingList.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">Filtrelere uygun cari bulunamadı.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-muted/40 text-left font-semibold border-b border-border">
+                        <th className="py-2.5 px-3">Cari Unvanı</th>
+                        <th className="py-2.5 px-3">Tür</th>
+                        <th className="py-2.5 px-3 text-right">Net Bakiye</th>
+                        <th className="py-2.5 px-3 text-right">Vadesi Gelmemiş</th>
+                        <th className="py-2.5 px-3 text-right">0-30 Gün</th>
+                        <th className="py-2.5 px-3 text-right">31-60 Gün</th>
+                        <th className="py-2.5 px-3 text-right">61-90 Gün</th>
+                        <th className="py-2.5 px-3 text-right">91-180 Gün</th>
+                        <th className="py-2.5 px-3 text-right">181-365 Gün</th>
+                        <th className="py-2.5 px-3 text-right">365+ Gün</th>
+                        <th className="py-2.5 px-3 text-right">Vade Yok</th>
+                        <th className="py-2.5 px-3 text-center">İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAgingList.map((row) => {
+                        const c = row.customer;
+                        return (
+                          <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 last:border-0 font-mono">
+                            <td className="py-2.5 px-3 font-sans">
+                              <div className="font-semibold text-foreground">{c.title}</div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {c.code ? `[${c.code}] ` : ""}{c.vkn_tckn}
+                              </div>
+                              {row.isRiskExceeded && (
+                                <Badge variant="destructive" className="mt-0.5 text-[9px] py-0 px-1">
+                                  Risk Limiti Aşıldı (Max: {formatMoney(Number(c.risk_limit))} TL)
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 font-sans">
+                              <Badge variant={c.partner_type === "MUSTERI" ? "default" : "secondary"} className="text-[10px] py-0">
+                                {c.partner_type === "MUSTERI" ? "Müşteri" : "Tedarikçi"}
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-bold">
+                              <span className={row.balance > 0 ? "text-emerald-600 dark:text-emerald-400" : row.balance < 0 ? "text-rose-600 dark:text-rose-400" : ""}>
+                                {formatMoney(row.balance)}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-blue-600 dark:text-blue-400">
+                              {row.notDue > 0 ? formatMoney(row.notDue) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-emerald-600 dark:text-emerald-400">
+                              {row.b0_30 > 0 ? formatMoney(row.b0_30) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-amber-600 dark:text-amber-400">
+                              {row.b31_60 > 0 ? formatMoney(row.b31_60) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-orange-600 dark:text-orange-400">
+                              {row.b61_90 > 0 ? formatMoney(row.b61_90) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-rose-600 dark:text-rose-400 font-bold">
+                              {row.b91_180 > 0 ? formatMoney(row.b91_180) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-purple-600 dark:text-purple-400 font-bold">
+                              {row.b181_365 > 0 ? formatMoney(row.b181_365) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-red-600 dark:text-red-400 font-black">
+                              {row.b365Plus > 0 ? formatMoney(row.b365Plus) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-muted-foreground">
+                              {row.noDueDate > 0 ? formatMoney(row.noDueDate) : "-"}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-sans">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[11px] px-2"
+                                onClick={() => setDetailId(c.id)}
+                              >
+                                Ekstre
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* TEDARİKÇİ ÖDEME DİALOGU */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
@@ -758,6 +1434,226 @@ function CustomersPage() {
               >
                 {makeSupplierPayment.isPending ? "İşleniyor…" : "Ödemeyi Onayla & Fişini Oluştur"}
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MÜŞTERİ TAHSİLAT DİALOGU (FAZ 4.2) */}
+      <Dialog
+        open={collectionOpen}
+        onOpenChange={(open) => {
+          setCollectionOpen(open);
+          if (!open) {
+            setCollectionCustomer(null);
+            setCollectionAmount("");
+            setCollectionDocNo("");
+            setCollectionDesc("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Müşteri Tahsilat Kaydı (120 Alacak Kapama / Kasa-Banka)</DialogTitle>
+          </DialogHeader>
+          {collectionCustomer ? (
+            <div className="space-y-3 pt-2 text-sm">
+              <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-1">
+                <div className="font-semibold text-foreground">{collectionCustomer?.title || "Müşteri"}</div>
+                <div className="text-xs text-muted-foreground">VKN/TCKN: {collectionCustomer?.vkn_tckn || "-"}</div>
+                <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold pt-1">
+                  Açık Müşteri Alacağı: {formatMoney(balanceMap.get(collectionCustomer?.id ?? "")?.balance ?? 0)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Tahsilat Tarihi *</Label>
+                  <Input
+                    type="date"
+                    value={collectionDate}
+                    onChange={(e) => setCollectionDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Tahsilat Tutarı (TL) *</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={collectionAmount}
+                    onChange={(e) => setCollectionAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Tahsilat Yöntemi / Giriş Hesabı</Label>
+                <Select value={collectionMethod} onValueChange={setCollectionMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BANKA">Banka Hesabı (102 Bankalar)</SelectItem>
+                    <SelectItem value="KASA">Nakit Kasa (100 Kasa)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Dekont / Makbuz No</Label>
+                <Input
+                  placeholder="Örn: MAK-2026-001"
+                  value={collectionDocNo}
+                  onChange={(e) => setCollectionDocNo(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Açıklama</Label>
+                <Input
+                  placeholder="Müşteri tahsilatı açıklaması"
+                  value={collectionDesc}
+                  onChange={(e) => setCollectionDesc(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="w-1/2"
+                  onClick={() => setCollectionOpen(false)}
+                >
+                  Vazgeç
+                </Button>
+                <Button
+                  className="w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => makeCustomerCollection.mutate()}
+                  disabled={makeCustomerCollection.isPending}
+                >
+                  {makeCustomerCollection.isPending ? "Kaydediliyor…" : "Tahsilatı Kaydet"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* CARİ KART GÜNCELLE DİALOGU (FAZ 4.2) */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cari Kart Düzenle / Güncelle</DialogTitle>
+          </DialogHeader>
+          {editCustomer && (
+            <div className="grid gap-4 sm:grid-cols-2 pt-2 text-sm">
+              <div className="space-y-1 sm:col-span-2">
+                <Label>Unvan / Ad Soyad *</Label>
+                <Input
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>VKN / TCKN *</Label>
+                <Input
+                  value={editForm.vknTckn}
+                  onChange={(e) => setEditForm({ ...editForm, vknTckn: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Cari Kodu</Label>
+                <Input
+                  value={editForm.code}
+                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Yetkili Kişi</Label>
+                <Input
+                  value={editForm.contactName}
+                  onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Vergi Dairesi</Label>
+                <Input
+                  value={editForm.taxOffice}
+                  onChange={(e) => setEditForm({ ...editForm, taxOffice: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Telefon</Label>
+                <Input
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>E-posta</Label>
+                <Input
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <Label>Adres</Label>
+                <Input
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <AddressSelect
+                  value={{
+                    city: editForm.city,
+                    district: editForm.district,
+                    neighborhood: editForm.neighborhood,
+                  }}
+                  onChange={({ city, district, neighborhood }) =>
+                    setEditForm({ ...editForm, city, district, neighborhood })
+                  }
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Ödeme Vadesi (Gün)</Label>
+                <Input
+                  type="number"
+                  value={editForm.paymentTermDays}
+                  onChange={(e) => setEditForm({ ...editForm, paymentTermDays: Number(e.target.value) })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Risk Limiti (TL)</Label>
+                <Input
+                  type="number"
+                  value={editForm.riskLimit}
+                  onChange={(e) => setEditForm({ ...editForm, riskLimit: Number(e.target.value) })}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 sm:col-span-2 pt-3 border-t">
+                <Button variant="outline" onClick={() => setEditOpen(false)}>
+                  Vazgeç
+                </Button>
+                <Button
+                  onClick={() => updateCustomer.mutate()}
+                  disabled={updateCustomer.isPending}
+                >
+                  {updateCustomer.isPending ? "Kaydediliyor…" : "Cari Kartı Güncelle"}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

@@ -45,6 +45,7 @@ import {
   type ConnectionSettingsView,
 } from "@/lib/efatura-settings.functions";
 import { getMyCompanyProfile, updateMyCompanyProfile } from "@/lib/profile.functions";
+import { getIntegratorConfig } from "@/lib/efatura/integrators.config";
 
 export const Route = createFileRoute("/_authenticated/ayarlar")({
   head: () => ({
@@ -114,6 +115,7 @@ function SettingsPage() {
 
   const [companyForm, setCompanyForm] = useState({
     companyTitle: "",
+    companyType: "Limited Şirket",
     vknTckn: "",
     taxOffice: "",
     address: "",
@@ -123,6 +125,10 @@ function SettingsPage() {
     email: "",
   });
 
+  const [verifyingVkn, setVerifyingVkn] = useState(false);
+  const [vknResult, setVknResult] = useState<import("@/lib/profile.functions").TaxpayerVerificationResult | null>(null);
+  const [isVknVerified, setIsVknVerified] = useState(false);
+
   const [intForm, setIntForm] = useState({
     enabled: false,
     provider: "Uyumsoft",
@@ -131,10 +137,43 @@ function SettingsPage() {
     apiKey: "",
   });
 
+  async function handleVerifyVkn() {
+    if (!companyForm.vknTckn.trim()) {
+      toast.error("Lütfen önce VKN veya TCKN giriniz.");
+      return;
+    }
+    setVerifyingVkn(true);
+    try {
+      const { verifyTaxpayerVkn } = await import("@/lib/profile.functions");
+      const res = await verifyTaxpayerVkn({
+        data: {
+          vknTckn: companyForm.vknTckn.trim(),
+          companyTitle: companyForm.companyTitle.trim(),
+          companyType: companyForm.companyType,
+        },
+      });
+      setVknResult(res);
+      setIsVknVerified(res.verified);
+      if (res.verified) {
+        toast.success(res.message);
+        if (res.taxOffice && !companyForm.taxOffice.trim()) {
+          setCompanyForm((f) => ({ ...f, taxOffice: res.taxOffice! }));
+        }
+      } else {
+        toast.error(res.message);
+      }
+    } catch (err: any) {
+      toast.error("VKN sorgulama hatası: " + (err.message || "Bilinmeyen hata"));
+    } finally {
+      setVerifyingVkn(false);
+    }
+  }
+
   useEffect(() => {
     if (profile) {
       setCompanyForm({
         companyTitle: profile.companyTitle ?? "",
+        companyType: "Limited Şirket",
         vknTckn: profile.vknTckn ?? "",
         taxOffice: profile.taxOffice ?? "",
         address: profile.address ?? "",
@@ -143,6 +182,10 @@ function SettingsPage() {
         phone: profile.phone ?? "",
         email: profile.email ?? "",
       });
+      // If profile already had VKN, mark verified by default if length >= 10
+      if ((profile.vknTckn ?? "").length >= 10) {
+        setIsVknVerified(true);
+      }
     }
   }, [profile]);
 
@@ -150,10 +193,11 @@ function SettingsPage() {
     if (settings) {
       setIntForm({
         enabled: settings.integrator.enabled,
-        provider: settings.integrator.provider ?? "Uyumsoft",
+        provider: settings.integrator.provider ?? "NES Bilgi",
         baseUrl: settings.integrator.baseUrl ?? "",
         apiUsername: settings.integrator.apiUsername ?? "",
         apiKey: "",
+        senderAlias: settings.integrator.senderAlias ?? "",
       });
     }
   }, [settings]);
@@ -163,7 +207,12 @@ function SettingsPage() {
   }
 
   const saveProfileMutation = useMutation({
-    mutationFn: () => updateMyCompanyProfile({ data: companyForm }),
+    mutationFn: () => {
+      if (!isVknVerified) {
+        throw new Error("Firma kayıt bilgilerini kaydetmek için önce 'VKN Sorgula' ile mükellef doğrulaması yapmalısınız.");
+      }
+      return updateMyCompanyProfile({ data: companyForm });
+    },
     onSuccess: (res) => {
       queryClient.setQueryData(["company-profile"], res);
       queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -181,6 +230,7 @@ function SettingsPage() {
           baseUrl: intForm.baseUrl,
           apiUsername: intForm.apiUsername,
           apiKey: intForm.apiKey || undefined,
+          senderAlias: intForm.senderAlias || undefined,
         },
       }),
     onSuccess: (next) => {
@@ -201,7 +251,19 @@ function SettingsPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: (provider: "GIB" | "INTEGRATOR") => runTest({ data: { provider } }),
+    mutationFn: (provider: "GIB" | "INTEGRATOR") =>
+      runTest({
+        data:
+          provider === "INTEGRATOR"
+            ? {
+                provider: "INTEGRATOR",
+                apiKey: intForm.apiKey,
+                baseUrl: intForm.baseUrl,
+                apiUsername: intForm.apiUsername,
+                integratorName: intForm.provider,
+              }
+            : { provider: "GIB" },
+      }),
     onSuccess: (result) => {
       applySettings(result.settings);
       if (result.ok) toast.success(result.message);
@@ -328,14 +390,81 @@ function SettingsPage() {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="vknTckn">VKN veya TCKN *</Label>
-                    <Input
-                      id="vknTckn"
-                      placeholder="10 haneli VKN veya 11 haneli TCKN"
-                      value={companyForm.vknTckn}
-                      onChange={(e) => setCompanyForm((f) => ({ ...f, vknTckn: e.target.value }))}
-                    />
+                    <Label htmlFor="companyType">Firma Türü</Label>
+                    <select
+                      id="companyType"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={companyForm.companyType}
+                      onChange={(e) => setCompanyForm((f) => ({ ...f, companyType: e.target.value }))}
+                    >
+                      <option value="Şahıs Şirketi">Şahıs Şirketi (11 Haneli TCKN)</option>
+                      <option value="Limited Şirket">Limited Şirket (10 Haneli VKN)</option>
+                      <option value="Anonim Şirket">Anonim Şirket (10 Haneli VKN)</option>
+                      <option value="Diğer">Diğer İşletme Türleri</option>
+                    </select>
                   </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="vknTckn">VKN veya TCKN *</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="vknTckn"
+                        placeholder="10 haneli VKN veya 11 haneli TCKN"
+                        value={companyForm.vknTckn}
+                        onChange={(e) => {
+                          setCompanyForm((f) => ({ ...f, vknTckn: e.target.value.replace(/\D/g, "") }));
+                          setIsVknVerified(false);
+                          setVknResult(null);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={verifyingVkn || !companyForm.vknTckn.trim()}
+                        onClick={handleVerifyVkn}
+                        className="shrink-0 text-xs font-semibold gap-1"
+                      >
+                        {verifyingVkn ? "Sorgulanıyor..." : "VKN Sorgula"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {vknResult && (
+                    <div
+                      className={`md:col-span-2 p-3 rounded-lg border text-xs space-y-1 ${
+                        vknResult.verified
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300"
+                          : "bg-destructive/10 border-destructive/30 text-destructive"
+                      }`}
+                    >
+                      <div className="font-semibold flex items-center gap-1.5 text-sm">
+                        {vknResult.verified ? (
+                          <>
+                            <CheckCircle2 className="size-4 text-emerald-600" /> ✓ VKN Doğrulandı
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="size-4 text-destructive" /> ✕ VKN Doğrulanamadı
+                          </>
+                        )}
+                      </div>
+                      <p>{vknResult.message}</p>
+                      {vknResult.title && (
+                        <p className="font-mono font-medium">
+                          Mükellef: <span className="font-bold">{vknResult.title}</span>
+                        </p>
+                      )}
+                      {vknResult.taxOffice && (
+                        <p>Vergi Dairesi: {vknResult.taxOffice}</p>
+                      )}
+                      {vknResult.titleMismatchWarning && (
+                        <p className="text-amber-600 dark:text-amber-400 font-medium mt-1">
+                          ⚠️ {vknResult.titleMismatchWarning}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid gap-2">
                     <Label htmlFor="taxOffice">Vergi Dairesi</Label>
@@ -470,35 +599,55 @@ function SettingsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Servis Uç Noktası (API URL)</Label>
-                    <Input
-                      value={intForm.baseUrl}
-                      onChange={(e) => setIntForm((f) => ({ ...f, baseUrl: e.target.value }))}
-                      placeholder="https://api.entegrator.com"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>API Kullanıcı Adı</Label>
-                    <Input
-                      value={intForm.apiUsername}
-                      onChange={(e) => setIntForm((f) => ({ ...f, apiUsername: e.target.value }))}
-                      placeholder="api_kullanici_kodu"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>API Anahtarı / Gizli Anahtar (Secret)</Label>
-                    <Input
-                      type="password"
-                      value={intForm.apiKey}
-                      onChange={(e) => setIntForm((f) => ({ ...f, apiKey: e.target.value }))}
-                      placeholder={
-                        settings?.integrator.hasApiKey
-                          ? "•••••••• (kayıtlı anahtar korunuyor)"
-                          : "API anahtarını girin"
-                      }
-                    />
-                  </div>
+                  {(() => {
+                    const currentConfig = getIntegratorConfig(intForm.provider);
+                    return (
+                      <>
+                        <div className="grid gap-2">
+                          <Label>{currentConfig.baseUrlLabel}</Label>
+                          <Input
+                            value={intForm.baseUrl}
+                            onChange={(e) => setIntForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                            placeholder={currentConfig.baseUrlPlaceholder}
+                          />
+                        </div>
+                        {currentConfig.requiresUsername ? (
+                          <div className="grid gap-2">
+                            <Label>{currentConfig.usernameLabel || "API Kullanıcı Adı"}</Label>
+                            <Input
+                              value={intForm.apiUsername}
+                              onChange={(e) => setIntForm((f) => ({ ...f, apiUsername: e.target.value }))}
+                              placeholder={currentConfig.usernamePlaceholder || "api_kullanici_kodu"}
+                            />
+                          </div>
+                        ) : null}
+                        <div className="grid gap-2">
+                          <Label>{currentConfig.apiKeyLabel}</Label>
+                          <Input
+                            type="password"
+                            value={intForm.apiKey}
+                            onChange={(e) => setIntForm((f) => ({ ...f, apiKey: e.target.value }))}
+                            placeholder={
+                              settings?.integrator.hasApiKey
+                                ? "•••••••• (kayıtlı anahtar korunuyor)"
+                                : currentConfig.apiKeyPlaceholder
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Gönderici Birim (GB) Etiketi</Label>
+                          <Input
+                            value={intForm.senderAlias}
+                            onChange={(e) => setIntForm((f) => ({ ...f, senderAlias: e.target.value }))}
+                            placeholder="Örn: urn:mail:defaultgb@firma.com"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            NES e-Fatura sistemindeki resmi Gönderici Birim (GB) etiketiniz.
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {settings?.integrator.lastError ? (
@@ -532,8 +681,6 @@ function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <EdmTestCard />
 
             <div className="flex items-center gap-2 rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-primary" />

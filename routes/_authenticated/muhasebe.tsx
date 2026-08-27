@@ -285,7 +285,12 @@ export function AccountingPage() {
         p_start_date: incomeStartDate || null,
         p_end_date: incomeEndDate || null,
       });
-      if (error) throw error;
+
+      if (error) {
+        console.error("[GELİR TABLOSU] RPC Hatası:", error);
+        throw new Error(`Gelir Tablosu verileri yüklenemedi: ${error.message}`);
+      }
+
       return (data as any) ?? null;
     },
   });
@@ -805,62 +810,62 @@ export function AccountingPage() {
         {/* 3. GELİR TABLOSU                                         */}
         {/* ======================================================== */}
         <TabsContent value="gelir-tablosu" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 max-w-3xl mx-auto">
-            <h3 className="text-sm font-semibold">Gelir Tablosu Dönem Filtresi:</h3>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-3xl mx-auto w-full">
+            <h3 className="text-xs sm:text-sm font-semibold whitespace-nowrap">Gelir Tablosu Dönem Filtresi:</h3>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Input
                 type="date"
-                className="h-8 w-36 text-xs"
+                className="h-8 w-full sm:w-36 text-xs"
                 value={incomeStartDate}
                 onChange={(e) => setIncomeStartDate(e.target.value)}
               />
               <Input
                 type="date"
-                className="h-8 w-36 text-xs"
+                className="h-8 w-full sm:w-36 text-xs"
                 value={incomeEndDate}
                 onChange={(e) => setIncomeEndDate(e.target.value)}
               />
-              <Button size="sm" variant="outline" onClick={() => refetchIncome()} className="h-8 text-xs gap-1">
+              <Button size="sm" variant="outline" onClick={() => refetchIncome()} className="h-8 text-xs gap-1 w-full sm:w-auto shrink-0">
                 <RotateCcw className="size-3" /> Yenile
               </Button>
             </div>
           </div>
 
-          <Card className="max-w-3xl mx-auto">
-            <CardHeader className="text-center pb-4 border-b border-border">
-              <CardTitle className="text-lg">Ayrıntılı Gelir Tablosu (Kâr / Zarar)</CardTitle>
-              <CardDescription>
+          <Card className="w-full max-w-3xl mx-auto">
+            <CardHeader className="text-center pb-4 border-b border-border px-4 sm:px-6">
+              <CardTitle className="text-base sm:text-lg">Ayrıntılı Gelir Tablosu (Kâr / Zarar)</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
                 600 Net Satışlar, 621 STMM (Ağırlıklı Ortalama Maliyet) ve Dönem Kâr/Zarar Özeti
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6 space-y-4">
+            <CardContent className="pt-4 sm:pt-6 space-y-4 px-4 sm:px-6">
               {incomeLoading ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">Gelir tablosu hesaplanıyor...</div>
               ) : incomeError ? (
-                <div className="py-8 text-center text-sm text-destructive">
-                  Hata: {(incomeError as any).message}
+                <div className="py-8 text-center text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20 p-3">
+                  Hata: {(incomeError as any).message || "Gelir tablosu hesaplanırken beklenmeyen bir hata oluştu."}
                 </div>
               ) : !incomeStatement ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">Gelir tablosu verisi bulunamadı.</div>
               ) : (
                 <div className="space-y-2.5">
-                  <div className="flex justify-between py-2 border-b border-border text-sm font-medium">
+                  <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm font-medium">
                     <span>A. BRÜT SATIŞ GELİRLERİ (600)</span>
                     <span className="font-mono">{formatMoney(incomeStatement.gross_sales)}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-border text-sm text-muted-foreground">
+                  <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>B. SATIŞ İNDİRİMLERİ VE İADELERİ (-) (610)</span>
                     <span className="font-mono text-destructive">- {formatMoney(incomeStatement.sales_returns)}</span>
                   </div>
-                  <div className="flex justify-between py-2.5 border-b border-border text-sm font-bold bg-muted/40 px-2 rounded">
+                  <div className="flex justify-between py-2.5 border-b border-border text-xs sm:text-sm font-bold bg-muted/40 px-2 rounded">
                     <span>C. NET SATIŞLAR</span>
                     <span className="font-mono text-primary">{formatMoney(incomeStatement.net_sales)}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-border text-sm text-muted-foreground">
+                  <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>D. SATILAN TİCARİ MALLAR MALİYETİ (-) (621 STMM)</span>
                     <span className="font-mono text-destructive">- {formatMoney(incomeStatement.cogs)}</span>
                   </div>
-                  <div className="flex justify-between py-2.5 border-b border-border text-base font-bold bg-emerald-500/10 px-2 rounded text-emerald-700 dark:text-emerald-400">
+                  <div className="flex justify-between py-2.5 border-b border-border text-sm sm:text-base font-bold bg-emerald-500/10 px-2 rounded text-emerald-700 dark:text-emerald-400">
                     <span>BRÜT SATIŞ KÂRI / (ZARARI)</span>
                     <div className="text-right">
                       <span className="font-mono">{formatMoney(incomeStatement.gross_profit)}</span>
@@ -869,38 +874,38 @@ export function AccountingPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-border text-sm text-muted-foreground">
+                  <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>E. FAALİYET GİDERLERİ (-) (770)</span>
                     <span className="font-mono text-destructive">- {formatMoney(incomeStatement.operating_expenses)}</span>
                   </div>
                   {Number(incomeStatement.fx_gains) > 0 && (
-                    <div className="flex justify-between py-2 border-b border-border text-sm text-emerald-600 font-medium">
+                    <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-emerald-600 font-medium">
                       <span>F. DİĞER FAALİYET GELİRLERİ (646 KAMBİYO KÂRLARI (+))</span>
                       <span className="font-mono">+ {formatMoney(incomeStatement.fx_gains)}</span>
                     </div>
                   )}
                   {Number(incomeStatement.fx_losses) > 0 && (
-                    <div className="flex justify-between py-2 border-b border-border text-sm text-destructive font-medium">
+                    <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-destructive font-medium">
                       <span>G. DİĞER FAALİYET GİDERLERİ (656 KAMBİYO ZARARLARI (-))</span>
                       <span className="font-mono">- {formatMoney(incomeStatement.fx_losses)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between py-2 border-b border-border text-sm text-muted-foreground">
+                  <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>H. FİNANSMAN GİDERLERİ (-) (780)</span>
                     <span className="font-mono text-destructive">- {formatMoney(incomeStatement.financing_expenses)}</span>
                   </div>
-                  <div className="flex justify-between py-3 border-t-2 border-primary text-base font-extrabold bg-primary/10 px-3 rounded text-primary">
+                  <div className="flex justify-between py-3 border-t-2 border-primary text-sm sm:text-base font-extrabold bg-primary/10 px-3 rounded text-primary">
                     <span>DÖNEM NET KÂRI / (ZARARI)</span>
                     <span className="font-mono">{formatMoney(incomeStatement.net_profit)}</span>
                   </div>
 
                   {/* STMM Mutabakat Kartı */}
-                  <div className="mt-4 pt-3 border-t border-border/80 flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="size-3.5 text-emerald-500" />
-                      STMM Mutabakatı: Fiili Stok Çıkış Maliyeti ({formatMoney(incomeStatement.stock_movements_cogs)})
+                  <div className="mt-4 pt-3 border-t border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
+                      <span className="truncate">STMM Mutabakatı: Fiili Stok Çıkış Maliyeti ({formatMoney(incomeStatement.stock_movements_cogs)})</span>
                     </span>
-                    <span className="font-mono">
+                    <span className="font-mono whitespace-nowrap">
                       Fark: {formatMoney(incomeStatement.cogs_reconciliation_difference)} (
                       {Math.abs(Number(incomeStatement.cogs_reconciliation_difference)) < 0.05 ? "TAM UYUMLU" : "UYUMSUZ"}
                       )
