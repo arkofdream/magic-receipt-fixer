@@ -209,8 +209,8 @@ BEGIN
   -- ========================================================
   SELECT COALESCE(SUM(
     CASE
-      WHEN sm.movement_type = 'CIKIS' AND sm.source = 'FATURA' THEN sm.total_cost
-      WHEN sm.movement_type = 'GIRIS' AND sm.source = 'FATURA' THEN -sm.total_cost
+      WHEN sm.movement_type = 'CIKIS' AND sm.source = 'FATURA' THEN COALESCE(sm.total_cost, sm.quantity * COALESCE(sm.unit_cost, sm.unit_price, 0), 0)
+      WHEN sm.movement_type = 'GIRIS' AND sm.source = 'FATURA' THEN -COALESCE(sm.total_cost, sm.quantity * COALESCE(sm.unit_cost, sm.unit_price, 0), 0)
       ELSE 0
     END
   ), 0)
