@@ -93,6 +93,7 @@ export function toView(row: EfaturaConnectionSettingsRow): ConnectionSettingsVie
       provider: row.integrator_provider || "NES Bilgi",
       baseUrl: row.integrator_base_url || "https://apitest.nes.com.tr",
       apiUsername: row.integrator_api_username || "",
+      senderAlias: (row as any).integrator_sender_alias || "",
       hasApiKey: Boolean(row.integrator_api_key_encrypted),
       status: row.integrator_status || "NOT_CONFIGURED",
       lastTestedAt: row.integrator_last_tested_at,
@@ -156,10 +157,11 @@ export async function saveIntegrator(
     baseUrl: string;
     apiUsername: string;
     apiKey?: string | undefined;
+    senderAlias?: string | undefined;
   },
   client?: SupabaseClient<Database>,
 ): Promise<ConnectionSettingsView> {
-  const patch: Patch = {
+  const patch: Record<string, any> = {
     integrator_enabled: input.enabled,
     integrator_provider: input.provider,
     integrator_base_url: input.baseUrl,
@@ -167,13 +169,16 @@ export async function saveIntegrator(
     integrator_status: "NOT_CONFIGURED",
     integrator_last_error: "",
   };
+  if (input.senderAlias !== undefined) {
+    patch["integrator_sender_alias"] = input.senderAlias.trim();
+  }
   if (input.apiKey && input.apiKey.length > 0) {
     patch["integrator_api_key_encrypted"] = encryptSecret(input.apiKey);
   }
   if (input.enabled) {
     patch["active_provider"] = "INTEGRATOR";
   }
-  return toView(await update(userId, patch, client));
+  return toView(await update(userId, patch as Patch, client));
 }
 
 export async function setActive(
@@ -212,6 +217,7 @@ export function resolveActiveCredentials(
         : "",
       baseUrl: row.integrator_base_url || "https://apitest.nes.com.tr",
       integratorName: row.integrator_provider || "NES Bilgi",
+      senderAlias: (row as any).integrator_sender_alias || "",
     };
   }
   return null;
@@ -346,7 +352,7 @@ export async function sendInvoiceToActiveProvider(
         console.warn(`[INVOICE PREFLIGHT MISMATCH] Profil VKN (${cleanProfileVkn}) ile Fatura Gönderen VKN (${invoiceSellerVkn}) uyuşmuyor.`);
         return {
           ok: false,
-          message: "NES entegrasyonundaki firma VKN/TCKN ile faturadaki gönderen VKN/TCKN uyuşmuyor. Firma ve NES entegrasyon bilgilerini kontrol edin.",
+          message: "Firma VKN/TCKN ile NES entegrasyon VKN/TCKN uyuşmuyor.",
           ettn,
         };
       }
@@ -356,7 +362,7 @@ export async function sendInvoiceToActiveProvider(
         console.warn(`[INVOICE PREFLIGHT MISMATCH] NES Kullanıcı VKN (${integratorUserVkn}) ile Profil VKN (${cleanProfileVkn}) uyuşmuyor.`);
         return {
           ok: false,
-          message: "NES entegrasyonundaki firma VKN/TCKN ile faturadaki gönderen VKN/TCKN uyuşmuyor. Firma ve NES entegrasyon bilgilerini kontrol edin.",
+          message: "Firma VKN/TCKN ile NES entegrasyon VKN/TCKN uyuşmuyor.",
           ettn,
         };
       }

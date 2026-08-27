@@ -285,7 +285,12 @@ export function AccountingPage() {
         p_start_date: incomeStartDate || null,
         p_end_date: incomeEndDate || null,
       });
-      if (error) throw error;
+
+      if (error) {
+        console.error("[GELİR TABLOSU] RPC Hatası:", error);
+        throw new Error(`Gelir Tablosu verileri yüklenemedi: ${error.message}`);
+      }
+
       return (data as any) ?? null;
     },
   });

@@ -20,6 +20,7 @@ const integratorSchema = z.object({
     .url("Geçerli bir URL girmelisiniz (örn: https://apitest.nes.com.tr)."),
   apiUsername: z.string().trim().optional().default(""),
   apiKey: z.string().trim().optional(),
+  senderAlias: z.string().trim().optional().default(""),
 });
 
 const activeProviderSchema = z.object({

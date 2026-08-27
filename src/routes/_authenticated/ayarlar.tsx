@@ -193,10 +193,11 @@ function SettingsPage() {
     if (settings) {
       setIntForm({
         enabled: settings.integrator.enabled,
-        provider: settings.integrator.provider ?? "Uyumsoft",
+        provider: settings.integrator.provider ?? "NES Bilgi",
         baseUrl: settings.integrator.baseUrl ?? "",
         apiUsername: settings.integrator.apiUsername ?? "",
         apiKey: "",
+        senderAlias: settings.integrator.senderAlias ?? "",
       });
     }
   }, [settings]);
@@ -229,6 +230,7 @@ function SettingsPage() {
           baseUrl: intForm.baseUrl,
           apiUsername: intForm.apiUsername,
           apiKey: intForm.apiKey || undefined,
+          senderAlias: intForm.senderAlias || undefined,
         },
       }),
     onSuccess: (next) => {
@@ -631,6 +633,17 @@ function SettingsPage() {
                                 : currentConfig.apiKeyPlaceholder
                             }
                           />
+                        </div>
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Gönderici Birim (GB) Etiketi</Label>
+                          <Input
+                            value={intForm.senderAlias}
+                            onChange={(e) => setIntForm((f) => ({ ...f, senderAlias: e.target.value }))}
+                            placeholder="Örn: urn:mail:defaultgb@firma.com"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            NES e-Fatura sistemindeki resmi Gönderici Birim (GB) etiketiniz.
+                          </p>
                         </div>
                       </>
                     );
