@@ -209,13 +209,14 @@ BEGIN
   -- ========================================================
   SELECT COALESCE(SUM(
     CASE
-      WHEN sm.movement_type = 'CIKIS' AND sm.source = 'FATURA' THEN COALESCE(sm.total_cost, sm.quantity * COALESCE(sm.unit_cost, sm.unit_price, 0), 0)
-      WHEN sm.movement_type = 'GIRIS' AND sm.source = 'FATURA' THEN -COALESCE(sm.total_cost, sm.quantity * COALESCE(sm.unit_cost, sm.unit_price, 0), 0)
+      WHEN sm.movement_type = 'CIKIS' AND sm.source = 'FATURA' THEN sm.quantity * COALESCE(p.purchase_price, sm.unit_price, 0)
+      WHEN sm.movement_type = 'GIRIS' AND sm.source = 'FATURA' THEN -sm.quantity * COALESCE(p.purchase_price, sm.unit_price, 0)
       ELSE 0
     END
   ), 0)
   INTO v_stock_cogs_net
   FROM public.stock_movements sm
+  LEFT JOIN public.products p ON p.id = sm.product_id
   INNER JOIN public.invoices inv ON inv.id = sm.source_id AND inv.status != 'IPTAL'
   WHERE sm.user_id = v_user_id
     AND sm.deleted_at IS NULL

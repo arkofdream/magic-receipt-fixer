@@ -339,21 +339,22 @@ BEGIN
     AND je.entry_date <= v_end_date
     AND (coa.code = '621' OR coa.system_tag = 'COGS');
 
-  -- STMM Mutabakatı: stock_movements tablosundaki fiili satış maliyetleri
+  -- STMM Mutabakatı: stock_movements tablosundaki fiili satış maliyetleri (ürün alış fiyatı x miktar)
   SELECT COALESCE(SUM(
     CASE
-      WHEN movement_type = 'CIKIS' THEN COALESCE(total_cost, quantity * COALESCE(unit_cost, unit_price, 0), 0)
-      WHEN movement_type = 'GIRIS' AND source = 'FATURA' THEN -COALESCE(total_cost, quantity * COALESCE(unit_cost, unit_price, 0), 0)
+      WHEN sm.movement_type = 'CIKIS' THEN sm.quantity * COALESCE(p.purchase_price, sm.unit_price, 0)
+      WHEN sm.movement_type = 'GIRIS' AND sm.source = 'FATURA' THEN -sm.quantity * COALESCE(p.purchase_price, sm.unit_price, 0)
       ELSE 0
     END
   ), 0)
   INTO v_stock_movements_cogs
-  FROM public.stock_movements
-  WHERE user_id = v_user_id
-    AND deleted_at IS NULL
-    AND source IN ('FATURA', 'FATURA_IPTAL')
-    AND movement_date >= v_start_date
-    AND movement_date <= v_end_date;
+  FROM public.stock_movements sm
+  LEFT JOIN public.products p ON p.id = sm.product_id
+  WHERE sm.user_id = v_user_id
+    AND sm.deleted_at IS NULL
+    AND sm.source IN ('FATURA', 'FATURA_IPTAL')
+    AND sm.movement_date >= v_start_date
+    AND sm.movement_date <= v_end_date;
 
   v_gross_profit := v_net_sales - v_cogs;
 

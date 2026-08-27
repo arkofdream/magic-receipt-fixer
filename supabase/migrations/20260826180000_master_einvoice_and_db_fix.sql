@@ -72,14 +72,6 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='invoice_items' AND column_name='total_cost') THEN
     ALTER TABLE public.invoice_items ADD COLUMN total_cost NUMERIC(14,2) NOT NULL DEFAULT 0;
   END IF;
-
-  -- stock_movements maliyet kolonları güvencesi (FAZ 2.2.2 Ağırlıklı Ortalama Maliyet Motoru)
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='stock_movements' AND column_name='unit_cost') THEN
-    ALTER TABLE public.stock_movements ADD COLUMN unit_cost NUMERIC(14,4) NULL;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='stock_movements' AND column_name='total_cost') THEN
-    ALTER TABLE public.stock_movements ADD COLUMN total_cost NUMERIC(14,2) NULL;
-  END IF;
 END $$;
 
 -- ----------------------------------------------------------------------------
