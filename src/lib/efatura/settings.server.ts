@@ -436,11 +436,12 @@ export async function sendInvoiceToActiveProvider(
             edm_status: "SENT",
             sent_at: now,
             provider: credentials.integratorName || "NES Bilgi",
-            provider_reference: result.ettn || ettn,
+            provider_reference: result.externalId || result.ettn || ettn,
+            trx_id: result.externalId || ettn,
             error_message: null,
           })
           .eq("ettn", ettn);
-        console.log(`[INVOICE] Supabase status güncellendi: SENT (${ettn})`);
+        console.log(`[INVOICE] Supabase status güncellendi: SENT / Ref: ${result.externalId || ettn} (${ettn})`);
       } else {
         await client
           .from("invoices")

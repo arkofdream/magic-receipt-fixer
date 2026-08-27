@@ -109,20 +109,25 @@ function validateCredentials(credentials: ConnectionCredentials): ConnectionTest
   return null;
 }
 
-function buildIntegratorTestUrl(integratorName: string, baseUrl: string): string {
+function buildIntegratorTestUrl(integratorName: string, baseUrl: string, docType: "einvoice" | "earchive" = "einvoice"): string {
   let cleanUrl = baseUrl.trim().replace(/\/+$/, "");
 
   if (integratorName === "Nes Bilgi" || integratorName === "NES Bilgi" || integratorName.toLowerCase().includes("nes")) {
-    if (cleanUrl.endsWith("/einvoice/v1/uploads/document")) {
+    const servicePath = docType === "earchive" ? "earchive" : "einvoice";
+    if (cleanUrl.includes(`/${servicePath}/v1/uploads/document`)) {
       return cleanUrl;
     }
-    if (cleanUrl.endsWith("/einvoice/v1")) {
+    if (cleanUrl.endsWith(`/${servicePath}/v1`)) {
       return cleanUrl + "/uploads/document";
     }
-    if (cleanUrl.endsWith("/einvoice")) {
+    if (cleanUrl.endsWith(`/${servicePath}`)) {
       return cleanUrl + "/v1/uploads/document";
     }
-    return cleanUrl + "/einvoice/v1/uploads/document";
+    // Clean base URL handling
+    if (cleanUrl.endsWith("/einvoice/v1/uploads/document") || cleanUrl.endsWith("/earchive/v1/uploads/document")) {
+      cleanUrl = cleanUrl.replace(/\/(einvoice|earchive)\/v1\/uploads\/document$/, "");
+    }
+    return `${cleanUrl}/${servicePath}/v1/uploads/document`;
   }
 
   if (cleanUrl.endsWith("/auth/test")) {
@@ -356,8 +361,16 @@ class IntegratorProvider implements EInvoiceProvider {
         console.log("[INVOICE] NES API URL'i tanımlı değil.");
         return { ok: false, message: "NES API URL'i tanımlı değil.", ettn };
       }
-      const testUrl = buildIntegratorTestUrl(integrator, credentials.baseUrl);
-      console.log(`[INVOICE] Gönderim başlatıldı. ETTN: ${ettn}`);
+
+      const isEArchive =
+        invoice["isEArchive"] === true ||
+        invoice["docType"] === "EARCHIVE" ||
+        invoice["profileId"] === "EARSIVFATURA" ||
+        (invoice["type"] === "SATIS" && !invoice["isEinvoiceTaxpayer"]);
+
+      const docTypeKey: "einvoice" | "earchive" = isEArchive ? "earchive" : "einvoice";
+      const testUrl = buildIntegratorTestUrl(integrator, credentials.baseUrl, docTypeKey);
+      console.log(`[INVOICE] Gönderim başlatıldı. Tür: ${isEArchive ? 'e-Arşiv' : 'e-Fatura'}, ETTN: ${ettn}`);
       console.log(`[INVOICE] Backend endpoint: ${testUrl}`);
 
       try {
@@ -437,12 +450,22 @@ class IntegratorProvider implements EInvoiceProvider {
         console.log(`[INVOICE] API response alındı (${text.length} bayt)`);
 
         if (res.ok) {
-          console.log("[INVOICE] Gönderim sonucu: BAŞARILI");
+          console.log("[INVOICE] Gönderim sonucu: BAŞARILI (Kuyruğa Alındı)");
+          let parsedJson: any = null;
+          if (text.trim().startsWith("{")) {
+            try { parsedJson = JSON.parse(text); } catch { parsedJson = null; }
+          }
+
+          const externalId = parsedJson?.id || parsedJson?.documentId || parsedJson?.referenceId || ettn;
+          const statusCode = String(parsedJson?.statusCode || res.status);
+          const statusDesc = parsedJson?.statusDescription || "Fatura NES servisine başarıyla yüklendi (İşleme Alındı).";
+
           return {
             ok: true,
-            message: "Fatura NES servisine başarıyla yüklendi.",
+            message: statusDesc,
+            externalId,
             ettn,
-            statusCode: String(res.status),
+            statusCode,
           };
         }
 
@@ -517,14 +540,78 @@ class IntegratorProvider implements EInvoiceProvider {
   }
 
   async getInvoiceStatus(
-    _credentials: ConnectionCredentials,
-    _ettn: string,
+    credentials: ConnectionCredentials,
+    ettn: string,
   ): Promise<InvoiceStatusResult> {
-    return {
-      ok: true,
-      status: "DRAFT",
-      message: "Entegratör durumu: Taslak",
-    };
+    if (!credentials.baseUrl || !credentials.secret) {
+      return {
+        ok: false,
+        status: "UNKNOWN",
+        message: "Sorgulama için entegratör URL ve API anahtarı gereklidir.",
+      };
+    }
+
+    const cleanBaseUrl = credentials.baseUrl.trim().replace(/\/+$/, "");
+    let statusUrl = `${cleanBaseUrl}/einvoice/v1/invoices/${ettn}/status`;
+
+    try {
+      let res = await fetch(statusUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${credentials.secret}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (res.status === 404) {
+        statusUrl = `${cleanBaseUrl}/earchive/v1/invoices/${ettn}/status`;
+        res = await fetch(statusUrl, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${credentials.secret}`,
+            Accept: "application/json",
+          },
+        });
+      }
+
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const code = String(json.gibStatusCode || json.statusCode || "");
+        const statusStr = String(json.status || "").toUpperCase();
+
+        let status: "DRAFT" | "QUEUED" | "SENT" | "APPROVED" | "REJECTED" | "CANCELLED" | "UNKNOWN" = "SENT";
+        if (statusStr === "ACCEPTED" || statusStr === "APPROVED" || code === "1300" || code === "3000") {
+          status = "APPROVED";
+        } else if (statusStr === "REJECTED" || statusStr === "FAILED" || code === "1150") {
+          status = "REJECTED";
+        } else if (statusStr === "CANCELLED") {
+          status = "CANCELLED";
+        } else if (statusStr === "QUEUED" || statusStr === "SUBMITTING") {
+          status = "QUEUED";
+        }
+
+        return {
+          ok: true,
+          status,
+          message: json.gibStatusDescription || json.statusDescription || `Entegratör Durumu: ${status}`,
+          gibStatusCode: code,
+          updatedAt: json.updatedAt || new Date().toISOString(),
+        };
+      }
+
+      return {
+        ok: false,
+        status: "UNKNOWN",
+        message: `NES Durum Sorgulama Yanıtı (HTTP ${res.status}): Belge henüz GİB tarafından onaylanmadı veya işleniyor.`,
+      };
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        status: "UNKNOWN",
+        message: `Durum sorgulama hatası: ${errMsg}`,
+      };
+    }
   }
 
   async downloadInvoice(

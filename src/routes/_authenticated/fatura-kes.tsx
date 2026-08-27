@@ -544,7 +544,7 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                 data: {
                   ettn,
                   invoiceNumber: (_result as any)?.invoice_number || ettn,
-                  customerName: customer.name,
+                  customerName: customer.title || (customer as any).name || "",
                   customerTaxNumber: customer.vknTckn,
                   grandTotal: totals.grandTotal,
                   type,
