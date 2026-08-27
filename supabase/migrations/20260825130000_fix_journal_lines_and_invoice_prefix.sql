@@ -171,7 +171,7 @@ BEGIN
   v_year  := EXTRACT(YEAR FROM p_invoice_date)::INTEGER;
   v_month := EXTRACT(MONTH FROM p_invoice_date)::INTEGER;
 
-  SELECT COALESCE(status IN ('CLOSED', 'LOCKED'), false) INTO v_is_period_closed
+  SELECT is_closed INTO v_is_period_closed
   FROM public.accounting_periods
   WHERE user_id = v_user_id
     AND period_year = v_year
