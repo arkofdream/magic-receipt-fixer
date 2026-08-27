@@ -107,6 +107,44 @@ function CustomersPage() {
   const [paymentDocNo, setPaymentDocNo] = useState("");
   const [paymentDesc, setPaymentDesc] = useState("");
 
+  // FAZ 4.2 — Müşteri Tahsilat Modalı Durumları
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const [collectionCustomer, setCollectionCustomer] = useState<any>(null);
+  const [collectionAmount, setCollectionAmount] = useState("");
+  const [collectionDate, setCollectionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [collectionMethod, setCollectionMethod] = useState("BANKA");
+  const [collectionDocNo, setCollectionDocNo] = useState("");
+  const [collectionDesc, setCollectionDesc] = useState("");
+
+  // FAZ 4.2 — Cari Kart Düzenleme (Güncelle) Modalı Durumları
+  const [editOpen, setEditOpen] = useState(false);
+  const [editCustomer, setEditCustomer] = useState<any>(null);
+  const [editForm, setEditForm] = useState<FormState>({ ...emptyCustomer, ...emptyExtras });
+
+  function handleOpenEditModal(c: any) {
+    setEditCustomer(c);
+    setEditForm({
+      vknTckn: c.vkn_tckn || "",
+      title: c.title || "",
+      taxOffice: c.tax_office || "",
+      address: c.address || "",
+      city: c.city || "",
+      district: c.district || "",
+      neighborhood: c.neighborhood || "",
+      email: c.email || "",
+      phone: c.phone || "",
+      customPrefix: c.custom_prefix || "",
+      code: c.code || "",
+      contactName: c.contact_name || "",
+      partnerGroup: c.partner_group || "",
+      paymentTermDays: Number(c.payment_term_days ?? 0),
+      riskLimit: Number(c.risk_limit ?? 0),
+      openingBalance: Number(c.opening_balance ?? 0),
+      note: c.note || "",
+    });
+    setEditOpen(true);
+  }
+
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
@@ -498,6 +536,86 @@ function CustomersPage() {
       queryClient.invalidateQueries({ queryKey: ["trial-balance"] });
       queryClient.invalidateQueries({ queryKey: ["reconciliation-summary"] });
       queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // FAZ 4.2 — MÜŞTERİ TAHSİLAT MUTASYONU
+  const makeCustomerCollection = useMutation({
+    mutationFn: async () => {
+      if (!collectionCustomer) throw new Error("Müşteri seçilmedi.");
+      const valStr = collectionAmount.replace(",", ".");
+      const amt = Number(valStr);
+      if (isNaN(amt) || amt <= 0) {
+        throw new Error("Lütfen geçerli ve 0'dan büyük bir tahsilat tutarı girin.");
+      }
+      const userId = await currentUserId();
+      const { error } = await supabase.from("account_transactions").insert({
+        user_id: userId,
+        customer_id: collectionCustomer.id,
+        txn_date: collectionDate,
+        txn_type: "TAHSILAT",
+        amount: amt,
+        document_no: collectionDocNo.trim(),
+        description: collectionDesc.trim() || `Müşteri Tahsilatı - ${collectionCustomer.title}`,
+        source: "MUSTERI_TAHSILATI",
+        source_id: collectionCustomer.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tahsilat kaydı başarıyla oluşturuldu ve cari bakiyeden düşüldü.");
+      setCollectionOpen(false);
+      setCollectionCustomer(null);
+      setCollectionAmount("");
+      setCollectionDocNo("");
+      setCollectionDesc("");
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["all-account-transactions-aging"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-entries-all"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // FAZ 4.2 — CARİ KART GÜNCELLEME MUTASYONU
+  const updateCustomer = useMutation({
+    mutationFn: async () => {
+      if (!editCustomer) return;
+      if (!editForm.vknTckn.trim() || !editForm.title.trim()) {
+        throw new Error("Unvan ve VKN/TCKN alanları zorunludur.");
+      }
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          title: editForm.title.trim(),
+          vkn_tckn: editForm.vknTckn.trim(),
+          code: editForm.code.trim() || null,
+          tax_office: editForm.taxOffice.trim() || null,
+          address: editForm.address.trim() || null,
+          city: editForm.city.trim() || null,
+          district: editForm.district.trim() || null,
+          neighborhood: editForm.neighborhood.trim() || null,
+          email: editForm.email.trim() || null,
+          phone: editForm.phone.trim() || null,
+          contact_name: editForm.contactName.trim() || null,
+          partner_group: editForm.partnerGroup.trim() || null,
+          payment_term_days: Number(editForm.paymentTermDays) || 0,
+          risk_limit: Number(editForm.riskLimit) || 0,
+          opening_balance: Number(editForm.openingBalance) || 0,
+          note: editForm.note.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editCustomer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Cari kart bilgileri başarıyla güncellendi.");
+      setEditOpen(false);
+      setEditCustomer(null);
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -915,28 +1033,51 @@ function CustomersPage() {
                             </td>
                             <td className="py-3 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1.5">
-                                {c.partner_type === "TEDARIKCI" && b.balance < 0 && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs bg-amber-500/10 text-amber-600 border-amber-500/30 hover:bg-amber-500/20"
-                                    onClick={() => {
-                                      setPaymentSupplier(c);
-                                      setPaymentAmount(String(Math.abs(b.balance)));
-                                      setPaymentOpen(true);
-                                    }}
-                                  >
-                                    Ödeme Yap
-                                  </Button>
-                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleOpenEditModal(c)}
+                                >
+                                  Güncelle
+                                </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="h-7 text-xs"
                                   onClick={() => setDetailId(c.id)}
                                 >
-                                  Detay & Ekstre
+                                  Ekstre
                                 </Button>
+                                {c.partner_type === "MUSTERI" ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20"
+                                    onClick={() => {
+                                      setCollectionCustomer(c);
+                                      setCollectionAmount(b.balance > 0 ? String(b.balance) : "");
+                                      setCollectionOpen(true);
+                                    }}
+                                  >
+                                    Tahsilat
+                                  </Button>
+                                ) : (
+                                  b.balance < 0 && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs bg-amber-500/10 text-amber-600 border-amber-500/30 hover:bg-amber-500/20"
+                                      onClick={() => {
+                                        setPaymentSupplier(c);
+                                        setPaymentAmount(String(Math.abs(b.balance)));
+                                        setPaymentOpen(true);
+                                      }}
+                                    >
+                                      Ödeme Yap
+                                    </Button>
+                                  )
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1293,6 +1434,215 @@ function CustomersPage() {
               >
                 {makeSupplierPayment.isPending ? "İşleniyor…" : "Ödemeyi Onayla & Fişini Oluştur"}
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MÜŞTERİ TAHSİLAT DİALOGU (FAZ 4.2) */}
+      <Dialog open={collectionOpen} onOpenChange={setCollectionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Müşteri Tahsilat Kaydı (120 Alacak Kapama / Kasa-Banka)</DialogTitle>
+          </DialogHeader>
+          {collectionCustomer && (
+            <div className="space-y-3 pt-2 text-sm">
+              <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-1">
+                <div className="font-semibold text-foreground">{collectionCustomer.title}</div>
+                <div className="text-xs text-muted-foreground">VKN/TCKN: {collectionCustomer.vkn_tckn || "-"}</div>
+                <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold pt-1">
+                  Açık Müşteri Alacağı: {formatMoney(balanceMap.get(collectionCustomer.id)?.balance ?? 0)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Tahsilat Tarihi *</Label>
+                  <Input
+                    type="date"
+                    value={collectionDate}
+                    onChange={(e) => setCollectionDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Tahsilat Tutarı (TL) *</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={collectionAmount}
+                    onChange={(e) => setCollectionAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Tahsilat Yöntemi / Giriş Hesabı</Label>
+                <Select value={collectionMethod} onValueChange={setCollectionMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BANKA">Banka Hesabı (102 Bankalar)</SelectItem>
+                    <SelectItem value="KASA">Nakit Kasa (100 Kasa)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Dekont / Makbuz No</Label>
+                <Input
+                  placeholder="Örn: MAK-2026-001"
+                  value={collectionDocNo}
+                  onChange={(e) => setCollectionDocNo(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Açıklama</Label>
+                <Input
+                  placeholder="Müşteri tahsilatı açıklaması"
+                  value={collectionDesc}
+                  onChange={(e) => setCollectionDesc(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="w-1/2"
+                  onClick={() => setCollectionOpen(false)}
+                >
+                  Vazgeç
+                </Button>
+                <Button
+                  className="w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => makeCustomerCollection.mutate()}
+                  disabled={makeCustomerCollection.isPending}
+                >
+                  {makeCustomerCollection.isPending ? "Kaydediliyor…" : "Tahsilatı Kaydet"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CARİ KART GÜNCELLE DİALOGU (FAZ 4.2) */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cari Kart Düzenle / Güncelle</DialogTitle>
+          </DialogHeader>
+          {editCustomer && (
+            <div className="grid gap-4 sm:grid-cols-2 pt-2 text-sm">
+              <div className="space-y-1 sm:col-span-2">
+                <Label>Unvan / Ad Soyad *</Label>
+                <Input
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>VKN / TCKN *</Label>
+                <Input
+                  value={editForm.vknTckn}
+                  onChange={(e) => setEditForm({ ...editForm, vknTckn: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Cari Kodu</Label>
+                <Input
+                  value={editForm.code}
+                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Yetkili Kişi</Label>
+                <Input
+                  value={editForm.contactName}
+                  onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Vergi Dairesi</Label>
+                <Input
+                  value={editForm.taxOffice}
+                  onChange={(e) => setEditForm({ ...editForm, taxOffice: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Telefon</Label>
+                <Input
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>E-posta</Label>
+                <Input
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <Label>Adres</Label>
+                <Input
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <AddressSelect
+                  value={{
+                    city: editForm.city,
+                    district: editForm.district,
+                    neighborhood: editForm.neighborhood,
+                  }}
+                  onChange={({ city, district, neighborhood }) =>
+                    setEditForm({ ...editForm, city, district, neighborhood })
+                  }
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Ödeme Vadesi (Gün)</Label>
+                <Input
+                  type="number"
+                  value={editForm.paymentTermDays}
+                  onChange={(e) => setEditForm({ ...editForm, paymentTermDays: Number(e.target.value) })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Risk Limiti (TL)</Label>
+                <Input
+                  type="number"
+                  value={editForm.riskLimit}
+                  onChange={(e) => setEditForm({ ...editForm, riskLimit: Number(e.target.value) })}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 sm:col-span-2 pt-3 border-t">
+                <Button variant="outline" onClick={() => setEditOpen(false)}>
+                  Vazgeç
+                </Button>
+                <Button
+                  onClick={() => updateCustomer.mutate()}
+                  disabled={updateCustomer.isPending}
+                >
+                  {updateCustomer.isPending ? "Kaydediliyor…" : "Cari Kartı Güncelle"}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

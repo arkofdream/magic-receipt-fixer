@@ -1009,9 +1009,14 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                               className="h-8 text-xs bg-background font-mono"
                               type="number"
                               min="0"
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })}
+                              step="any"
+                              placeholder="0.00"
+                              value={item.unitPrice === 0 ? "" : item.unitPrice}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(",", ".");
+                                const parsed = val === "" ? 0 : Number(val);
+                                updateItem(item.id, { unitPrice: isNaN(parsed) ? 0 : parsed });
+                              }}
                               disabled={isNonEditable}
                             />
                           </td>
@@ -1043,9 +1048,14 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                               type="number"
                               min="0"
                               max="100"
-                              step="1"
-                              value={item.discountRate || 0}
-                              onChange={(e) => updateItem(item.id, { discountRate: Number(e.target.value) })}
+                              step="any"
+                              placeholder="0"
+                              value={item.discountRate === 0 ? "" : item.discountRate}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(",", ".");
+                                const parsed = val === "" ? 0 : Number(val);
+                                updateItem(item.id, { discountRate: isNaN(parsed) ? 0 : parsed });
+                              }}
                               disabled={isNonEditable}
                             />
                           </td>
