@@ -1440,18 +1440,29 @@ function CustomersPage() {
       </Dialog>
 
       {/* MÜŞTERİ TAHSİLAT DİALOGU (FAZ 4.2) */}
-      <Dialog open={collectionOpen} onOpenChange={setCollectionOpen}>
-        <DialogContent>
+      <Dialog
+        open={collectionOpen}
+        onOpenChange={(open) => {
+          setCollectionOpen(open);
+          if (!open) {
+            setCollectionCustomer(null);
+            setCollectionAmount("");
+            setCollectionDocNo("");
+            setCollectionDesc("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Müşteri Tahsilat Kaydı (120 Alacak Kapama / Kasa-Banka)</DialogTitle>
           </DialogHeader>
-          {collectionCustomer && (
+          {collectionCustomer ? (
             <div className="space-y-3 pt-2 text-sm">
               <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-1">
-                <div className="font-semibold text-foreground">{collectionCustomer.title}</div>
-                <div className="text-xs text-muted-foreground">VKN/TCKN: {collectionCustomer.vkn_tckn || "-"}</div>
+                <div className="font-semibold text-foreground">{collectionCustomer?.title || "Müşteri"}</div>
+                <div className="text-xs text-muted-foreground">VKN/TCKN: {collectionCustomer?.vkn_tckn || "-"}</div>
                 <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold pt-1">
-                  Açık Müşteri Alacağı: {formatMoney(balanceMap.get(collectionCustomer.id)?.balance ?? 0)}
+                  Açık Müşteri Alacağı: {formatMoney(balanceMap.get(collectionCustomer?.id ?? "")?.balance ?? 0)}
                 </div>
               </div>
 
@@ -1525,7 +1536,7 @@ function CustomersPage() {
                 </Button>
               </div>
             </div>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
 

@@ -905,7 +905,7 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
             <CardContent className="space-y-3">
               {/* DESKTOP & TABLET KOMPAKT TABLO GÖRÜNÜMÜ */}
               <div className="hidden md:block overflow-x-auto rounded-md border border-border/60">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full min-w-[850px] text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-muted/50 border-b border-border/60 text-muted-foreground font-medium">
                       <th className="py-2 px-2.5 w-8 text-center">#</th>
@@ -1298,11 +1298,23 @@ function isInvalidQuantity(qty: number | undefined | null): boolean {
                   value={`- ${formatMoney(totals.totalDiscount, currency)}`}
                 />
               ) : null}
-              <Row label="KDV Matrahı (153)" value={formatMoney(totals.taxableAmount, currency)} />
+              <Row label="KDV Matrahı" value={formatMoney(totals.taxableAmount, currency)} />
               <Row
-                label={operationMode === "ALIS" ? "İndirilecek KDV (191)" : "Hesaplanan KDV (391)"}
+                label={
+                  operationMode === "ALIS"
+                    ? "İndirilecek KDV (191)"
+                    : operationMode === "ALIS_IADE"
+                      ? "İade KDV"
+                      : "Hesaplanan KDV (391)"
+                }
                 value={formatMoney(totals.totalVat, currency)}
               />
+              {totals.totalTevkifat > 0 ? (
+                <Row
+                  label="Tevkifat Kesintisi"
+                  value={`- ${formatMoney(totals.totalTevkifat, currency)}`}
+                />
+              ) : null}
 
               {/* KDV Dağılımı */}
               <div className="rounded-md bg-muted/40 p-2.5 space-y-1 text-xs font-mono">
