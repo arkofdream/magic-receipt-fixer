@@ -364,6 +364,55 @@ export async function sendInvoiceToActiveProvider(
       // Ensure invoiceData has the correct sellerTaxNumber from verified profile
       invoiceData["sellerTaxNumber"] = cleanProfileVkn;
       invoiceData["sellerName"] = profile.company_title || (invoiceData["sellerName"] as string) || "";
+
+      // 3. Sender GB Alias Resolution and Enforcement
+      let resolvedGbAlias = String(
+        invoiceData["senderAlias"] || credentials.senderAlias || ""
+      ).trim();
+
+      if (resolvedGbAlias.toLowerCase() === "defaultgb") {
+        resolvedGbAlias = "";
+      }
+
+      // If missing, attempt automatic retrieval from official NES API taxpayer data
+      if (!resolvedGbAlias && cleanProfileVkn) {
+        try {
+          const baseUrl = credentials.baseUrl || "https://apitest.nes.com.tr";
+          const res = await fetch(`${baseUrl}/einvoice/v1/taxpayers/${cleanProfileVkn}`, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          });
+          if (res.ok) {
+            const json = await res.json().catch(() => ({}));
+            const foundAlias =
+              json.gbAlias ||
+              json.defaultAlias ||
+              (Array.isArray(json.aliases) && json.aliases[0]) ||
+              (Array.isArray(json.gbAliases) && json.gbAliases[0]) ||
+              "";
+            if (foundAlias && typeof foundAlias === "string" && foundAlias.toLowerCase() !== "defaultgb") {
+              resolvedGbAlias = foundAlias.trim();
+              console.log(`[INVOICE PREFLIGHT] NES API'den gerçek GB Etiketi otomatik çekildi: ${resolvedGbAlias}`);
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("[INVOICE PREFLIGHT] NES GB Etiketi otomatik çekme başarısız:", fetchErr);
+        }
+      }
+
+      // If still missing or invalid, block transmission with clear user message
+      if (!resolvedGbAlias || resolvedGbAlias.toLowerCase() === "defaultgb") {
+        console.warn("[INVOICE PREFLIGHT ERROR] Geçerli Gönderici Birim (GB) etiketi bulunamadı.");
+        return {
+          ok: false,
+          message:
+            "NES entegrasyonu için geçerli Gönderici Birim (GB) etiketi bulunamadı. Firma/NES entegrasyon bilgilerini kontrol edin.",
+          ettn,
+        };
+      }
+
+      invoiceData["senderAlias"] = resolvedGbAlias;
+      credentials.senderAlias = resolvedGbAlias;
     }
   }
 

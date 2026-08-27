@@ -367,9 +367,23 @@ class IntegratorProvider implements EInvoiceProvider {
         formData.append("PreviewType", (invoice["previewType"] as string) || "Html");
         formData.append("SourceApp", "MagicReceiptApp");
 
-        const senderAlias = String(invoice["senderAlias"] || credentials.username || "defaultgb").trim() || "defaultgb";
+        const senderAlias = String(
+          invoice["senderAlias"] || credentials.senderAlias || ""
+        ).trim();
+
+        if (!senderAlias || senderAlias.toLowerCase() === "defaultgb") {
+          console.warn("[INVOICE] Geçersiz Gönderici Birim (GB) etiketi. defaultgb engellendi.");
+          return {
+            ok: false,
+            message:
+              "NES entegrasyonu için geçerli Gönderici Birim (GB) etiketi bulunamadı. Firma/NES entegrasyon bilgilerini kontrol edin.",
+            ettn,
+            statusCode: "400",
+          };
+        }
+
         formData.append("SenderAlias", senderAlias);
-        console.log(`[INVOICE] SenderAlias eklendi: ${senderAlias}`);
+        console.log(`[INVOICE] Gerçek SenderAlias eklendi: ${senderAlias}`);
 
         if (invoice["receiverAlias"]) {
           formData.append("ReceiverAlias", String(invoice["receiverAlias"]));
