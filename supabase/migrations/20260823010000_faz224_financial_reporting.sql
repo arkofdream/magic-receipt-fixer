@@ -342,8 +342,8 @@ BEGIN
   -- STMM Mutabakatı: stock_movements tablosundaki fiili satış maliyetleri (ürün alış fiyatı x miktar)
   SELECT COALESCE(SUM(
     CASE
-      WHEN sm.movement_type = 'CIKIS' THEN sm.quantity * COALESCE(p.purchase_price, sm.unit_price, 0)
-      WHEN sm.movement_type = 'GIRIS' AND sm.source = 'FATURA' THEN -sm.quantity * COALESCE(p.purchase_price, sm.unit_price, 0)
+      WHEN sm.movement_type = 'CIKIS' THEN sm.quantity * COALESCE(p.purchase_price, 0)
+      WHEN sm.movement_type = 'GIRIS' AND sm.source = 'FATURA' THEN -sm.quantity * COALESCE(p.purchase_price, 0)
       ELSE 0
     END
   ), 0)
