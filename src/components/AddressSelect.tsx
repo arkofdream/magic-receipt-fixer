@@ -15,20 +15,39 @@ import {
 
 export type AddressValue = { city: string; district: string; neighborhood: string };
 
-/**
- * İl / İlçe / Mahalle seçimi. Adres servisi erişilemezse otomatik olarak
- * serbest metin girişine döner, böylece kayıt akışı hiçbir zaman bloke olmaz.
- */
-export function AddressSelect({
-  value = { city: "", district: "", neighborhood: "" },
-  onChange,
-  disabled,
-}: {
+export type AddressSelectProps = {
   value?: AddressValue;
+  city?: string;
+  district?: string;
+  neighborhood?: string;
   onChange: (value: AddressValue) => void;
   disabled?: boolean;
-}) {
-  const safeValue = value || { city: "", district: "", neighborhood: "" };
+};
+
+/**
+ * İl / İlçe / Mahalle seçimi bileşeni.
+ * Hem nesne formatını (value={{ city, district, neighborhood }})
+ * hem de tekil prop formatını (city={...} district={...} neighborhood={...}) destekler.
+ * İl değiştiğinde eski ilçe ve mahalleyi otomatik sıfırlar ve yeni ilçeleri yükler.
+ */
+export function AddressSelect({
+  value,
+  city,
+  district,
+  neighborhood,
+  onChange,
+  disabled,
+}: AddressSelectProps) {
+  const safeCity = city !== undefined ? city : value?.city || "";
+  const safeDistrict = district !== undefined ? district : value?.district || "";
+  const safeNeighborhood = neighborhood !== undefined ? neighborhood : value?.neighborhood || "";
+
+  const safeValue: AddressValue = {
+    city: safeCity,
+    district: safeDistrict,
+    neighborhood: safeNeighborhood,
+  };
+
   const fetchProvinces = useServerFn(listProvinces);
   const fetchDetail = useServerFn(getProvinceDetail);
 
@@ -47,7 +66,7 @@ export function AddressSelect({
   const detailQuery = useQuery({
     queryKey: ["address", "province", selectedProvince?.id],
     queryFn: () => fetchDetail({ data: { provinceId: selectedProvince!.id } }),
-    enabled: Boolean(selectedProvince),
+    enabled: Boolean(selectedProvince?.id),
     staleTime: 1000 * 60 * 60,
     retry: 1,
   });
@@ -62,39 +81,48 @@ export function AddressSelect({
 
   if (provincesQuery.isError) {
     return (
-      <>
-        <TextField
-          label="İl"
-          value={safeValue.city}
-          onChange={(city) => onChange({ ...safeValue, city })}
-          disabled={disabled ?? false}
-        />
-        <TextField
-          label="İlçe"
-          value={safeValue.district}
-          onChange={(district) => onChange({ ...safeValue, district })}
-          disabled={disabled ?? false}
-        />
-        <TextField
-          label="Mahalle / Köy"
-          value={safeValue.neighborhood}
-          onChange={(neighborhood) => onChange({ ...safeValue, neighborhood })}
-          disabled={disabled ?? false}
-        />
-      </>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label>İl</Label>
+          <Input
+            value={safeValue.city}
+            onChange={(e) => onChange({ ...safeValue, city: e.target.value })}
+            placeholder="İl girin"
+            disabled={disabled ?? false}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>İlçe</Label>
+          <Input
+            value={safeValue.district}
+            onChange={(e) => onChange({ ...safeValue, district: e.target.value })}
+            placeholder="İlçe girin"
+            disabled={disabled ?? false}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Mahalle / Köy</Label>
+          <Input
+            value={safeValue.neighborhood}
+            onChange={(e) => onChange({ ...safeValue, neighborhood: e.target.value })}
+            placeholder="Mahalle girin"
+            disabled={disabled ?? false}
+          />
+        </div>
+      </div>
     );
   }
 
   return (
-    <>
-      <div className="space-y-2">
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="space-y-1.5">
         <Label>İl</Label>
         <Select
-          {...(safeValue.city ? { value: safeValue.city } : {})}
+          value={safeValue.city || undefined}
           disabled={disabled || provincesQuery.isLoading}
-          onValueChange={(city) => onChange({ city, district: "", neighborhood: "" })}
+          onValueChange={(newCity) => onChange({ city: newCity, district: "", neighborhood: "" })}
         >
-          <SelectTrigger>
+          <SelectTrigger className="bg-background">
             <SelectValue placeholder={provincesQuery.isLoading ? "Yükleniyor…" : "İl seçin"} />
           </SelectTrigger>
           <SelectContent className="max-h-72">
@@ -107,14 +135,16 @@ export function AddressSelect({
         </Select>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label>İlçe</Label>
         <Select
-          {...(safeValue.district ? { value: safeValue.district } : {})}
+          value={safeValue.district || undefined}
           disabled={disabled || !selectedProvince || detailQuery.isLoading}
-          onValueChange={(district) => onChange({ ...safeValue, district, neighborhood: "" })}
+          onValueChange={(newDistrict) =>
+            onChange({ ...safeValue, district: newDistrict, neighborhood: "" })
+          }
         >
-          <SelectTrigger>
+          <SelectTrigger className="bg-background">
             <SelectValue
               placeholder={
                 !selectedProvince
@@ -135,16 +165,24 @@ export function AddressSelect({
         </Select>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label>Mahalle / Köy</Label>
         <Select
-          {...(safeValue.neighborhood ? { value: safeValue.neighborhood } : {})}
-          disabled={disabled || neighborhoods.length === 0}
-          onValueChange={(neighborhood) => onChange({ ...safeValue, neighborhood })}
+          value={safeValue.neighborhood || undefined}
+          disabled={disabled || !safeValue.district || neighborhoods.length === 0}
+          onValueChange={(newNeighborhood) =>
+            onChange({ ...safeValue, neighborhood: newNeighborhood })
+          }
         >
-          <SelectTrigger>
+          <SelectTrigger className="bg-background">
             <SelectValue
-              placeholder={neighborhoods.length === 0 ? "Önce ilçe seçin" : "Mahalle seçin"}
+              placeholder={
+                !safeValue.district
+                  ? "Önce ilçe seçin"
+                  : neighborhoods.length === 0
+                    ? "Mahalle seçin (opsiyonel)"
+                    : "Mahalle seçin"
+              }
             />
           </SelectTrigger>
           <SelectContent className="max-h-72">
@@ -156,29 +194,6 @@ export function AddressSelect({
           </SelectContent>
         </Select>
       </div>
-    </>
-  );
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input
-        value={value}
-        disabled={disabled ?? false}
-        onChange={(e) => onChange(e.target.value)}
-      />
     </div>
   );
 }
