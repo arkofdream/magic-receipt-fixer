@@ -235,7 +235,19 @@ BEGIN
     FROM public.products p
     WHERE p.user_id = v_user_id AND p.deleted_at IS NULL AND COALESCE(p.track_stock, true) = true
   LOOP
-    v_p_qty := public.get_product_stock_quantity(v_p_rec.id);
+    SELECT COALESCE(SUM(
+      CASE
+        WHEN sm.movement_type IN ('GIRIS', 'TRANSFER_IN') THEN sm.quantity
+        WHEN sm.movement_type IN ('CIKIS', 'TRANSFER_OUT') THEN -sm.quantity
+        ELSE 0
+      END
+    ), 0)
+    INTO v_p_qty
+    FROM public.stock_movements sm
+    WHERE sm.product_id = v_p_rec.id
+      AND sm.user_id = v_user_id
+      AND sm.deleted_at IS NULL;
+
     IF v_p_qty < 0 THEN
       check_name     := 'NEGATIVE_STOCK';
       severity       := 'CRITICAL';
@@ -673,7 +685,19 @@ BEGIN
   END IF;
 
   -- Mevcut stok miktarı
-  v_cur_qty := public.get_product_stock_quantity(p_product_id);
+  SELECT COALESCE(SUM(
+    CASE
+      WHEN sm.movement_type IN ('GIRIS', 'TRANSFER_IN') THEN sm.quantity
+      WHEN sm.movement_type IN ('CIKIS', 'TRANSFER_OUT') THEN -sm.quantity
+      ELSE 0
+    END
+  ), 0)
+  INTO v_cur_qty
+  FROM public.stock_movements sm
+  WHERE sm.product_id = p_product_id
+    AND sm.user_id = v_user_id
+    AND sm.deleted_at IS NULL;
+
   v_diff_qty := COALESCE(p_adjustment_qty, 0);
 
   -- Maliyet farkı hesabı
