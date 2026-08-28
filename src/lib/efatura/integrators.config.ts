@@ -3,7 +3,8 @@
  * Her entegratör için gerekli olan alanlar ve authentication yöntemleri dinamik olarak tanımlanır.
  */
 
-export type AuthType = "API_KEY" | "USERNAME_PASSWORD" | "BASIC_AUTH" | "BEARER_TOKEN" | "CONFIGURABLE";
+export type AuthType =
+  "API_KEY" | "USERNAME_PASSWORD" | "BASIC_AUTH" | "BEARER_TOKEN" | "CONFIGURABLE";
 
 export type IntegratorConfig = {
   name: string;
@@ -41,7 +42,7 @@ export const INTEGRATORS_CONFIG: Record<string, IntegratorConfig> = {
     apiKeyLabel: "EDM Şifre",
     apiKeyPlaceholder: "EDM portal şifreniz",
   },
-  "Uyumsoft": {
+  Uyumsoft: {
     name: "Uyumsoft",
     authType: "USERNAME_PASSWORD",
     requiresUsername: true,
@@ -89,7 +90,7 @@ export const INTEGRATORS_CONFIG: Record<string, IntegratorConfig> = {
     apiKeyLabel: "API Key / Şifre",
     apiKeyPlaceholder: "Şifreniz veya API anahtarı",
   },
-  "KolayBi": {
+  KolayBi: {
     name: "KolayBi",
     authType: "BEARER_TOKEN",
     requiresUsername: false,
@@ -111,7 +112,7 @@ export const INTEGRATORS_CONFIG: Record<string, IntegratorConfig> = {
     apiKeyLabel: "Şifre / API Key",
     apiKeyPlaceholder: "Şifreniz",
   },
-  "İzibiz": {
+  İzibiz: {
     name: "İzibiz",
     authType: "USERNAME_PASSWORD",
     requiresUsername: true,
@@ -153,18 +154,31 @@ export const INTEGRATORS_CONFIG: Record<string, IntegratorConfig> = {
  * Belirtilen entegratör için dinamik yapılandırmayı getirir.
  */
 export function getIntegratorConfig(providerName: string): IntegratorConfig {
-  return (
-    INTEGRATORS_CONFIG[providerName] ?? {
-      name: providerName,
-      authType: "CONFIGURABLE",
-      requiresUsername: false,
-      requiresApiKey: true,
-      baseUrlLabel: "Servis Uç Noktası (API URL)",
-      baseUrlPlaceholder: "https://api.entegrator.com",
-      usernameLabel: "API Kullanıcı Adı (varsa)",
-      usernamePlaceholder: "api_kullanici_kodu",
-      apiKeyLabel: "API Anahtarı / Gizli Anahtar (Secret)",
-      apiKeyPlaceholder: "API anahtarını girin",
+  if (!providerName) return INTEGRATORS_CONFIG["Nes Bilgi"];
+
+  const directMatch = INTEGRATORS_CONFIG[providerName];
+  if (directMatch) return directMatch;
+
+  const normalizedInput = providerName.trim().toLowerCase();
+  for (const key of Object.keys(INTEGRATORS_CONFIG)) {
+    if (
+      key.toLowerCase() === normalizedInput ||
+      (normalizedInput.includes("nes") && key.toLowerCase().includes("nes"))
+    ) {
+      return INTEGRATORS_CONFIG[key];
     }
-  );
+  }
+
+  return {
+    name: providerName,
+    authType: "CONFIGURABLE",
+    requiresUsername: false,
+    requiresApiKey: true,
+    baseUrlLabel: "Servis Uç Noktası (API URL)",
+    baseUrlPlaceholder: "https://api.entegrator.com",
+    usernameLabel: "API Kullanıcı Adı (varsa)",
+    usernamePlaceholder: "api_kullanici_kodu",
+    apiKeyLabel: "API Anahtarı / Gizli Anahtar (Secret)",
+    apiKeyPlaceholder: "API anahtarını girin",
+  };
 }

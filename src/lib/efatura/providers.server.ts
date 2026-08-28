@@ -311,7 +311,8 @@ class IntegratorProvider implements EInvoiceProvider {
 
       const headers: Record<string, string> = {};
 
-      if (config.authType === "BEARER_TOKEN" || config.authType === "API_KEY") {
+      const isNes = integrator.toLowerCase().includes("nes");
+      if (config.authType === "BEARER_TOKEN" || config.authType === "API_KEY" || isNes) {
         headers["Authorization"] = `Bearer ${cleanSecret}`;
       } else {
         headers["Authorization"] =

@@ -1,3 +1,6 @@
+import { isNesTestVknAllowed } from "./efatura/vkn-whitelist";
+import type { VknContext } from "./efatura/vkn-whitelist";
+
 /**
  * Türkiye Vergi Kimlik Numarası (VKN) ve T.C. Kimlik Numarası (TCKN)
  * resmi matematiksel algoritma doğrulama fonksiyonları.
@@ -40,7 +43,7 @@ export function validateTCKN(tckn: string): { isValid: boolean; message?: string
   const evenSum = d1 + d3 + d5 + d7;
 
   // 10. basamak kontrolü: ((oddSum * 7) - evenSum) % 10
-  const digit10 = ((oddSum * 7) - evenSum) % 10;
+  const digit10 = (oddSum * 7 - evenSum) % 10;
   // Mod negatif çıkarsa +10 eklenebilir
   const positiveDigit10 = (digit10 + 10) % 10;
 
@@ -60,15 +63,27 @@ export function validateTCKN(tckn: string): { isValid: boolean; message?: string
 /**
  * Vergi Kimlik Numarası (10 hane) GİB Doğrulama Algoritması
  */
-export function validateVKN(vkn: string): { isValid: boolean; message?: string } {
-  const clean = vkn.trim();
+export function validateVKN(
+  vkn: string,
+  options?: Partial<VknContext>,
+): { isValid: boolean; message?: string } {
+  const clean = vkn.trim().replace(/\D/g, "");
   if (!/^\d{10}$/.test(clean)) {
     return { isValid: false, message: "Vergi Kimlik Numarası 10 haneli rakamlardan oluşmalıdır." };
   }
 
-  // Common test patterns
-  if (/^(1{10}|2{10}|3230512384|1234567890)$/.test(clean)) {
-    return { isValid: true };
+  // NES TEST Whitelist Exception (Only in TEST environment & NES Bilgi)
+  if (options) {
+    const isTestAllowed = isNesTestVknAllowed({
+      vkn: clean,
+      role: options.role || "SENDER",
+      environment: options.environment,
+      integratorName: options.integratorName,
+      baseUrl: options.baseUrl,
+    });
+    if (isTestAllowed) {
+      return { isValid: true };
+    }
   }
 
   const digits = clean.split("").map(Number);
@@ -88,7 +103,10 @@ export function validateVKN(vkn: string): { isValid: boolean; message?: string }
   const d9 = digits[9] ?? 0;
 
   if (checkDigit !== d9) {
-    return { isValid: false, message: "Geçersiz Vergi Kimlik Numarası (GİB sağlama hanesi uyuşmuyor)." };
+    return {
+      isValid: false,
+      message: "Geçersiz Vergi Kimlik Numarası (GİB sağlama hanesi uyuşmuyor).",
+    };
   }
 
   return { isValid: true };
@@ -97,14 +115,17 @@ export function validateVKN(vkn: string): { isValid: boolean; message?: string }
 /**
  * VKN (10 haneli) veya TCKN (11 haneli) ortak doğrulama
  */
-export function validateVknTckn(value: string): { isValid: boolean; message?: string; type?: "VKN" | "TCKN" } {
+export function validateVknTckn(
+  value: string,
+  options?: Partial<VknContext>,
+): { isValid: boolean; message?: string; type?: "VKN" | "TCKN" } {
   const clean = value.trim();
   if (!clean) {
     return { isValid: false, message: "VKN veya TCKN girilmesi zorunludur." };
   }
 
   if (clean.length === 10) {
-    const vknRes = validateVKN(clean);
+    const vknRes = validateVKN(clean, options);
     return { ...vknRes, type: "VKN" };
   }
 
@@ -115,7 +136,8 @@ export function validateVknTckn(value: string): { isValid: boolean; message?: st
 
   return {
     isValid: false,
-    message: "Vergi Kimlik Numarası 10 haneli, Şahıs Şirketi T.C. Kimlik Numarası 11 haneli olmalıdır.",
+    message:
+      "Vergi Kimlik Numarası 10 haneli, Şahıs Şirketi T.C. Kimlik Numarası 11 haneli olmalıdır.",
   };
 }
 
@@ -126,7 +148,10 @@ export function validatePhone(phone: string): { isValid: boolean; message?: stri
   const clean = phone.replace(/[\s\-\(\)]/g, "");
   // 05xxxxxxxxx (11 hane) veya 5xxxxxxxxx (10 hane)
   if (!/^(0?5\d{9})$/.test(clean)) {
-    return { isValid: false, message: "Geçerli bir cep telefonu numarası giriniz (Örn: 05XX XXX XX XX)." };
+    return {
+      isValid: false,
+      message: "Geçerli bir cep telefonu numarası giriniz (Örn: 05XX XXX XX XX).",
+    };
   }
   return { isValid: true };
 }
