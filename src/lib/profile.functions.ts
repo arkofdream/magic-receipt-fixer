@@ -96,13 +96,23 @@ const verifyVknSchema = z.object({
 });
 
 export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => verifyVknSchema.parse(data))
-  .handler(async ({ data }): Promise<TaxpayerVerificationResult> => {
+  .handler(async ({ data, context }): Promise<TaxpayerVerificationResult> => {
     const { validateVknTckn } = await import("./validation");
     const cleanVkn = data.vknTckn.replace(/\D/g, "");
 
-    // 1. Algorithmic and format validation
-    const localCheck = validateVknTckn(cleanVkn);
+    const { loadSettings } = await import("./efatura/settings.server");
+    const settings = await loadSettings(context.userId, context.supabase).catch(() => null);
+
+    // 1. Algorithmic and format validation (with SENDER context for NES Test Whitelist)
+    const localCheck = validateVknTckn(cleanVkn, {
+      role: "SENDER",
+      environment: settings?.gib_environment || "TEST",
+      integratorName: settings?.integrator_provider || "NES Bilgi",
+      baseUrl: settings?.integrator_base_url || "https://apitest.nes.com.tr",
+    });
+
     if (!localCheck.isValid) {
       return {
         ok: false,
@@ -126,7 +136,7 @@ export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
         const timeout = setTimeout(() => controller.abort(), 6000);
         const res = await fetch(endpoint, {
           method: "GET",
-          headers: { "Accept": "application/json" },
+          headers: { Accept: "application/json" },
           signal: controller.signal,
         }).finally(() => clearTimeout(timeout));
 
@@ -135,7 +145,14 @@ export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
           const text = await res.text();
           if (contentType.includes("application/json") || text.trim().startsWith("{")) {
             const json = JSON.parse(text);
-            if (json && (json.vkn || json.title || json.unvan || json.identifier || json.isEInvoiceUser !== undefined)) {
+            if (
+              json &&
+              (json.vkn ||
+                json.title ||
+                json.unvan ||
+                json.identifier ||
+                json.isEInvoiceUser !== undefined)
+            ) {
               officialResult = { ok: true, data: json, status: res.status };
               break;
             }
@@ -162,13 +179,20 @@ export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
         officialResult.data.vergiDairesi ||
         ""
       ).trim();
-      const isEInvoiceUser = Boolean(officialResult.data.isEInvoiceUser ?? officialResult.data.isEInvoice);
+      const isEInvoiceUser = Boolean(
+        officialResult.data.isEInvoiceUser ?? officialResult.data.isEInvoice,
+      );
 
       let titleMismatchWarning: string | undefined;
       if (data.companyTitle && verifiedTitle) {
         const normUser = data.companyTitle.toLocaleLowerCase("tr").replace(/[^a-z0-9]/g, "");
         const normOfficial = verifiedTitle.toLocaleLowerCase("tr").replace(/[^a-z0-9]/g, "");
-        if (normUser && normOfficial && !normOfficial.includes(normUser) && !normUser.includes(normOfficial)) {
+        if (
+          normUser &&
+          normOfficial &&
+          !normOfficial.includes(normUser) &&
+          !normUser.includes(normOfficial)
+        ) {
           titleMismatchWarning = `Girilen firma adı ("${data.companyTitle}") ile doğrulanmış resmi unvan ("${verifiedTitle}") arasında uyuşmazlık var.`;
         }
       }
@@ -189,7 +213,8 @@ export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
       return {
         ok: false,
         verified: false,
-        message: "✕ VKN doğrulanamadı. Girilen VKN ile eşleşen kayıtlı bir mükellef bulunamadı veya mükellef bilgisi doğrulanamadı.",
+        message:
+          "✕ VKN doğrulanamadı. Girilen VKN ile eşleşen kayıtlı bir mükellef bulunamadı veya mükellef bilgisi doğrulanamadı.",
       };
     }
 
@@ -197,6 +222,7 @@ export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
     return {
       ok: false,
       verified: false,
-      message: "✕ Mükellef doğrulaması yapılamadı. Resmi NES/GİB servisine erişilemiyor veya yetki gerektiriyor.",
+      message:
+        "✕ Mükellef doğrulaması yapılamadı. Resmi NES/GİB servisine erişilemiyor veya yetki gerektiriyor.",
     };
   });

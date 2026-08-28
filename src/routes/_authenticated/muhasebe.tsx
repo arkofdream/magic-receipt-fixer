@@ -157,7 +157,9 @@ export function AccountingPage() {
       if (data?.revalued_count === 0) {
         toast.info(data.message || "Değerlenecek kur farkı bulunamadı.");
       } else {
-        toast.success(`Kur değerleme fişi (${data.journal_number}) başarıyla oluşturuldu. Net Kur Etkisi: ${formatMoney(data.net_fx_impact)} TL`);
+        toast.success(
+          `Kur değerleme fişi (${data.journal_number}) başarıyla oluşturuldu. Net Kur Etkisi: ${formatMoney(data.net_fx_impact)} TL`,
+        );
       }
       queryClient.invalidateQueries({ queryKey: ["trial-balance"] });
       queryClient.invalidateQueries({ queryKey: ["income-statement"] });
@@ -226,7 +228,9 @@ export function AccountingPage() {
       totalCreditBal += Number(r.credit_balance) || 0;
     }
 
-    const isBalanced = Math.abs(totalClDebit - totalClCredit) < 0.05 && Math.abs(totalDebitBal - totalCreditBal) < 0.05;
+    const isBalanced =
+      Math.abs(totalClDebit - totalClCredit) < 0.05 &&
+      Math.abs(totalDebitBal - totalCreditBal) < 0.05;
 
     return {
       totalOpDebit,
@@ -245,7 +249,10 @@ export function AccountingPage() {
   // Varsayılan olarak 120 veya 100 nolu hesabı seç
   const activeAccountId = useMemo(() => {
     if (selectedAccountId) return selectedAccountId;
-    const defaultAcc = accounts.find((a) => a.code === "120") || accounts.find((a) => a.code === "100") || accounts[0];
+    const defaultAcc =
+      accounts.find((a) => a.code === "120") ||
+      accounts.find((a) => a.code === "100") ||
+      accounts[0];
     return defaultAcc?.id || "";
   }, [selectedAccountId, accounts]);
 
@@ -313,6 +320,26 @@ export function AccountingPage() {
     },
   });
 
+  function formatAccountingPeriodError(err: any, fallbackMessage: string): string {
+    const msg = (err?.message || "").toLowerCase();
+    if (msg.includes("permission denied") || msg.includes("yetki") || msg.includes("jwt")) {
+      return "Dönem kapatma yetkiniz bulunmamaktadır. Lütfen yönetici hesabıyla işlem yapın.";
+    }
+    if (msg.includes("already closed") || msg.includes("zaten kapalı")) {
+      return "Bu muhasebe dönemi zaten kapatılmıştır.";
+    }
+    if (msg.includes("already open") || msg.includes("zaten açık")) {
+      return "Bu muhasebe dönemi zaten açıktır.";
+    }
+    if (msg.includes("not found") || msg.includes("bulunamadı")) {
+      return "Seçilen muhasebe dönemi bulunamadı.";
+    }
+    if (msg.includes("function") && msg.includes("does not exist")) {
+      return "Sunucuda dönem kapatma fonksiyonu bulunamadı.";
+    }
+    return err?.message || fallbackMessage;
+  }
+
   // Dönem Kapatma Mutasyonu
   const closePeriodMutation = useMutation({
     mutationFn: async ({ year, month }: { year: number; month: number }) => {
@@ -330,7 +357,7 @@ export function AccountingPage() {
       queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Dönem kapatılırken hata oluştu.");
+      toast.error(formatAccountingPeriodError(err, "Dönem kapatılırken hata oluştu."));
     },
   });
 
@@ -351,7 +378,7 @@ export function AccountingPage() {
       queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Dönem açılırken hata oluştu.");
+      toast.error(formatAccountingPeriodError(err, "Dönem açılırken hata oluştu."));
     },
   });
 
@@ -454,7 +481,15 @@ export function AccountingPage() {
       return;
     }
     downloadWorkbook(
-      ["Tarih", "Yevmiye No", "Kaynak", "Açıklama", "Borç (TL)", "Alacak (TL)", "Yürüyen Bakiye (TL)"],
+      [
+        "Tarih",
+        "Yevmiye No",
+        "Kaynak",
+        "Açıklama",
+        "Borç (TL)",
+        "Alacak (TL)",
+        "Yürüyen Bakiye (TL)",
+      ],
       accountLedger.map((l) => [
         l.entry_date,
         l.entry_number,
@@ -492,7 +527,17 @@ export function AccountingPage() {
     });
 
     downloadWorkbook(
-      ["Fiş No", "Tarih", "Durum", "Kaynak", "Hesap Kodu", "Hesap Adı", "Açıklama", "Borç", "Alacak"],
+      [
+        "Fiş No",
+        "Tarih",
+        "Durum",
+        "Kaynak",
+        "Hesap Kodu",
+        "Hesap Adı",
+        "Açıklama",
+        "Borç",
+        "Alacak",
+      ],
       rows,
       `yevmiye-defteri-${new Date().toISOString().slice(0, 10)}.xlsx`,
       "Yevmiye Defteri",
@@ -581,7 +626,10 @@ export function AccountingPage() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <span>Mizan Tablosu</span>
                   {mizanTotals.isBalanced ? (
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1">
+                    <Badge
+                      variant="outline"
+                      className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1"
+                    >
                       <CheckCircle2 className="size-3.5" /> Mizan Denk
                     </Badge>
                   ) : (
@@ -614,14 +662,21 @@ export function AccountingPage() {
                     onChange={(e) => setMizanEndDate(e.target.value)}
                   />
                 </div>
-                <Button variant="outline" size="sm" onClick={handleExportMizan} className="gap-1.5 h-8 text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportMizan}
+                  className="gap-1.5 h-8 text-xs"
+                >
                   <Download className="size-3.5" /> Excel İndir
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               {mizanLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Mizan verileri hesaplanıyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Mizan verileri hesaplanıyor...
+                </div>
               ) : mizanError ? (
                 <div className="py-8 text-center text-sm text-destructive font-medium">
                   Mizan yüklenirken hata oluştu: {(mizanError as any).message}
@@ -646,20 +701,39 @@ export function AccountingPage() {
                         <th className="py-2.5 px-3 text-right font-bold text-emerald-700 dark:text-emerald-400">
                           Borç Bakiye
                         </th>
-                        <th className="py-2.5 px-3 text-right font-bold text-primary">Alacak Bakiye</th>
+                        <th className="py-2.5 px-3 text-right font-bold text-primary">
+                          Alacak Bakiye
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {trialBalance.map((r) => (
-                        <tr key={r.account_id} className="border-b border-border/60 hover:bg-muted/30 last:border-0 font-mono">
+                        <tr
+                          key={r.account_id}
+                          className="border-b border-border/60 hover:bg-muted/30 last:border-0 font-mono"
+                        >
                           <td className="py-2 px-3 font-bold text-primary">{r.account_code}</td>
-                          <td className="py-2 px-3 font-sans font-medium text-foreground">{r.account_name}</td>
-                          <td className="py-2 px-2 text-right text-muted-foreground">{Number(r.opening_debit) > 0 ? formatMoney(r.opening_debit) : "-"}</td>
-                          <td className="py-2 px-2 text-right text-muted-foreground">{Number(r.opening_credit) > 0 ? formatMoney(r.opening_credit) : "-"}</td>
-                          <td className="py-2 px-2 text-right">{Number(r.period_debit) > 0 ? formatMoney(r.period_debit) : "-"}</td>
-                          <td className="py-2 px-2 text-right">{Number(r.period_credit) > 0 ? formatMoney(r.period_credit) : "-"}</td>
-                          <td className="py-2 px-2 text-right">{Number(r.closing_debit) > 0 ? formatMoney(r.closing_debit) : "-"}</td>
-                          <td className="py-2 px-2 text-right">{Number(r.closing_credit) > 0 ? formatMoney(r.closing_credit) : "-"}</td>
+                          <td className="py-2 px-3 font-sans font-medium text-foreground">
+                            {r.account_name}
+                          </td>
+                          <td className="py-2 px-2 text-right text-muted-foreground">
+                            {Number(r.opening_debit) > 0 ? formatMoney(r.opening_debit) : "-"}
+                          </td>
+                          <td className="py-2 px-2 text-right text-muted-foreground">
+                            {Number(r.opening_credit) > 0 ? formatMoney(r.opening_credit) : "-"}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            {Number(r.period_debit) > 0 ? formatMoney(r.period_debit) : "-"}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            {Number(r.period_credit) > 0 ? formatMoney(r.period_credit) : "-"}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            {Number(r.closing_debit) > 0 ? formatMoney(r.closing_debit) : "-"}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            {Number(r.closing_credit) > 0 ? formatMoney(r.closing_credit) : "-"}
+                          </td>
                           <td className="py-2 px-3 text-right font-bold text-emerald-600">
                             {Number(r.debit_balance) > 0 ? formatMoney(r.debit_balance) : "-"}
                           </td>
@@ -674,12 +748,24 @@ export function AccountingPage() {
                         <td colSpan={2} className="py-3 px-3 font-sans">
                           MİZAN GENEL TOPLAMI
                         </td>
-                        <td className="py-3 px-2 text-right">{formatMoney(mizanTotals.totalOpDebit)}</td>
-                        <td className="py-3 px-2 text-right">{formatMoney(mizanTotals.totalOpCredit)}</td>
-                        <td className="py-3 px-2 text-right">{formatMoney(mizanTotals.totalPerDebit)}</td>
-                        <td className="py-3 px-2 text-right">{formatMoney(mizanTotals.totalPerCredit)}</td>
-                        <td className="py-3 px-2 text-right">{formatMoney(mizanTotals.totalClDebit)}</td>
-                        <td className="py-3 px-2 text-right">{formatMoney(mizanTotals.totalClCredit)}</td>
+                        <td className="py-3 px-2 text-right">
+                          {formatMoney(mizanTotals.totalOpDebit)}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {formatMoney(mizanTotals.totalOpCredit)}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {formatMoney(mizanTotals.totalPerDebit)}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {formatMoney(mizanTotals.totalPerCredit)}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {formatMoney(mizanTotals.totalClDebit)}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {formatMoney(mizanTotals.totalClCredit)}
+                        </td>
                         <td className="py-3 px-3 text-right text-emerald-600 font-extrabold">
                           {formatMoney(mizanTotals.totalDebitBal)}
                         </td>
@@ -746,14 +832,21 @@ export function AccountingPage() {
                     onChange={(e) => setLedgerEndDate(e.target.value)}
                   />
                 </div>
-                <Button variant="outline" size="sm" onClick={handleExportLedger} className="gap-1.5 h-8 text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportLedger}
+                  className="gap-1.5 h-8 text-xs"
+                >
                   <Download className="size-3.5" /> Excel İndir
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               {ledgerLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Muavin kayıtları yükleniyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Muavin kayıtları yükleniyor...
+                </div>
               ) : ledgerError ? (
                 <div className="py-8 text-center text-sm text-destructive font-medium">
                   Muavin yüklenirken hata oluştu: {(ledgerError as any).message}
@@ -778,15 +871,22 @@ export function AccountingPage() {
                     </thead>
                     <tbody>
                       {accountLedger.map((l) => (
-                        <tr key={l.journal_line_id} className="border-b border-border/60 hover:bg-muted/30 last:border-0 font-mono">
-                          <td className="py-2 px-3 whitespace-nowrap font-sans">{formatDate(l.entry_date)}</td>
+                        <tr
+                          key={l.journal_line_id}
+                          className="border-b border-border/60 hover:bg-muted/30 last:border-0 font-mono"
+                        >
+                          <td className="py-2 px-3 whitespace-nowrap font-sans">
+                            {formatDate(l.entry_date)}
+                          </td>
                           <td className="py-2 px-3 font-semibold text-primary">{l.entry_number}</td>
                           <td className="py-2 px-3 font-sans">
                             <Badge variant="outline" className="text-[10px] py-0 px-1">
                               {l.source_type}
                             </Badge>
                           </td>
-                          <td className="py-2 px-3 font-sans text-muted-foreground max-w-xs truncate">{l.description}</td>
+                          <td className="py-2 px-3 font-sans text-muted-foreground max-w-xs truncate">
+                            {l.description}
+                          </td>
                           <td className="py-2 px-3 text-right text-emerald-600 font-medium">
                             {Number(l.debit) > 0 ? formatMoney(l.debit) : "-"}
                           </td>
@@ -811,7 +911,9 @@ export function AccountingPage() {
         {/* ======================================================== */}
         <TabsContent value="gelir-tablosu" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-3xl mx-auto w-full">
-            <h3 className="text-xs sm:text-sm font-semibold whitespace-nowrap">Gelir Tablosu Dönem Filtresi:</h3>
+            <h3 className="text-xs sm:text-sm font-semibold whitespace-nowrap">
+              Gelir Tablosu Dönem Filtresi:
+            </h3>
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Input
                 type="date"
@@ -825,7 +927,12 @@ export function AccountingPage() {
                 value={incomeEndDate}
                 onChange={(e) => setIncomeEndDate(e.target.value)}
               />
-              <Button size="sm" variant="outline" onClick={() => refetchIncome()} className="h-8 text-xs gap-1 w-full sm:w-auto shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => refetchIncome()}
+                className="h-8 text-xs gap-1 w-full sm:w-auto shrink-0"
+              >
                 <RotateCcw className="size-3" /> Yenile
               </Button>
             </div>
@@ -833,20 +940,28 @@ export function AccountingPage() {
 
           <Card className="w-full max-w-3xl mx-auto">
             <CardHeader className="text-center pb-4 border-b border-border px-4 sm:px-6">
-              <CardTitle className="text-base sm:text-lg">Ayrıntılı Gelir Tablosu (Kâr / Zarar)</CardTitle>
+              <CardTitle className="text-base sm:text-lg">
+                Ayrıntılı Gelir Tablosu (Kâr / Zarar)
+              </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
                 600 Net Satışlar, 621 STMM (Ağırlıklı Ortalama Maliyet) ve Dönem Kâr/Zarar Özeti
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 sm:pt-6 space-y-4 px-4 sm:px-6">
               {incomeLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Gelir tablosu hesaplanıyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Gelir tablosu hesaplanıyor...
+                </div>
               ) : incomeError ? (
                 <div className="py-8 text-center text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20 p-3">
-                  Hata: {(incomeError as any).message || "Gelir tablosu hesaplanırken beklenmeyen bir hata oluştu."}
+                  Hata:{" "}
+                  {(incomeError as any).message ||
+                    "Gelir tablosu hesaplanırken beklenmeyen bir hata oluştu."}
                 </div>
               ) : !incomeStatement ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Gelir tablosu verisi bulunamadı.</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Gelir tablosu verisi bulunamadı.
+                </div>
               ) : (
                 <div className="space-y-2.5">
                   <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm font-medium">
@@ -855,15 +970,21 @@ export function AccountingPage() {
                   </div>
                   <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>B. SATIŞ İNDİRİMLERİ VE İADELERİ (-) (610)</span>
-                    <span className="font-mono text-destructive">- {formatMoney(incomeStatement.sales_returns)}</span>
+                    <span className="font-mono text-destructive">
+                      - {formatMoney(incomeStatement.sales_returns)}
+                    </span>
                   </div>
                   <div className="flex justify-between py-2.5 border-b border-border text-xs sm:text-sm font-bold bg-muted/40 px-2 rounded">
                     <span>C. NET SATIŞLAR</span>
-                    <span className="font-mono text-primary">{formatMoney(incomeStatement.net_sales)}</span>
+                    <span className="font-mono text-primary">
+                      {formatMoney(incomeStatement.net_sales)}
+                    </span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>D. SATILAN TİCARİ MALLAR MALİYETİ (-) (621 STMM)</span>
-                    <span className="font-mono text-destructive">- {formatMoney(incomeStatement.cogs)}</span>
+                    <span className="font-mono text-destructive">
+                      - {formatMoney(incomeStatement.cogs)}
+                    </span>
                   </div>
                   <div className="flex justify-between py-2.5 border-b border-border text-sm sm:text-base font-bold bg-emerald-500/10 px-2 rounded text-emerald-700 dark:text-emerald-400">
                     <span>BRÜT SATIŞ KÂRI / (ZARARI)</span>
@@ -876,7 +997,9 @@ export function AccountingPage() {
                   </div>
                   <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>E. FAALİYET GİDERLERİ (-) (770)</span>
-                    <span className="font-mono text-destructive">- {formatMoney(incomeStatement.operating_expenses)}</span>
+                    <span className="font-mono text-destructive">
+                      - {formatMoney(incomeStatement.operating_expenses)}
+                    </span>
                   </div>
                   {Number(incomeStatement.fx_gains) > 0 && (
                     <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-emerald-600 font-medium">
@@ -892,7 +1015,9 @@ export function AccountingPage() {
                   )}
                   <div className="flex justify-between py-2 border-b border-border text-xs sm:text-sm text-muted-foreground">
                     <span>H. FİNANSMAN GİDERLERİ (-) (780)</span>
-                    <span className="font-mono text-destructive">- {formatMoney(incomeStatement.financing_expenses)}</span>
+                    <span className="font-mono text-destructive">
+                      - {formatMoney(incomeStatement.financing_expenses)}
+                    </span>
                   </div>
                   <div className="flex justify-between py-3 border-t-2 border-primary text-sm sm:text-base font-extrabold bg-primary/10 px-3 rounded text-primary">
                     <span>DÖNEM NET KÂRI / (ZARARI)</span>
@@ -903,11 +1028,16 @@ export function AccountingPage() {
                   <div className="mt-4 pt-3 border-t border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5 min-w-0">
                       <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
-                      <span className="truncate">STMM Mutabakatı: Fiili Stok Çıkış Maliyeti ({formatMoney(incomeStatement.stock_movements_cogs)})</span>
+                      <span className="truncate">
+                        STMM Mutabakatı: Fiili Stok Çıkış Maliyeti (
+                        {formatMoney(incomeStatement.stock_movements_cogs)})
+                      </span>
                     </span>
                     <span className="font-mono whitespace-nowrap">
                       Fark: {formatMoney(incomeStatement.cogs_reconciliation_difference)} (
-                      {Math.abs(Number(incomeStatement.cogs_reconciliation_difference)) < 0.05 ? "TAM UYUMLU" : "UYUMSUZ"}
+                      {Math.abs(Number(incomeStatement.cogs_reconciliation_difference)) < 0.05
+                        ? "TAM UYUMLU"
+                        : "UYUMSUZ"}
                       )
                     </span>
                   </div>
@@ -929,7 +1059,8 @@ export function AccountingPage() {
                   <span>KDV-1 & KDV-2 Beyanname Özeti</span>
                 </CardTitle>
                 <CardDescription>
-                  Hesaplanan KDV (391), İndirilecek KDV (191), Tevkifatlar ve Dönem Sonu Ödenecek / Devreden KDV Hesabı
+                  Hesaplanan KDV (391), İndirilecek KDV (191), Tevkifatlar ve Dönem Sonu Ödenecek /
+                  Devreden KDV Hesabı
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -939,7 +1070,9 @@ export function AccountingPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
-                      <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>
+                      <SelectItem key={y} value={String(y)} className="text-xs">
+                        {y}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -949,23 +1082,42 @@ export function AccountingPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                      <SelectItem key={m} value={String(m)} className="text-xs">{m}. Ay</SelectItem>
+                      <SelectItem key={m} value={String(m)} className="text-xs">
+                        {m}. Ay
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" onClick={() => { refetchVat(); refetchWithholding(); }} className="h-8 text-xs gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    refetchVat();
+                    refetchWithholding();
+                  }}
+                  className="h-8 text-xs gap-1"
+                >
                   <RotateCcw className="size-3" /> Yenile
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleExportVatDeclaration} className="gap-1.5 h-8 text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportVatDeclaration}
+                  className="gap-1.5 h-8 text-xs"
+                >
                   <Download className="size-3.5" /> Excel İndir
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               {vatLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Beyanname verileri hesaplanıyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Beyanname verileri hesaplanıyor...
+                </div>
               ) : !vatDeclaration ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Bu dönem için beyanname verisi bulunamadı.</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Bu dönem için beyanname verisi bulunamadı.
+                </div>
               ) : (
                 <div className="space-y-6">
                   {/* ÖZET KARTLARI */}
@@ -981,24 +1133,36 @@ export function AccountingPage() {
 
                     <Card className="bg-muted/20 border-border/70">
                       <CardContent className="p-3.5">
-                        <span className="text-xs text-muted-foreground">Beyan Edilen Hesaplanan KDV</span>
+                        <span className="text-xs text-muted-foreground">
+                          Beyan Edilen Hesaplanan KDV
+                        </span>
                         <div className="text-lg font-bold font-mono text-primary mt-0.5">
                           {formatMoney(vatDeclaration.sales_section?.declared_vat || 0)} TL
                         </div>
                         <div className="text-[10px] text-muted-foreground">
-                          Toplam KDV: {formatMoney(vatDeclaration.sales_section?.total_calculated_vat || 0)} TL
+                          Toplam KDV:{" "}
+                          {formatMoney(vatDeclaration.sales_section?.total_calculated_vat || 0)} TL
                         </div>
                       </CardContent>
                     </Card>
 
                     <Card className="bg-muted/20 border-border/70">
                       <CardContent className="p-3.5">
-                        <span className="text-xs text-muted-foreground">Toplam İndirilecek KDV (191)</span>
+                        <span className="text-xs text-muted-foreground">
+                          Toplam İndirilecek KDV (191)
+                        </span>
                         <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-                          {formatMoney(vatDeclaration.deductions_section?.total_deductible_vat || 0)} TL
+                          {formatMoney(
+                            vatDeclaration.deductions_section?.total_deductible_vat || 0,
+                          )}{" "}
+                          TL
                         </div>
                         <div className="text-[10px] text-muted-foreground">
-                          Alış Matrahı: {formatMoney(vatDeclaration.deductions_section?.total_purchase_taxable || 0)} TL
+                          Alış Matrahı:{" "}
+                          {formatMoney(
+                            vatDeclaration.deductions_section?.total_purchase_taxable || 0,
+                          )}{" "}
+                          TL
                         </div>
                       </CardContent>
                     </Card>
@@ -1012,12 +1176,20 @@ export function AccountingPage() {
                     >
                       <CardContent className="p-3.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-foreground">Dönem Sonu Durumu</span>
+                          <span className="text-xs font-semibold text-foreground">
+                            Dönem Sonu Durumu
+                          </span>
                           <Badge
-                            variant={vatDeclaration.result_section?.status === "ODENECEK_KDV" ? "destructive" : "default"}
+                            variant={
+                              vatDeclaration.result_section?.status === "ODENECEK_KDV"
+                                ? "destructive"
+                                : "default"
+                            }
                             className="text-[10px] py-0"
                           >
-                            {vatDeclaration.result_section?.status === "ODENECEK_KDV" ? "ÖDENECEK KDV" : "DEVREDEN KDV"}
+                            {vatDeclaration.result_section?.status === "ODENECEK_KDV"
+                              ? "ÖDENECEK KDV"
+                              : "DEVREDEN KDV"}
                           </Badge>
                         </div>
                         <div className="text-xl font-black font-mono mt-1 text-foreground">
@@ -1047,27 +1219,44 @@ export function AccountingPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(vatDeclaration.sales_section?.normal_sales_breakdown || []).length === 0 ? (
+                            {(vatDeclaration.sales_section?.normal_sales_breakdown || []).length ===
+                            0 ? (
                               <tr>
-                                <td colSpan={3} className="py-4 text-center text-muted-foreground">Tevkifatsız satış kaydı yok.</td>
+                                <td colSpan={3} className="py-4 text-center text-muted-foreground">
+                                  Tevkifatsız satış kaydı yok.
+                                </td>
                               </tr>
                             ) : (
-                              (vatDeclaration.sales_section?.normal_sales_breakdown || []).map((row: any) => (
-                                <tr key={row.vat_rate} className="border-b border-border/50 last:border-0 font-mono">
-                                  <td className="py-2 px-3 font-sans font-medium">%{row.vat_rate} KDV</td>
-                                  <td className="py-2 px-3 text-right">{formatMoney(row.taxable_amount)}</td>
-                                  <td className="py-2 px-3 text-right font-bold text-primary">{formatMoney(row.vat_amount)}</td>
-                                </tr>
-                              ))
+                              (vatDeclaration.sales_section?.normal_sales_breakdown || []).map(
+                                (row: any) => (
+                                  <tr
+                                    key={row.vat_rate}
+                                    className="border-b border-border/50 last:border-0 font-mono"
+                                  >
+                                    <td className="py-2 px-3 font-sans font-medium">
+                                      %{row.vat_rate} KDV
+                                    </td>
+                                    <td className="py-2 px-3 text-right">
+                                      {formatMoney(row.taxable_amount)}
+                                    </td>
+                                    <td className="py-2 px-3 text-right font-bold text-primary">
+                                      {formatMoney(row.vat_amount)}
+                                    </td>
+                                  </tr>
+                                ),
+                              )
                             )}
                           </tbody>
                         </table>
                       </div>
 
                       {/* Kısmi Tevkifatlı Satışlar Varsa */}
-                      {(vatDeclaration.sales_section?.withholding_sales_breakdown || []).length > 0 && (
+                      {(vatDeclaration.sales_section?.withholding_sales_breakdown || []).length >
+                        0 && (
                         <div className="space-y-2">
-                          <h5 className="text-xs font-semibold text-muted-foreground">Kısmi Tevkifat Uygulanan İşlemler</h5>
+                          <h5 className="text-xs font-semibold text-muted-foreground">
+                            Kısmi Tevkifat Uygulanan İşlemler
+                          </h5>
                           <div className="rounded-lg border border-border overflow-hidden">
                             <table className="w-full text-xs">
                               <thead>
@@ -1079,12 +1268,25 @@ export function AccountingPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {(vatDeclaration.sales_section?.withholding_sales_breakdown || []).map((row: any, idx: number) => (
-                                  <tr key={idx} className="border-b border-border/50 last:border-0 font-mono">
-                                    <td className="py-1.5 px-3 font-sans">%{row.vat_rate} (%{row.withholding_rate})</td>
-                                    <td className="py-1.5 px-3 text-right">{formatMoney(row.taxable_amount)}</td>
-                                    <td className="py-1.5 px-3 text-right text-amber-600">{formatMoney(row.withheld_vat)}</td>
-                                    <td className="py-1.5 px-3 text-right font-bold text-primary">{formatMoney(row.declared_vat)}</td>
+                                {(
+                                  vatDeclaration.sales_section?.withholding_sales_breakdown || []
+                                ).map((row: any, idx: number) => (
+                                  <tr
+                                    key={idx}
+                                    className="border-b border-border/50 last:border-0 font-mono"
+                                  >
+                                    <td className="py-1.5 px-3 font-sans">
+                                      %{row.vat_rate} (%{row.withholding_rate})
+                                    </td>
+                                    <td className="py-1.5 px-3 text-right">
+                                      {formatMoney(row.taxable_amount)}
+                                    </td>
+                                    <td className="py-1.5 px-3 text-right text-amber-600">
+                                      {formatMoney(row.withheld_vat)}
+                                    </td>
+                                    <td className="py-1.5 px-3 text-right font-bold text-primary">
+                                      {formatMoney(row.declared_vat)}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1110,20 +1312,32 @@ export function AccountingPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(vatDeclaration.deductions_section?.purchase_tax_breakdown || []).length === 0 ? (
+                            {(vatDeclaration.deductions_section?.purchase_tax_breakdown || [])
+                              .length === 0 ? (
                               <tr>
-                                <td colSpan={3} className="py-4 text-center text-muted-foreground">Alış faturası KDV kaydı yok.</td>
+                                <td colSpan={3} className="py-4 text-center text-muted-foreground">
+                                  Alış faturası KDV kaydı yok.
+                                </td>
                               </tr>
                             ) : (
-                              (vatDeclaration.deductions_section?.purchase_tax_breakdown || []).map((row: any) => (
-                                <tr key={row.vat_rate} className="border-b border-border/50 last:border-0 font-mono">
-                                  <td className="py-2 px-3 font-sans font-medium">%{row.vat_rate} KDV</td>
-                                  <td className="py-2 px-3 text-right">{formatMoney(row.taxable_amount)}</td>
-                                  <td className="py-2 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                                    {formatMoney(row.vat_amount)}
-                                  </td>
-                                </tr>
-                              ))
+                              (vatDeclaration.deductions_section?.purchase_tax_breakdown || []).map(
+                                (row: any) => (
+                                  <tr
+                                    key={row.vat_rate}
+                                    className="border-b border-border/50 last:border-0 font-mono"
+                                  >
+                                    <td className="py-2 px-3 font-sans font-medium">
+                                      %{row.vat_rate} KDV
+                                    </td>
+                                    <td className="py-2 px-3 text-right">
+                                      {formatMoney(row.taxable_amount)}
+                                    </td>
+                                    <td className="py-2 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                      {formatMoney(row.vat_amount)}
+                                    </td>
+                                  </tr>
+                                ),
+                              )
                             )}
                           </tbody>
                         </table>
@@ -1139,8 +1353,14 @@ export function AccountingPage() {
                             </span>
                           </div>
                           <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground font-mono">
-                            <div>Ödenecek Stopaj (360): {formatMoney(withholdingTax.withholding_tax_360)} TL</div>
-                            <div>KDV-2 Alıcı Tevkifatı: {formatMoney(withholdingTax.kdv2_withholding_total)} TL</div>
+                            <div>
+                              Ödenecek Stopaj (360):{" "}
+                              {formatMoney(withholdingTax.withholding_tax_360)} TL
+                            </div>
+                            <div>
+                              KDV-2 Alıcı Tevkifatı:{" "}
+                              {formatMoney(withholdingTax.kdv2_withholding_total)} TL
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1164,10 +1384,16 @@ export function AccountingPage() {
                   <span>Dövizli Cari & Kur Değerleme Sihirbazı</span>
                 </CardTitle>
                 <CardDescription>
-                  Dövizli müşteri ve tedarikçi hesaplarının güncel kurlarla değerlenerek 646 Kambiyo Kârları / 656 Kambiyo Zararları yevmiye fişlerinin oluşturulması
+                  Dövizli müşteri ve tedarikçi hesaplarının güncel kurlarla değerlenerek 646 Kambiyo
+                  Kârları / 656 Kambiyo Zararları yevmiye fişlerinin oluşturulması
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => refetchFx()} className="h-8 text-xs gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchFx()}
+                className="h-8 text-xs gap-1"
+              >
                 <RotateCcw className="size-3" /> Bakiyeleri Yenile
               </Button>
             </CardHeader>
@@ -1229,13 +1455,17 @@ export function AccountingPage() {
                       disabled={runFxRevaluationMutation.isPending || fxBalances.length === 0}
                     >
                       <Sparkles className="size-3.5" />
-                      {runFxRevaluationMutation.isPending ? "Değerleniyor..." : "Değerleme Fişi Kes"}
+                      {runFxRevaluationMutation.isPending
+                        ? "Değerleniyor..."
+                        : "Değerleme Fişi Kes"}
                     </Button>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">İsteğe Bağlı Fiş Açıklaması</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    İsteğe Bağlı Fiş Açıklaması
+                  </Label>
                   <Input
                     className="h-8 text-xs bg-background"
                     placeholder="Örn: 2026/08 Ay Sonu Kur Değerleme Kaydı"
@@ -1257,7 +1487,9 @@ export function AccountingPage() {
                 </div>
 
                 {fxLoading ? (
-                  <div className="py-12 text-center text-sm text-muted-foreground">Dövizli bakiyeler taranıyor...</div>
+                  <div className="py-12 text-center text-sm text-muted-foreground">
+                    Dövizli bakiyeler taranıyor...
+                  </div>
                 ) : fxBalances.length === 0 ? (
                   <div className="py-12 text-center text-xs text-muted-foreground border rounded-lg">
                     Sistemde dövizli (USD/EUR/GBP) bakiye veren aktif cari hesap bulunmuyor.
@@ -1289,31 +1521,54 @@ export function AccountingPage() {
                                   ? Number(gbpRate) || 0
                                   : 1;
 
-                          const revaluedTry = Math.round(Number(item.foreign_balance) * currentRate * 100) / 100;
-                          const rawDiff = Math.round((revaluedTry - Number(item.try_cost_balance)) * 100) / 100;
+                          const revaluedTry =
+                            Math.round(Number(item.foreign_balance) * currentRate * 100) / 100;
+                          const rawDiff =
+                            Math.round((revaluedTry - Number(item.try_cost_balance)) * 100) / 100;
 
                           // Müşteri için kur artışı kâr (+), tedarikçi için kur artışı zarar (-)
                           const isGain =
-                            item.partner_type === "MUSTERI"
-                              ? rawDiff >= 0
-                              : rawDiff <= 0;
+                            item.partner_type === "MUSTERI" ? rawDiff >= 0 : rawDiff <= 0;
 
                           return (
-                            <tr key={`${item.partner_id}-${item.currency}`} className="border-b border-border/50 last:border-0 font-mono">
-                              <td className="py-2 px-3 font-sans font-medium text-foreground">{item.partner_title}</td>
+                            <tr
+                              key={`${item.partner_id}-${item.currency}`}
+                              className="border-b border-border/50 last:border-0 font-mono"
+                            >
+                              <td className="py-2 px-3 font-sans font-medium text-foreground">
+                                {item.partner_title}
+                              </td>
                               <td className="py-2 px-3">
-                                <Badge variant={item.partner_type === "MUSTERI" ? "default" : "secondary"} className="text-[10px] py-0">
+                                <Badge
+                                  variant={
+                                    item.partner_type === "MUSTERI" ? "default" : "secondary"
+                                  }
+                                  className="text-[10px] py-0"
+                                >
                                   {item.partner_type}
                                 </Badge>
                               </td>
                               <td className="py-2 px-3 font-bold text-primary">{item.currency}</td>
-                              <td className="py-2 px-3 text-right font-bold">{formatMoney(item.foreign_balance)}</td>
-                              <td className="py-2 px-3 text-right text-muted-foreground">{formatMoney(item.try_cost_balance)} TL</td>
-                              <td className="py-2 px-3 text-right text-muted-foreground">{item.average_rate}</td>
-                              <td className="py-2 px-3 text-right font-bold text-foreground">{currentRate.toFixed(2)}</td>
-                              <td className="py-2 px-3 text-right font-bold">{formatMoney(revaluedTry)} TL</td>
-                              <td className={`py-2 px-3 text-right font-black ${isGain ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                                {isGain ? "+" : "-"}{formatMoney(Math.abs(rawDiff))} TL
+                              <td className="py-2 px-3 text-right font-bold">
+                                {formatMoney(item.foreign_balance)}
+                              </td>
+                              <td className="py-2 px-3 text-right text-muted-foreground">
+                                {formatMoney(item.try_cost_balance)} TL
+                              </td>
+                              <td className="py-2 px-3 text-right text-muted-foreground">
+                                {item.average_rate}
+                              </td>
+                              <td className="py-2 px-3 text-right font-bold text-foreground">
+                                {currentRate.toFixed(2)}
+                              </td>
+                              <td className="py-2 px-3 text-right font-bold">
+                                {formatMoney(revaluedTry)} TL
+                              </td>
+                              <td
+                                className={`py-2 px-3 text-right font-black ${isGain ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}
+                              >
+                                {isGain ? "+" : "-"}
+                                {formatMoney(Math.abs(rawDiff))} TL
                                 <span className="text-[10px] block font-sans font-normal text-muted-foreground">
                                   {isGain ? "(646 Kâr)" : "(656 Zarar)"}
                                 </span>
@@ -1361,7 +1616,15 @@ export function AccountingPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button size="sm" variant="outline" onClick={() => { refetchRecon(); refetchAudit(); }} className="h-8 text-xs gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  refetchRecon();
+                  refetchAudit();
+                }}
+                className="h-8 text-xs gap-1"
+              >
                 <RotateCcw className="size-3" /> Denetimi Yeniden Çalıştır
               </Button>
             </div>
@@ -1372,10 +1635,18 @@ export function AccountingPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs">Tüm Seviyeler</SelectItem>
-                  <SelectItem value="CRITICAL" className="text-xs text-destructive">Kritik Hatalar</SelectItem>
-                  <SelectItem value="WARNING" className="text-xs text-amber-600">Uyarılar</SelectItem>
-                  <SelectItem value="INFO" className="text-xs text-emerald-600">Bilgi / Uyumlu</SelectItem>
+                  <SelectItem value="ALL" className="text-xs">
+                    Tüm Seviyeler
+                  </SelectItem>
+                  <SelectItem value="CRITICAL" className="text-xs text-destructive">
+                    Kritik Hatalar
+                  </SelectItem>
+                  <SelectItem value="WARNING" className="text-xs text-amber-600">
+                    Uyarılar
+                  </SelectItem>
+                  <SelectItem value="INFO" className="text-xs text-emerald-600">
+                    Bilgi / Uyumlu
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1387,7 +1658,9 @@ export function AccountingPage() {
               <Card className="border-l-4 border-l-destructive">
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground font-medium uppercase">Kritik Hatalar</p>
+                    <p className="text-xs text-muted-foreground font-medium uppercase">
+                      Kritik Hatalar
+                    </p>
                     <XCircle className="size-4 text-destructive" />
                   </div>
                   <p className="text-2xl font-bold font-mono mt-1 text-destructive">
@@ -1411,7 +1684,9 @@ export function AccountingPage() {
               <Card className="border-l-4 border-l-emerald-500">
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground font-medium uppercase">Başarılı Kontroller</p>
+                    <p className="text-xs text-muted-foreground font-medium uppercase">
+                      Başarılı Kontroller
+                    </p>
                     <CheckCircle2 className="size-4 text-emerald-500" />
                   </div>
                   <p className="text-2xl font-bold font-mono mt-1 text-emerald-600">
@@ -1420,17 +1695,23 @@ export function AccountingPage() {
                 </CardContent>
               </Card>
 
-              <Card className={`border-l-4 ${reconSummary.is_ready_for_close ? "border-l-emerald-500" : "border-l-destructive"}`}>
+              <Card
+                className={`border-l-4 ${reconSummary.is_ready_for_close ? "border-l-emerald-500" : "border-l-destructive"}`}
+              >
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground font-medium uppercase">Kapanış Uygunluğu</p>
+                    <p className="text-xs text-muted-foreground font-medium uppercase">
+                      Kapanış Uygunluğu
+                    </p>
                     {reconSummary.is_ready_for_close ? (
                       <CheckCircle2 className="size-4 text-emerald-500" />
                     ) : (
                       <Lock className="size-4 text-destructive" />
                     )}
                   </div>
-                  <p className={`text-sm font-bold mt-2 ${reconSummary.is_ready_for_close ? "text-emerald-600" : "text-destructive"}`}>
+                  <p
+                    className={`text-sm font-bold mt-2 ${reconSummary.is_ready_for_close ? "text-emerald-600" : "text-destructive"}`}
+                  >
                     {reconSummary.is_ready_for_close ? "KAPANIŞA HAZIR" : "KAPATILAMAZ"}
                   </p>
                 </CardContent>
@@ -1448,7 +1729,9 @@ export function AccountingPage() {
             </CardHeader>
             <CardContent>
               {auditLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Denetim kontrolleri çalıştırılıyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Denetim kontrolleri çalıştırılıyor...
+                </div>
               ) : filteredAuditResults.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">
                   Bu dönem için gösterilecek denetim kaydı bulunamadı.
@@ -1469,7 +1752,10 @@ export function AccountingPage() {
                     </thead>
                     <tbody>
                       {filteredAuditResults.map((r, idx) => (
-                        <tr key={idx} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
+                        <tr
+                          key={idx}
+                          className="border-b border-border/60 hover:bg-muted/30 last:border-0"
+                        >
                           <td className="py-2.5 px-3 font-mono font-bold">{r.check_name}</td>
                           <td className="py-2.5 px-3">
                             <Badge
@@ -1493,9 +1779,15 @@ export function AccountingPage() {
                               {r.status}
                             </Badge>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono">{formatMoney(r.expected_value)}</td>
-                          <td className="py-2.5 px-3 text-right font-mono">{formatMoney(r.actual_value)}</td>
-                          <td className={`py-2.5 px-3 text-right font-mono font-semibold ${Math.abs(Number(r.difference)) > 0.05 ? "text-destructive" : "text-emerald-600"}`}>
+                          <td className="py-2.5 px-3 text-right font-mono">
+                            {formatMoney(r.expected_value)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono">
+                            {formatMoney(r.actual_value)}
+                          </td>
+                          <td
+                            className={`py-2.5 px-3 text-right font-mono font-semibold ${Math.abs(Number(r.difference)) > 0.05 ? "text-destructive" : "text-emerald-600"}`}
+                          >
                             {formatMoney(r.difference)}
                           </td>
                           <td className="py-2.5 px-3 text-muted-foreground max-w-xs">{r.detail}</td>
@@ -1521,13 +1813,16 @@ export function AccountingPage() {
                   <span>Mali Dönem Yönetimi & Kapanış</span>
                 </CardTitle>
                 <CardDescription>
-                  Aylık dönemlerin kapatılması, kilitlenmesi ve kapalı döneme kayıt girişinin engellenmesi
+                  Aylık dönemlerin kapatılması, kilitlenmesi ve kapalı döneme kayıt girişinin
+                  engellenmesi
                 </CardDescription>
               </div>
             </CardHeader>
             <CardContent>
               {periodsLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Dönem kayıtları yükleniyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Dönem kayıtları yükleniyor...
+                </div>
               ) : (
                 <div className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -1547,7 +1842,9 @@ export function AccountingPage() {
                             </SelectTrigger>
                             <SelectContent>
                               {[currentYear, currentYear - 1].map((y) => (
-                                <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>
+                                <SelectItem key={y} value={String(y)} className="text-xs">
+                                  {y}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -1557,7 +1854,9 @@ export function AccountingPage() {
                             </SelectTrigger>
                             <SelectContent>
                               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                <SelectItem key={m} value={String(m)} className="text-xs">{m}. Ay</SelectItem>
+                                <SelectItem key={m} value={String(m)} className="text-xs">
+                                  {m}. Ay
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -1565,7 +1864,12 @@ export function AccountingPage() {
                             size="sm"
                             variant="destructive"
                             className="h-8 text-xs gap-1.5"
-                            onClick={() => closePeriodMutation.mutate({ year: Number(auditYear), month: Number(auditMonth) })}
+                            onClick={() =>
+                              closePeriodMutation.mutate({
+                                year: Number(auditYear),
+                                month: Number(auditMonth),
+                              })
+                            }
                             disabled={closePeriodMutation.isPending}
                           >
                             <Lock className="size-3.5" /> Dönemi Kapat
@@ -1574,7 +1878,12 @@ export function AccountingPage() {
                             size="sm"
                             variant="outline"
                             className="h-8 text-xs gap-1.5"
-                            onClick={() => reopenPeriodMutation.mutate({ year: Number(auditYear), month: Number(auditMonth) })}
+                            onClick={() =>
+                              reopenPeriodMutation.mutate({
+                                year: Number(auditYear),
+                                month: Number(auditMonth),
+                              })
+                            }
                             disabled={reopenPeriodMutation.isPending}
                           >
                             <Unlock className="size-3.5" /> Yeniden Aç
@@ -1599,13 +1908,19 @@ export function AccountingPage() {
                       <tbody>
                         {periods.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-8 text-center text-muted-foreground text-xs">
+                            <td
+                              colSpan={6}
+                              className="py-8 text-center text-muted-foreground text-xs"
+                            >
                               Henüz kapatılmış mali dönem bulunmuyor. Tüm dönemler açık durumdadır.
                             </td>
                           </tr>
                         ) : (
                           periods.map((p) => (
-                            <tr key={p.id} className="border-b border-border/60 hover:bg-muted/30 last:border-0 font-mono">
+                            <tr
+                              key={p.id}
+                              className="border-b border-border/60 hover:bg-muted/30 last:border-0 font-mono"
+                            >
                               <td className="py-2.5 px-3 font-bold">{p.period_year}</td>
                               <td className="py-2.5 px-3 font-semibold">{p.period_month}. Ay</td>
                               <td className="py-2.5 px-3">
@@ -1622,15 +1937,24 @@ export function AccountingPage() {
                                   {p.status}
                                 </Badge>
                               </td>
-                              <td className="py-2.5 px-3 font-sans text-muted-foreground">{p.opened_at ? formatDate(p.opened_at) : "-"}</td>
-                              <td className="py-2.5 px-3 font-sans text-muted-foreground">{p.closed_at ? formatDate(p.closed_at) : "-"}</td>
+                              <td className="py-2.5 px-3 font-sans text-muted-foreground">
+                                {p.opened_at ? formatDate(p.opened_at) : "-"}
+                              </td>
+                              <td className="py-2.5 px-3 font-sans text-muted-foreground">
+                                {p.closed_at ? formatDate(p.closed_at) : "-"}
+                              </td>
                               <td className="py-2.5 px-3 text-right">
                                 {p.status === "CLOSED" ? (
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     className="h-7 text-[10px] gap-1"
-                                    onClick={() => reopenPeriodMutation.mutate({ year: p.period_year, month: p.period_month })}
+                                    onClick={() =>
+                                      reopenPeriodMutation.mutate({
+                                        year: p.period_year,
+                                        month: p.period_month,
+                                      })
+                                    }
                                     disabled={reopenPeriodMutation.isPending}
                                   >
                                     <Unlock className="size-3" /> Yeniden Aç
@@ -1640,7 +1964,12 @@ export function AccountingPage() {
                                     size="sm"
                                     variant="destructive"
                                     className="h-7 text-[10px] gap-1"
-                                    onClick={() => closePeriodMutation.mutate({ year: p.period_year, month: p.period_month })}
+                                    onClick={() =>
+                                      closePeriodMutation.mutate({
+                                        year: p.period_year,
+                                        month: p.period_month,
+                                      })
+                                    }
                                     disabled={closePeriodMutation.isPending}
                                   >
                                     <Lock className="size-3" /> Kapat
@@ -1667,18 +1996,28 @@ export function AccountingPage() {
             <CardHeader className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div>
                 <CardTitle className="text-base">Yevmiye Kayıtları & Muhasebe Fişleri</CardTitle>
-                <CardDescription>Onaylı satış faturaları ve otomatik muhasebe fişleri dökümü</CardDescription>
+                <CardDescription>
+                  Onaylı satış faturaları ve otomatik muhasebe fişleri dökümü
+                </CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={handleExportJournal} className="gap-1.5 h-8 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportJournal}
+                className="gap-1.5 h-8 text-xs"
+              >
                 <Download className="size-3.5" /> Excel İndir
               </Button>
             </CardHeader>
             <CardContent>
               {journalLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Yevmiye kayıtları yükleniyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Yevmiye kayıtları yükleniyor...
+                </div>
               ) : journalEntries.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">
-                  Henüz onaylanmış yevmiye fişi kaydı bulunmuyor. Satış faturası oluşturulduğunda otomatik yevmiye fişi açılır.
+                  Henüz onaylanmış yevmiye fişi kaydı bulunmuyor. Satış faturası oluşturulduğunda
+                  otomatik yevmiye fişi açılır.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1686,8 +2025,12 @@ export function AccountingPage() {
                     <Card key={je.id} className="border border-border/80 shadow-none">
                       <CardHeader className="py-2.5 px-4 bg-muted/30 border-b border-border/60 flex flex-row items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-xs text-primary">{je.entry_number}</span>
-                          <span className="text-xs text-muted-foreground font-sans">({formatDate(je.entry_date)})</span>
+                          <span className="font-mono font-bold text-xs text-primary">
+                            {je.entry_number}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-sans">
+                            ({formatDate(je.entry_date)})
+                          </span>
                           <Badge variant="outline" className="text-[10px] py-0">
                             {je.source_type}
                           </Badge>
@@ -1721,10 +2064,19 @@ export function AccountingPage() {
                           </thead>
                           <tbody>
                             {(je.journal_lines || []).map((jl: any) => (
-                              <tr key={jl.id} className="border-b border-border/30 last:border-0 font-mono">
-                                <td className="py-1.5 px-4 font-bold text-primary">{jl.chart_of_accounts?.code}</td>
-                                <td className="py-1.5 px-3 font-sans">{jl.chart_of_accounts?.name}</td>
-                                <td className="py-1.5 px-3 font-sans text-muted-foreground truncate max-w-xs">{jl.description}</td>
+                              <tr
+                                key={jl.id}
+                                className="border-b border-border/30 last:border-0 font-mono"
+                              >
+                                <td className="py-1.5 px-4 font-bold text-primary">
+                                  {jl.chart_of_accounts?.code}
+                                </td>
+                                <td className="py-1.5 px-3 font-sans">
+                                  {jl.chart_of_accounts?.name}
+                                </td>
+                                <td className="py-1.5 px-3 font-sans text-muted-foreground truncate max-w-xs">
+                                  {jl.description}
+                                </td>
                                 <td className="py-1.5 px-3 text-right text-emerald-600 font-medium">
                                   {Number(jl.debit) > 0 ? formatMoney(jl.debit) : "-"}
                                 </td>
@@ -1754,13 +2106,13 @@ export function AccountingPage() {
                 <span>Tek Düzen Hesap Planı (TDHP)</span>
                 <Badge variant="secondary">Standart Muhasebe Sistemi</Badge>
               </CardTitle>
-              <CardDescription>
-                Veritabanında tanımlı aktif hesap planı kartları
-              </CardDescription>
+              <CardDescription>Veritabanında tanımlı aktif hesap planı kartları</CardDescription>
             </CardHeader>
             <CardContent>
               {accountsLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Hesap planı yükleniyor...</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Hesap planı yükleniyor...
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -1775,16 +2127,32 @@ export function AccountingPage() {
                     </thead>
                     <tbody>
                       {accounts.map((acc) => (
-                        <tr key={acc.id} className="border-b border-border/60 hover:bg-muted/30 last:border-0">
+                        <tr
+                          key={acc.id}
+                          className="border-b border-border/60 hover:bg-muted/30 last:border-0"
+                        >
                           <td className="py-2 px-3 font-mono font-bold text-primary">{acc.code}</td>
                           <td className="py-2 px-3 font-medium">{acc.name}</td>
                           <td className="py-2 px-3">
-                            <Badge variant={acc.account_type === "ASSET" ? "default" : acc.account_type === "LIABILITY" ? "secondary" : "outline"} className="text-[10px] py-0">
+                            <Badge
+                              variant={
+                                acc.account_type === "ASSET"
+                                  ? "default"
+                                  : acc.account_type === "LIABILITY"
+                                    ? "secondary"
+                                    : "outline"
+                              }
+                              className="text-[10px] py-0"
+                            >
                               {acc.account_type}
                             </Badge>
                           </td>
-                          <td className="py-2 px-3 font-mono text-muted-foreground">{acc.normal_balance}</td>
-                          <td className="py-2 px-3 font-mono text-[10px] text-muted-foreground">{acc.system_tag || "-"}</td>
+                          <td className="py-2 px-3 font-mono text-muted-foreground">
+                            {acc.normal_balance}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-[10px] text-muted-foreground">
+                            {acc.system_tag || "-"}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
