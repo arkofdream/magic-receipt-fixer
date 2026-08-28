@@ -52,11 +52,30 @@ export const updateMyCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => profileSchema.parse(data))
   .handler(async ({ data, context }): Promise<CompanyProfile> => {
+    const { validateVknTckn } = await import("./validation");
+    const { loadSettings } = await import("./efatura/settings.server");
+
+    const settings = await loadSettings(context.userId, context.supabase).catch(() => null);
+    const cleanVkn = data.vknTckn.replace(/\D/g, "");
+
+    const vknCheck = validateVknTckn(cleanVkn, {
+      role: "SENDER",
+      environment: settings?.gib_environment || "TEST",
+      integratorName: settings?.integrator_provider || "NES Bilgi",
+      baseUrl: settings?.integrator_base_url || "https://apitest.nes.com.tr",
+    });
+
+    if (!vknCheck.isValid) {
+      throw new Error(
+        `Firma VKN doğrulaması başarısız: ${vknCheck.message || "Geçersiz VKN formatı."}`,
+      );
+    }
+
     const { data: updated, error } = await context.supabase
       .from("profiles")
       .update({
         company_title: data.companyTitle,
-        vkn_tckn: data.vknTckn,
+        vkn_tckn: cleanVkn,
         tax_office: data.taxOffice,
         address: data.address,
         phone: data.phone,
@@ -121,7 +140,28 @@ export const verifyTaxpayerVkn = createServerFn({ method: "POST" })
       };
     }
 
-    // 2. Official backend inquiry via NES API
+    // 2. NES TEST Whitelist Check (Official NES Test Sender VKN 1234567801)
+    const { isNesTestVknAllowed } = await import("./efatura/vkn-whitelist");
+    const isTestSenderVkn = isNesTestVknAllowed({
+      vkn: cleanVkn,
+      role: "SENDER",
+      environment: settings?.gib_environment || "TEST",
+      integratorName: settings?.integrator_provider || "NES Bilgi",
+      baseUrl: settings?.integrator_base_url || "https://apitest.nes.com.tr",
+    });
+
+    if (isTestSenderVkn) {
+      return {
+        ok: true,
+        verified: true,
+        title: data.companyTitle || "NES Test Senaryo #1 Gönderici Firma",
+        taxOffice: "NES Test Vergi Dairesi",
+        isEInvoiceUser: true,
+        message: "✓ NES Test Gönderici VKN (1234567801) başarıyla doğrulandı.",
+      };
+    }
+
+    // 3. Official backend inquiry via NES API for commercial taxpayers
     const baseUrl = "https://apitest.nes.com.tr";
     const testEndpoints = [
       `${baseUrl}/einvoice/v1/taxpayers/${cleanVkn}`,

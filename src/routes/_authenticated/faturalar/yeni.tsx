@@ -10,7 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { validateVknTckn } from "@/lib/validation";
@@ -33,16 +39,87 @@ const POPULAR_TAX_OFFICES = [
 ];
 
 const TURKEY_CITIES = [
-  "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin",
-  "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale",
-  "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum",
-  "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin",
-  "İstanbul", "İzmir", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli",
-  "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş",
-  "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas",
-  "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat",
-  "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın",
-  "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
+  "Adana",
+  "Adıyaman",
+  "Afyonkarahisar",
+  "Ağrı",
+  "Amasya",
+  "Ankara",
+  "Antalya",
+  "Artvin",
+  "Aydın",
+  "Balıkesir",
+  "Bilecik",
+  "Bingöl",
+  "Bitlis",
+  "Bolu",
+  "Burdur",
+  "Bursa",
+  "Çanakkale",
+  "Çankırı",
+  "Çorum",
+  "Denizli",
+  "Diyarbakır",
+  "Edirne",
+  "Elazığ",
+  "Erzincan",
+  "Erzurum",
+  "Eskişehir",
+  "Gaziantep",
+  "Giresun",
+  "Gümüşhane",
+  "Hakkari",
+  "Hatay",
+  "Isparta",
+  "Mersin",
+  "İstanbul",
+  "İzmir",
+  "Kars",
+  "Kastamonu",
+  "Kayseri",
+  "Kırklareli",
+  "Kırşehir",
+  "Kocaeli",
+  "Konya",
+  "Kütahya",
+  "Malatya",
+  "Manisa",
+  "Kahramanmaraş",
+  "Mardin",
+  "Muğla",
+  "Muş",
+  "Nevşehir",
+  "Niğde",
+  "Ordu",
+  "Rize",
+  "Sakarya",
+  "Samsun",
+  "Siirt",
+  "Sinop",
+  "Sivas",
+  "Tekirdağ",
+  "Tokat",
+  "Trabzon",
+  "Tunceli",
+  "Şanlıurfa",
+  "Uşak",
+  "Van",
+  "Yozgat",
+  "Zonguldak",
+  "Aksaray",
+  "Bayburt",
+  "Karaman",
+  "Kırıkkale",
+  "Batman",
+  "Şırnak",
+  "Bartın",
+  "Ardahan",
+  "Iğdır",
+  "Yalova",
+  "Karabük",
+  "Kilis",
+  "Osmaniye",
+  "Düzce",
 ];
 
 export const Route = createFileRoute("/_authenticated/faturalar/yeni")({
@@ -56,6 +133,7 @@ interface FormLine {
   quantity: number;
   unit: string;
   unitPrice: number;
+  discountRate: number;
   vatRate: number;
 }
 
@@ -73,8 +151,12 @@ function NewInvoicePage() {
   });
 
   // Form State
-  const [profileId, setProfileId] = useState<"EARSIVFATURA" | "TICARIFATURA" | "TEMELFATURA">("EARSIVFATURA");
-  const [invoiceTypeCode, setInvoiceTypeCode] = useState<"SATIS" | "IADE" | "TEVKIFAT" | "ISTISNA">("SATIS");
+  const [profileId, setProfileId] = useState<"EARSIVFATURA" | "TICARIFATURA" | "TEMELFATURA">(
+    "EARSIVFATURA",
+  );
+  const [invoiceTypeCode, setInvoiceTypeCode] = useState<"SATIS" | "IADE" | "TEVKIFAT" | "ISTISNA">(
+    "SATIS",
+  );
   const [currency, setCurrency] = useState("TRY");
   const [customInvoiceNumber, setCustomInvoiceNumber] = useState("");
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -101,6 +183,7 @@ function NewInvoicePage() {
       quantity: 1,
       unit: "C62",
       unitPrice: 1000,
+      discountRate: 0,
       vatRate: 20,
     },
   ]);
@@ -115,6 +198,8 @@ function NewInvoicePage() {
 
   // Hesaplamalar
   const totals = useMemo(() => {
+    let grossTotal = 0;
+    let totalDiscount = 0;
     let subTotal = 0;
     let taxTotal = 0;
     const vatGroupsMap = new Map<number, { taxable: number; tax: number }>();
@@ -122,9 +207,14 @@ function NewInvoicePage() {
     for (const l of lines) {
       const q = Math.max(0, l.quantity || 0);
       const p = Math.max(0, l.unitPrice || 0);
-      const lineExt = roundDecimal(q * p, 2);
+      const discRate = Math.min(100, Math.max(0, l.discountRate || 0));
+      const gross = roundDecimal(q * p, 2);
+      const discAmt = roundDecimal((gross * discRate) / 100, 2);
+      const lineExt = roundDecimal(gross - discAmt, 2);
       const lineVat = roundDecimal(lineExt * ((l.vatRate || 0) / 100), 2);
 
+      grossTotal += gross;
+      totalDiscount += discAmt;
       subTotal += lineExt;
       taxTotal += lineVat;
 
@@ -135,11 +225,15 @@ function NewInvoicePage() {
       });
     }
 
+    grossTotal = roundDecimal(grossTotal, 2);
+    totalDiscount = roundDecimal(totalDiscount, 2);
     subTotal = roundDecimal(subTotal, 2);
     taxTotal = roundDecimal(taxTotal, 2);
     const grandTotal = roundDecimal(subTotal + taxTotal, 2);
 
     return {
+      grossTotal,
+      totalDiscount,
       subTotal,
       taxTotal,
       grandTotal,
@@ -161,6 +255,7 @@ function NewInvoicePage() {
         quantity: 1,
         unit: "C62",
         unitPrice: 0,
+        discountRate: 0,
         vatRate: 20,
       },
     ]);
@@ -175,9 +270,7 @@ function NewInvoicePage() {
   }
 
   function updateLine(id: string, field: keyof FormLine, value: any) {
-    setLines((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, [field]: value } : l))
-    );
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
   }
 
   function validateForm(): boolean {
@@ -185,7 +278,7 @@ function NewInvoicePage() {
       const INVOICE_NUMBER_REGEX = /^[A-Za-z0-9]{3}(?:19|20)\d{2}\d{9}$/;
       if (!INVOICE_NUMBER_REGEX.test(customInvoiceNumber.trim())) {
         toast.error(
-          "Geçersiz Fatura Numarası: 3 hane seri ön eki, 4 hane yıl ve 9 hane sıra numarasından (toplam 16 karakter) oluşmalıdır (Örn: EAR2026000000001)."
+          "Geçersiz Fatura Numarası: 3 hane seri ön eki, 4 hane yıl ve 9 hane sıra numarasından (toplam 16 karakter) oluşmalıdır (Örn: EAR2026000000001).",
         );
         return false;
       }
@@ -243,6 +336,7 @@ function NewInvoicePage() {
           name: l.name,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
+          discountRate: l.discountRate || 0,
           vatRate: l.vatRate,
         })),
         note,
@@ -272,7 +366,7 @@ function NewInvoicePage() {
     if (!validateForm()) return;
 
     const confirmed = window.confirm(
-      "Bu işlem e-Faturayı EDM entegratör sistemine iletecektir. Devam etmek istiyor musunuz?"
+      "Bu işlem e-Faturayı EDM entegratör sistemine iletecektir. Devam etmek istiyor musunuz?",
     );
     if (!confirmed) return;
 
@@ -302,6 +396,7 @@ function NewInvoicePage() {
           name: l.name,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
+          discountRate: l.discountRate || 0,
           vatRate: l.vatRate,
         })),
         note,
@@ -319,7 +414,7 @@ function NewInvoicePage() {
       }
 
       toast.success(
-        `Fatura EDM TEST ortamına başarıyla gönderildi!\nFatura No: ${json.invoiceNumber}\nEDM Ref: ${json.edmReference || "TRXID Alındı"}`
+        `Fatura EDM TEST ortamına başarıyla gönderildi!\nFatura No: ${json.invoiceNumber}\nEDM Ref: ${json.edmReference || "TRXID Alındı"}`,
       );
 
       navigate({ to: "/faturalar" });
@@ -342,7 +437,11 @@ function NewInvoicePage() {
           <Button variant="secondary" disabled={submitting} onClick={handleSaveDraft}>
             <Save className="mr-1 size-4" /> Taslak Kaydet
           </Button>
-          <Button disabled={submitting} onClick={handleSendToEdm} className="bg-primary text-primary-foreground">
+          <Button
+            disabled={submitting}
+            onClick={handleSendToEdm}
+            className="bg-primary text-primary-foreground"
+          >
             <Send className="mr-1 size-4" /> {submitting ? "İletiliyor..." : "EDM TEST'e Gönder"}
           </Button>
         </div>
@@ -416,7 +515,10 @@ function NewInvoicePage() {
               </div>
               <div>
                 <Label className="text-xs">VKN / TCKN</Label>
-                <Input value={sellerTaxNumber} onChange={(e) => setSellerTaxNumber(e.target.value)} />
+                <Input
+                  value={sellerTaxNumber}
+                  onChange={(e) => setSellerTaxNumber(e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -437,7 +539,9 @@ function NewInvoicePage() {
               {/* Kayıtlı Müşterilerden Seç (Hızlı Doldur) */}
               {customers.length > 0 && (
                 <div className="space-y-1 bg-primary/5 p-2 rounded border border-primary/20">
-                  <Label className="text-xs font-semibold text-primary">Kayıtlı Müşteri / Cari Seç (Hızlı Doldur)</Label>
+                  <Label className="text-xs font-semibold text-primary">
+                    Kayıtlı Müşteri / Cari Seç (Hızlı Doldur)
+                  </Label>
                   <Select
                     onValueChange={(custId) => {
                       const c = customers.find((item: any) => item.id === custId);
@@ -560,11 +664,14 @@ function NewInvoicePage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {lines.map((line, idx) => (
-              <div key={line.id} className="grid grid-cols-12 gap-2 items-center border p-3 rounded-md bg-card">
+              <div
+                key={line.id}
+                className="grid grid-cols-12 gap-2 items-center border p-3 rounded-md bg-card"
+              >
                 <div className="col-span-1 text-center font-bold text-xs text-muted-foreground">
                   #{idx + 1}
                 </div>
-                <div className="col-span-4">
+                <div className="col-span-3">
                   <Input
                     placeholder="Ürün / Hizmet Adı *"
                     value={line.name}
@@ -577,7 +684,9 @@ function NewInvoicePage() {
                     min="1"
                     placeholder="Miktar"
                     value={line.quantity}
-                    onChange={(e) => updateLine(line.id, "quantity", parseFloat(e.target.value) || 0)}
+                    onChange={(e) =>
+                      updateLine(line.id, "quantity", parseFloat(e.target.value) || 0)
+                    }
                   />
                 </div>
                 <div className="col-span-2">
@@ -586,10 +695,25 @@ function NewInvoicePage() {
                     step="0.01"
                     placeholder="Birim Fiyat (TL)"
                     value={line.unitPrice}
-                    onChange={(e) => updateLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                    onChange={(e) =>
+                      updateLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)
+                    }
                   />
                 </div>
                 <div className="col-span-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="İsk. %"
+                    value={line.discountRate || ""}
+                    onChange={(e) =>
+                      updateLine(line.id, "discountRate", parseFloat(e.target.value) || 0)
+                    }
+                  />
+                </div>
+                <div className="col-span-1.5">
                   <Select
                     value={String(line.vatRate)}
                     onValueChange={(v) => updateLine(line.id, "vatRate", parseInt(v, 10))}
@@ -605,8 +729,13 @@ function NewInvoicePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="col-span-1 text-right">
-                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => removeLine(line.id)}>
+                <div className="col-span-0.5 text-right">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => removeLine(line.id)}
+                  >
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
@@ -637,7 +766,19 @@ function NewInvoicePage() {
             </CardHeader>
             <CardContent className="space-y-2 text-xs">
               <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">Ara Toplam:</span>
+                <span className="text-muted-foreground">Brüt Tutar:</span>
+                <span className="font-mono font-semibold">{totals.grossTotal.toFixed(2)} TL</span>
+              </div>
+              {totals.totalDiscount > 0 && (
+                <div className="flex justify-between py-1 border-b text-amber-600 dark:text-amber-400">
+                  <span>İskonto Toplamı:</span>
+                  <span className="font-mono font-semibold">
+                    -{totals.totalDiscount.toFixed(2)} TL
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between py-1 border-b">
+                <span className="text-muted-foreground">Net Matrah:</span>
                 <span className="font-mono font-semibold">{totals.subTotal.toFixed(2)} TL</span>
               </div>
               {totals.vatGroups.map((g) => (

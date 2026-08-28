@@ -13,6 +13,8 @@ export interface UblInvoiceLine {
   name: string;
   quantity: number;
   unitPrice: number;
+  discountRate?: number; // % İskonto oranı (0 - 100)
+  discountAmount?: number; // İskonto tutarı
   vatRate: number; // e.g. 0, 1, 10, 20
   unitCode?: string; // e.g. "C62" for adet, "KGM" for kg
 }
@@ -50,6 +52,7 @@ export interface ValidatedUblData {
   lines: UblInvoiceLine[];
   vatGroups: VatGroupSummary[];
   subTotal: number;
+  totalDiscount: number;
   taxTotal: number;
   grandTotal: number;
   note?: string;
@@ -70,7 +73,10 @@ export function roundDecimal(value: number, decimals: number = 2): number {
 /**
  * Validates tax numbers (VKN 10 digits, TCKN 11 digits).
  */
-export function validateTaxNumberFormat(taxNumber: string, partyLabel: string): { taxNumber: string; schemeId: "VKN" | "TCKN" } {
+export function validateTaxNumberFormat(
+  taxNumber: string,
+  partyLabel: string,
+): { taxNumber: string; schemeId: "VKN" | "TCKN" } {
   if (!taxNumber || typeof taxNumber !== "string" || !taxNumber.trim()) {
     throw new Error(`Fatura doğrulaması başarısız: ${partyLabel} VKN/TCKN alanı boş olamaz.`);
   }
@@ -78,7 +84,9 @@ export function validateTaxNumberFormat(taxNumber: string, partyLabel: string): 
   const clean = taxNumber.trim();
 
   if (!/^\d+$/.test(clean)) {
-    throw new Error(`Fatura doğrulaması başarısız: ${partyLabel} VKN/TCKN yalnızca rakamlardan oluşmalıdır ("${clean}").`);
+    throw new Error(
+      `Fatura doğrulaması başarısız: ${partyLabel} VKN/TCKN yalnızca rakamlardan oluşmalıdır ("${clean}").`,
+    );
   }
 
   if (clean.length === 10) {
@@ -86,7 +94,9 @@ export function validateTaxNumberFormat(taxNumber: string, partyLabel: string): 
   } else if (clean.length === 11) {
     return { taxNumber: clean, schemeId: "TCKN" };
   } else {
-    throw new Error(`Fatura doğrulaması başarısız: ${partyLabel} VKN 10 hane veya TCKN 11 hane olmalıdır (Girilen: ${clean.length} hane).`);
+    throw new Error(
+      `Fatura doğrulaması başarısız: ${partyLabel} VKN 10 hane veya TCKN 11 hane olmalıdır (Girilen: ${clean.length} hane).`,
+    );
   }
 }
 
@@ -112,32 +122,55 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
   validateTaxNumberFormat(data.buyer.taxNumber, "Alıcı");
 
   if (!data.lines || !Array.isArray(data.lines) || data.lines.length === 0) {
-    throw new Error("Fatura doğrulaması başarısız: En az 1 fatura kalemi (ürün/hizmet) girmelisiniz.");
+    throw new Error(
+      "Fatura doğrulaması başarısız: En az 1 fatura kalemi (ürün/hizmet) girmelisiniz.",
+    );
   }
 
   const vatMap = new Map<number, { taxableAmount: number; taxAmount: number }>();
   let subTotal = 0;
+  let totalDiscount = 0;
   let taxTotal = 0;
 
   for (let i = 0; i < data.lines.length; i++) {
     const line = data.lines[i];
     if (!line.name || !line.name.trim()) {
-      throw new Error(`Fatura doğrulaması başarısız: Kalem #${i + 1} için ürün/hizmet adı boş olamaz.`);
+      throw new Error(
+        `Fatura doğrulaması başarısız: Kalem #${i + 1} için ürün/hizmet adı boş olamaz.`,
+      );
     }
     if (typeof line.quantity !== "number" || isNaN(line.quantity) || line.quantity <= 0) {
-      throw new Error(`Fatura doğrulaması başarısız: Kalem #${i + 1} ("${line.name}") miktarı 0'dan büyük olmalıdır.`);
+      throw new Error(
+        `Fatura doğrulaması başarısız: Kalem #${i + 1} ("${line.name}") miktarı 0'dan büyük olmalıdır.`,
+      );
     }
     if (typeof line.unitPrice !== "number" || isNaN(line.unitPrice) || line.unitPrice < 0) {
-      throw new Error(`Fatura doğrulaması başarısız: Kalem #${i + 1} ("${line.name}") birim fiyatı 0 veya daha büyük olmalıdır.`);
+      throw new Error(
+        `Fatura doğrulaması başarısız: Kalem #${i + 1} ("${line.name}") birim fiyatı 0 veya daha büyük olmalıdır.`,
+      );
     }
-    if (typeof line.vatRate !== "number" || isNaN(line.vatRate) || line.vatRate < 0 || line.vatRate > 100) {
-      throw new Error(`Fatura doğrulaması başarısız: Kalem #${i + 1} ("${line.name}") KDV oranı %0 ile %100 arasında olmalıdır.`);
+    if (
+      typeof line.vatRate !== "number" ||
+      isNaN(line.vatRate) ||
+      line.vatRate < 0 ||
+      line.vatRate > 100
+    ) {
+      throw new Error(
+        `Fatura doğrulaması başarısız: Kalem #${i + 1} ("${line.name}") KDV oranı %0 ile %100 arasında olmalıdır.`,
+      );
     }
 
-    const lineExtension = roundDecimal(line.quantity * line.unitPrice, 2);
+    const gross = roundDecimal(line.quantity * line.unitPrice, 2);
+    const discRate = Math.min(100, Math.max(0, line.discountRate || 0));
+    const discAmt =
+      line.discountAmount !== undefined
+        ? roundDecimal(line.discountAmount, 2)
+        : roundDecimal((gross * discRate) / 100, 2);
+    const lineExtension = roundDecimal(gross - discAmt, 2);
     const lineVat = roundDecimal(lineExtension * (line.vatRate / 100), 2);
 
     subTotal += lineExtension;
+    totalDiscount += discAmt;
     taxTotal += lineVat;
 
     const existingGroup = vatMap.get(line.vatRate) || { taxableAmount: 0, taxAmount: 0 };
@@ -148,6 +181,7 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
   }
 
   subTotal = roundDecimal(subTotal, 2);
+  totalDiscount = roundDecimal(totalDiscount, 2);
   taxTotal = roundDecimal(taxTotal, 2);
   const grandTotal = roundDecimal(subTotal + taxTotal, 2);
 
@@ -173,7 +207,7 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
     const INVOICE_NUMBER_REGEX = /^[A-Za-z0-9]{3}(?:19|20)\d{2}\d{9}$/;
     if (!INVOICE_NUMBER_REGEX.test(invoiceNumber)) {
       throw new Error(
-        `Fatura doğrulaması başarısız: Geçersiz fatura numarası formatı ("${invoiceNumber}"). Fatura numarası 3 hane seri ön eki, 4 hane yıl ve 9 hane sıra numarasından (toplam 16 karakter) oluşmalıdır (Örn: EAR2026000000001).`
+        `Fatura doğrulaması başarısız: Geçersiz fatura numarası formatı ("${invoiceNumber}"). Fatura numarası 3 hane seri ön eki, 4 hane yıl ve 9 hane sıra numarasından (toplam 16 karakter) oluşmalıdır (Örn: EAR2026000000001).`,
       );
     }
   } else {
@@ -202,6 +236,7 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
     lines: data.lines,
     vatGroups,
     subTotal,
+    totalDiscount,
     taxTotal,
     grandTotal,
     note: data.note,
@@ -217,9 +252,7 @@ export function createUblTrInvoice(data: UblInvoiceData): string {
   const sellerSchemeId = validated.seller.taxNumber.length === 11 ? "TCKN" : "VKN";
   const buyerSchemeId = validated.buyer.taxNumber.length === 11 ? "TCKN" : "VKN";
 
-  const noteXml = validated.note
-    ? `<cbc:Note>${escapeXml(validated.note)}</cbc:Note>`
-    : "";
+  const noteXml = validated.note ? `<cbc:Note>${escapeXml(validated.note)}</cbc:Note>` : "";
 
   const vatSubtotalsXml = validated.vatGroups
     .map(
@@ -234,7 +267,7 @@ export function createUblTrInvoice(data: UblInvoiceData): string {
           <cbc:TaxTypeCode>0015</cbc:TaxTypeCode>
         </cac:TaxScheme>
       </cac:TaxCategory>
-    </cac:TaxSubtotal>`
+    </cac:TaxSubtotal>`,
     )
     .join("");
 
@@ -304,20 +337,36 @@ export function createUblTrInvoice(data: UblInvoiceData): string {
     <cbc:LineExtensionAmount currencyID="${validated.currency}">${validated.subTotal.toFixed(2)}</cbc:LineExtensionAmount>
     <cbc:TaxExclusiveAmount currencyID="${validated.currency}">${validated.subTotal.toFixed(2)}</cbc:TaxExclusiveAmount>
     <cbc:TaxInclusiveAmount currencyID="${validated.currency}">${validated.grandTotal.toFixed(2)}</cbc:TaxInclusiveAmount>
-    <cbc:AllowanceTotalAmount currencyID="${validated.currency}">0.00</cbc:AllowanceTotalAmount>
+    <cbc:AllowanceTotalAmount currencyID="${validated.currency}">${validated.totalDiscount.toFixed(2)}</cbc:AllowanceTotalAmount>
     <cbc:PayableAmount currencyID="${validated.currency}">${validated.grandTotal.toFixed(2)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 
   ${validated.lines
     .map((line, idx) => {
-      const lineExtension = roundDecimal(line.quantity * line.unitPrice, 2);
+      const gross = roundDecimal(line.quantity * line.unitPrice, 2);
+      const discRate = Math.min(100, Math.max(0, line.discountRate || 0));
+      const discAmt =
+        line.discountAmount !== undefined
+          ? roundDecimal(line.discountAmount, 2)
+          : roundDecimal((gross * discRate) / 100, 2);
+      const lineExtension = roundDecimal(gross - discAmt, 2);
       const lineVat = roundDecimal(lineExtension * (line.vatRate / 100), 2);
       const unitCode = line.unitCode || "C62";
+      const allowanceXml =
+        discAmt > 0
+          ? `
+    <cac:AllowanceCharge>
+      <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
+      <cbc:Amount currencyID="${validated.currency}">${discAmt.toFixed(2)}</cbc:Amount>
+      <cbc:BaseAmount currencyID="${validated.currency}">${gross.toFixed(2)}</cbc:BaseAmount>
+    </cac:AllowanceCharge>`
+          : "";
+
       return `
   <cac:InvoiceLine>
     <cbc:ID>${idx + 1}</cbc:ID>
     <cbc:InvoicedQuantity unitCode="${unitCode}">${line.quantity}</cbc:InvoicedQuantity>
-    <cbc:LineExtensionAmount currencyID="${validated.currency}">${lineExtension.toFixed(2)}</cbc:LineExtensionAmount>
+    <cbc:LineExtensionAmount currencyID="${validated.currency}">${lineExtension.toFixed(2)}</cbc:LineExtensionAmount>${allowanceXml}
     <cac:TaxTotal>
       <cbc:TaxAmount currencyID="${validated.currency}">${lineVat.toFixed(2)}</cbc:TaxAmount>
       <cac:TaxSubtotal>
