@@ -22,6 +22,10 @@ import {
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
+import {
+  closeAccountingPeriodServerFn,
+  reopenAccountingPeriodServerFn,
+} from "@/lib/accounting-period.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -320,56 +324,38 @@ export function AccountingPage() {
     },
   });
 
-  function formatAccountingPeriodError(err: any, fallbackMessage: string): string {
-    const msg = (err?.message || "").toLowerCase();
-    if (msg.includes("permission denied") || msg.includes("yetki") || msg.includes("jwt")) {
-      return "Dönem kapatma yetkiniz bulunmamaktadır. Lütfen yönetici hesabıyla işlem yapın.";
-    }
-    if (msg.includes("already closed") || msg.includes("zaten kapalı")) {
-      return "Bu muhasebe dönemi zaten kapatılmıştır.";
-    }
-    if (msg.includes("already open") || msg.includes("zaten açık")) {
-      return "Bu muhasebe dönemi zaten açıktır.";
-    }
-    if (msg.includes("not found") || msg.includes("bulunamadı")) {
-      return "Seçilen muhasebe dönemi bulunamadı.";
-    }
-    if (msg.includes("function") && msg.includes("does not exist")) {
-      return "Sunucuda dönem kapatma fonksiyonu bulunamadı.";
-    }
-    return err?.message || fallbackMessage;
-  }
-
   // Dönem Kapatma Mutasyonu
   const closePeriodMutation = useMutation({
     mutationFn: async ({ year, month }: { year: number; month: number }) => {
-      const { data, error } = await supabase.rpc("close_accounting_period", {
-        p_year: year,
-        p_month: month,
-      });
-      if (error) throw error;
-      return data;
+      const res = await closeAccountingPeriodServerFn({ data: { year, month } });
+      if (!res.ok) {
+        throw new Error(res.error || "Dönem kapatılırken hata oluştu.");
+      }
+      return res;
     },
-    onSuccess: (_, variables) => {
-      toast.success(`${variables.month}/${variables.year} muhasebe dönemi başarıyla kapatıldı.`);
+    onSuccess: (res, variables) => {
+      if (res.isAlreadyClosed) {
+        toast.info(`${variables.month}/${variables.year}: Bu muhasebe dönemi zaten kapatılmıştır.`);
+      } else {
+        toast.success(`${variables.month}/${variables.year} muhasebe dönemi başarıyla kapatıldı.`);
+      }
       queryClient.invalidateQueries({ queryKey: ["accounting-periods"] });
       queryClient.invalidateQueries({ queryKey: ["reconciliation-summary"] });
       queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
     },
     onError: (err: any) => {
-      toast.error(formatAccountingPeriodError(err, "Dönem kapatılırken hata oluştu."));
+      toast.error(err.message || "Dönem kapatılırken hata oluştu.");
     },
   });
 
   // Dönem Yeniden Açma Mutasyonu
   const reopenPeriodMutation = useMutation({
     mutationFn: async ({ year, month }: { year: number; month: number }) => {
-      const { data, error } = await supabase.rpc("reopen_accounting_period", {
-        p_year: year,
-        p_month: month,
-      });
-      if (error) throw error;
-      return data;
+      const res = await reopenAccountingPeriodServerFn({ data: { year, month } });
+      if (!res.ok) {
+        throw new Error(res.error || "Dönem açılırken hata oluştu.");
+      }
+      return res;
     },
     onSuccess: (_, variables) => {
       toast.success(`${variables.month}/${variables.year} muhasebe dönemi yeniden açıldı.`);
@@ -378,7 +364,7 @@ export function AccountingPage() {
       queryClient.invalidateQueries({ queryKey: ["accounting-audit"] });
     },
     onError: (err: any) => {
-      toast.error(formatAccountingPeriodError(err, "Dönem açılırken hata oluştu."));
+      toast.error(err.message || "Dönem açılırken hata oluştu.");
     },
   });
 
