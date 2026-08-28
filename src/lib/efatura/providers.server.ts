@@ -116,6 +116,7 @@ export function normalizeApiKey(key?: string | null): string {
   if (!key) return "";
   let clean = key.trim();
   clean = clean.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  clean = clean.replace(/^["']+|["']+$/g, "").trim();
   if (/^bearer\s+/i.test(clean)) {
     clean = clean.replace(/^bearer\s+/i, "").trim();
   }
@@ -465,6 +466,7 @@ class IntegratorProvider implements EInvoiceProvider {
                   name: String(it.name || "Ürün/Hizmet"),
                   quantity: Number(it.quantity) || 1,
                   unitPrice: Number(it.unitPrice || it.unit_price) || 100,
+                  discountRate: Number(it.discountRate || it.discount_rate) || 0,
                   vatRate: Number(it.vatRate || it.vat_rate) || 20,
                 }))
               : [
