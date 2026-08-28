@@ -101,7 +101,10 @@ function validateCredentials(credentials: ConnectionCredentials): ConnectionTest
   }
 
   if (config.requiresUsername && (!credentials.username || !credentials.username.trim())) {
-    return { ok: false, message: `${providerName} için kullanıcı adı / kullanıcı kodu zorunludur.` };
+    return {
+      ok: false,
+      message: `${providerName} için kullanıcı adı / kullanıcı kodu zorunludur.`,
+    };
   }
   if (config.requiresApiKey && (!credentials.secret || !credentials.secret.trim())) {
     return { ok: false, message: `${providerName} için şifre veya API anahtarı zorunludur.` };
@@ -109,24 +112,34 @@ function validateCredentials(credentials: ConnectionCredentials): ConnectionTest
   return null;
 }
 
-function buildIntegratorTestUrl(integratorName: string, baseUrl: string, docType: "einvoice" | "earchive" = "einvoice"): string {
+export function normalizeApiKey(key?: string | null): string {
+  if (!key) return "";
+  let clean = key.trim();
+  clean = clean.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  if (/^bearer\s+/i.test(clean)) {
+    clean = clean.replace(/^bearer\s+/i, "").trim();
+  }
+  clean = clean.replace(/^["']+|["']+$/g, "").trim();
+  return clean;
+}
+
+function buildIntegratorTestUrl(
+  integratorName: string,
+  baseUrl: string,
+  docType: "einvoice" | "earchive" = "einvoice",
+): string {
   let cleanUrl = baseUrl.trim().replace(/\/+$/, "");
 
-  if (integratorName === "Nes Bilgi" || integratorName === "NES Bilgi" || integratorName.toLowerCase().includes("nes")) {
+  if (
+    integratorName === "Nes Bilgi" ||
+    integratorName === "NES Bilgi" ||
+    integratorName.toLowerCase().includes("nes")
+  ) {
     const servicePath = docType === "earchive" ? "earchive" : "einvoice";
-    if (cleanUrl.includes(`/${servicePath}/v1/uploads/document`)) {
+    if (cleanUrl.endsWith(`/${servicePath}/v1/uploads/document`)) {
       return cleanUrl;
     }
-    if (cleanUrl.endsWith(`/${servicePath}/v1`)) {
-      return cleanUrl + "/uploads/document";
-    }
-    if (cleanUrl.endsWith(`/${servicePath}`)) {
-      return cleanUrl + "/v1/uploads/document";
-    }
-    // Clean base URL handling
-    if (cleanUrl.endsWith("/einvoice/v1/uploads/document") || cleanUrl.endsWith("/earchive/v1/uploads/document")) {
-      cleanUrl = cleanUrl.replace(/\/(einvoice|earchive)\/v1\/uploads\/document$/, "");
-    }
+    cleanUrl = cleanUrl.replace(/\/(einvoice|earchive)(\/v1(\/uploads\/document)?)?$/i, "");
     return `${cleanUrl}/${servicePath}/v1/uploads/document`;
   }
 
@@ -284,6 +297,14 @@ class IntegratorProvider implements EInvoiceProvider {
     const testUrl = buildIntegratorTestUrl(integrator, credentials.baseUrl);
     const cleanBaseUrl = credentials.baseUrl.trim().replace(/\/+$/, "");
 
+    const cleanSecret = normalizeApiKey(credentials.secret);
+    if (!cleanSecret) {
+      return { ok: false, message: `${integrator} için API anahtarı zorunludur.` };
+    }
+
+    const maskedKey = `${cleanSecret.slice(0, 2)}...${cleanSecret.slice(-2)} (uzunluk: ${cleanSecret.length})`;
+    console.log(`[NES TEST] Endpoint: ${testUrl}, Method: POST, Masked Key: ${maskedKey}`);
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
@@ -291,22 +312,27 @@ class IntegratorProvider implements EInvoiceProvider {
       const headers: Record<string, string> = {};
 
       if (config.authType === "BEARER_TOKEN" || config.authType === "API_KEY") {
-        headers["Authorization"] = `Bearer ${credentials.secret}`;
+        headers["Authorization"] = `Bearer ${cleanSecret}`;
       } else {
-        headers["Authorization"] = `Basic ${Buffer.from(`${credentials.username || ""}:${credentials.secret}`).toString("base64")}`;
+        headers["Authorization"] =
+          `Basic ${Buffer.from(`${credentials.username || ""}:${cleanSecret}`).toString("base64")}`;
       }
 
       const res = await fetch(testUrl, {
         method: "POST",
         headers,
         signal: controller.signal,
-      }).catch(async () => {
-        return await fetch(cleanBaseUrl, {
-          method: "GET",
-          headers,
-          signal: controller.signal,
-        });
-      }).finally(() => clearTimeout(timeout));
+      })
+        .catch(async () => {
+          return await fetch(cleanBaseUrl, {
+            method: "GET",
+            headers,
+            signal: controller.signal,
+          });
+        })
+        .finally(() => clearTimeout(timeout));
+
+      console.log(`[NES TEST] Response HTTP Status: ${res.status}`);
 
       if (res.ok || res.status === 400 || res.status === 415 || res.status === 422) {
         return {
@@ -356,7 +382,11 @@ class IntegratorProvider implements EInvoiceProvider {
     const ettn = (invoice["ettn"] as string) || crypto.randomUUID().toUpperCase();
     const integrator = credentials.integratorName || "Entegratör";
 
-    if (integrator === "Nes Bilgi" || integrator === "NES Bilgi" || integrator.toLowerCase().includes("nes")) {
+    if (
+      integrator === "Nes Bilgi" ||
+      integrator === "NES Bilgi" ||
+      integrator.toLowerCase().includes("nes")
+    ) {
       if (!credentials.baseUrl) {
         console.log("[INVOICE] NES API URL'i tanımlı değil.");
         return { ok: false, message: "NES API URL'i tanımlı değil.", ettn };
@@ -370,19 +400,20 @@ class IntegratorProvider implements EInvoiceProvider {
 
       const docTypeKey: "einvoice" | "earchive" = isEArchive ? "earchive" : "einvoice";
       const testUrl = buildIntegratorTestUrl(integrator, credentials.baseUrl, docTypeKey);
-      console.log(`[INVOICE] Gönderim başlatıldı. Tür: ${isEArchive ? 'e-Arşiv' : 'e-Fatura'}, ETTN: ${ettn}`);
+      console.log(
+        `[INVOICE] Gönderim başlatıldı. Tür: ${isEArchive ? "e-Arşiv" : "e-Fatura"}, ETTN: ${ettn}`,
+      );
       console.log(`[INVOICE] Backend endpoint: ${testUrl}`);
 
       try {
         const formData = new FormData();
-        const isDirectSendVal = invoice["isDirectSend"] !== undefined ? String(invoice["isDirectSend"]) : "true";
+        const isDirectSendVal =
+          invoice["isDirectSend"] !== undefined ? String(invoice["isDirectSend"]) : "true";
         formData.append("IsDirectSend", isDirectSendVal);
         formData.append("PreviewType", (invoice["previewType"] as string) || "Html");
         formData.append("SourceApp", "MagicReceiptApp");
 
-        const senderAlias = String(
-          invoice["senderAlias"] || credentials.senderAlias || ""
-        ).trim();
+        const senderAlias = String(invoice["senderAlias"] || credentials.senderAlias || "").trim();
 
         if (!senderAlias || senderAlias.toLowerCase() === "defaultgb") {
           console.warn("[INVOICE] Geçersiz Gönderici Birim (GB) etiketi. defaultgb engellendi.");
@@ -419,8 +450,14 @@ class IntegratorProvider implements EInvoiceProvider {
               name: (invoice["sellerName"] as string) || "Satıcı Firma",
             },
             buyer: {
-              taxNumber: (invoice["buyerTaxNumber"] as string) || (invoice["customerTaxNumber"] as string) || "2222222222",
-              name: (invoice["buyerName"] as string) || (invoice["customerName"] as string) || "Müşteri Firma",
+              taxNumber:
+                (invoice["buyerTaxNumber"] as string) ||
+                (invoice["customerTaxNumber"] as string) ||
+                "2222222222",
+              name:
+                (invoice["buyerName"] as string) ||
+                (invoice["customerName"] as string) ||
+                "Müşteri Firma",
             },
             lines: Array.isArray(invoice["items"])
               ? (invoice["items"] as Record<string, unknown>[]).map((it) => ({
@@ -429,18 +466,26 @@ class IntegratorProvider implements EInvoiceProvider {
                   unitPrice: Number(it.unitPrice || it.unit_price) || 100,
                   vatRate: Number(it.vatRate || it.vat_rate) || 20,
                 }))
-              : [{ name: "Ürün/Hizmet", quantity: 1, unitPrice: Number(invoice["grandTotal"]) || 100, vatRate: 20 }],
+              : [
+                  {
+                    name: "Ürün/Hizmet",
+                    quantity: 1,
+                    unitPrice: Number(invoice["grandTotal"]) || 100,
+                    vatRate: 20,
+                  },
+                ],
           });
           const blob = new Blob([ublXml], { type: "application/xml" });
           formData.append("File", blob, `${ettn}.xml`);
           console.log("[INVOICE] XML/UBL dinamik olarak oluşturuldu");
         }
 
+        const cleanSecret = normalizeApiKey(credentials.secret);
         console.log("[INVOICE] Entegratör API çağrısı başladı");
         const res = await fetch(testUrl, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${credentials.secret}`,
+            Authorization: `Bearer ${cleanSecret}`,
           },
           body: formData,
         });
@@ -453,12 +498,19 @@ class IntegratorProvider implements EInvoiceProvider {
           console.log("[INVOICE] Gönderim sonucu: BAŞARILI (Kuyruğa Alındı)");
           let parsedJson: any = null;
           if (text.trim().startsWith("{")) {
-            try { parsedJson = JSON.parse(text); } catch { parsedJson = null; }
+            try {
+              parsedJson = JSON.parse(text);
+            } catch {
+              parsedJson = null;
+            }
           }
 
-          const externalId = parsedJson?.id || parsedJson?.documentId || parsedJson?.referenceId || ettn;
+          const externalId =
+            parsedJson?.id || parsedJson?.documentId || parsedJson?.referenceId || ettn;
           const statusCode = String(parsedJson?.statusCode || res.status);
-          const statusDesc = parsedJson?.statusDescription || "Fatura NES servisine başarıyla yüklendi (İşleme Alındı).";
+          const statusDesc =
+            parsedJson?.statusDescription ||
+            "Fatura NES servisine başarıyla yüklendi (İşleme Alındı).";
 
           return {
             ok: true,
@@ -481,7 +533,10 @@ class IntegratorProvider implements EInvoiceProvider {
 
         // Try parsing JSON error body safely
         let jsonErr: any = null;
-        if (res.headers.get("content-type")?.includes("application/json") || text.trim().startsWith("{")) {
+        if (
+          res.headers.get("content-type")?.includes("application/json") ||
+          text.trim().startsWith("{")
+        ) {
           try {
             jsonErr = JSON.parse(text);
           } catch {
@@ -498,7 +553,8 @@ class IntegratorProvider implements EInvoiceProvider {
           if (code === "1150" || desc.includes("UYUSMUYOR")) {
             return {
               ok: false,
-              message: "NES entegrasyonundaki firma VKN/TCKN ile faturadaki gönderen VKN/TCKN uyuşmuyor. Firma ve NES entegrasyon bilgilerini kontrol edin.",
+              message:
+                "NES entegrasyonundaki firma VKN/TCKN ile faturadaki gönderen VKN/TCKN uyuşmuyor. Firma ve NES entegrasyon bilgilerini kontrol edin.",
               ettn,
               statusCode: String(res.status),
             };
@@ -579,8 +635,14 @@ class IntegratorProvider implements EInvoiceProvider {
         const code = String(json.gibStatusCode || json.statusCode || "");
         const statusStr = String(json.status || "").toUpperCase();
 
-        let status: "DRAFT" | "QUEUED" | "SENT" | "APPROVED" | "REJECTED" | "CANCELLED" | "UNKNOWN" = "SENT";
-        if (statusStr === "ACCEPTED" || statusStr === "APPROVED" || code === "1300" || code === "3000") {
+        let status:
+          "DRAFT" | "QUEUED" | "SENT" | "APPROVED" | "REJECTED" | "CANCELLED" | "UNKNOWN" = "SENT";
+        if (
+          statusStr === "ACCEPTED" ||
+          statusStr === "APPROVED" ||
+          code === "1300" ||
+          code === "3000"
+        ) {
           status = "APPROVED";
         } else if (statusStr === "REJECTED" || statusStr === "FAILED" || code === "1150") {
           status = "REJECTED";
@@ -593,7 +655,8 @@ class IntegratorProvider implements EInvoiceProvider {
         return {
           ok: true,
           status,
-          message: json.gibStatusDescription || json.statusDescription || `Entegratör Durumu: ${status}`,
+          message:
+            json.gibStatusDescription || json.statusDescription || `Entegratör Durumu: ${status}`,
           gibStatusCode: code,
           updatedAt: json.updatedAt || new Date().toISOString(),
         };

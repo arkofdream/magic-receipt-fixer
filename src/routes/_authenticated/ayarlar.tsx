@@ -126,7 +126,9 @@ function SettingsPage() {
   });
 
   const [verifyingVkn, setVerifyingVkn] = useState(false);
-  const [vknResult, setVknResult] = useState<import("@/lib/profile.functions").TaxpayerVerificationResult | null>(null);
+  const [vknResult, setVknResult] = useState<
+    import("@/lib/profile.functions").TaxpayerVerificationResult | null
+  >(null);
   const [isVknVerified, setIsVknVerified] = useState(false);
 
   const [intForm, setIntForm] = useState({
@@ -209,7 +211,9 @@ function SettingsPage() {
   const saveProfileMutation = useMutation({
     mutationFn: () => {
       if (!isVknVerified) {
-        throw new Error("Firma kayıt bilgilerini kaydetmek için önce 'VKN Sorgula' ile mükellef doğrulaması yapmalısınız.");
+        throw new Error(
+          "Firma kayıt bilgilerini kaydetmek için önce 'VKN Sorgula' ile mükellef doğrulaması yapmalısınız.",
+        );
       }
       return updateMyCompanyProfile({ data: companyForm });
     },
@@ -257,7 +261,7 @@ function SettingsPage() {
           provider === "INTEGRATOR"
             ? {
                 provider: "INTEGRATOR",
-                apiKey: intForm.apiKey,
+                apiKey: intForm.apiKey.trim() || undefined,
                 baseUrl: intForm.baseUrl,
                 apiUsername: intForm.apiUsername,
                 integratorName: intForm.provider,
@@ -395,7 +399,9 @@ function SettingsPage() {
                       id="companyType"
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       value={companyForm.companyType}
-                      onChange={(e) => setCompanyForm((f) => ({ ...f, companyType: e.target.value }))}
+                      onChange={(e) =>
+                        setCompanyForm((f) => ({ ...f, companyType: e.target.value }))
+                      }
                     >
                       <option value="Şahıs Şirketi">Şahıs Şirketi (11 Haneli TCKN)</option>
                       <option value="Limited Şirket">Limited Şirket (10 Haneli VKN)</option>
@@ -412,7 +418,10 @@ function SettingsPage() {
                         placeholder="10 haneli VKN veya 11 haneli TCKN"
                         value={companyForm.vknTckn}
                         onChange={(e) => {
-                          setCompanyForm((f) => ({ ...f, vknTckn: e.target.value.replace(/\D/g, "") }));
+                          setCompanyForm((f) => ({
+                            ...f,
+                            vknTckn: e.target.value.replace(/\D/g, ""),
+                          }));
                           setIsVknVerified(false);
                           setVknResult(null);
                         }}
@@ -455,9 +464,7 @@ function SettingsPage() {
                           Mükellef: <span className="font-bold">{vknResult.title}</span>
                         </p>
                       )}
-                      {vknResult.taxOffice && (
-                        <p>Vergi Dairesi: {vknResult.taxOffice}</p>
-                      )}
+                      {vknResult.taxOffice && <p>Vergi Dairesi: {vknResult.taxOffice}</p>}
                       {vknResult.titleMismatchWarning && (
                         <p className="text-amber-600 dark:text-amber-400 font-medium mt-1">
                           ⚠️ {vknResult.titleMismatchWarning}
@@ -539,7 +546,10 @@ function SettingsPage() {
               <CardContent className="flex flex-wrap gap-3">
                 {(
                   [
-                    { id: "INTEGRATOR", label: "Özel Entegratör (Uyumsoft, EDM, Foriba, Logo vb.)" },
+                    {
+                      id: "INTEGRATOR",
+                      label: "Özel Entegratör (Uyumsoft, EDM, Foriba, Logo vb.)",
+                    },
                     { id: "NONE", label: "Entegrasyon Kullanma (Yalnızca Taslak / Resmi PDF)" },
                   ] as const
                 ).map((option) => (
@@ -616,8 +626,12 @@ function SettingsPage() {
                             <Label>{currentConfig.usernameLabel || "API Kullanıcı Adı"}</Label>
                             <Input
                               value={intForm.apiUsername}
-                              onChange={(e) => setIntForm((f) => ({ ...f, apiUsername: e.target.value }))}
-                              placeholder={currentConfig.usernamePlaceholder || "api_kullanici_kodu"}
+                              onChange={(e) =>
+                                setIntForm((f) => ({ ...f, apiUsername: e.target.value }))
+                              }
+                              placeholder={
+                                currentConfig.usernamePlaceholder || "api_kullanici_kodu"
+                              }
                             />
                           </div>
                         ) : null}
@@ -638,7 +652,9 @@ function SettingsPage() {
                           <Label>Gönderici Birim (GB) Etiketi</Label>
                           <Input
                             value={intForm.senderAlias}
-                            onChange={(e) => setIntForm((f) => ({ ...f, senderAlias: e.target.value }))}
+                            onChange={(e) =>
+                              setIntForm((f) => ({ ...f, senderAlias: e.target.value }))
+                            }
                             placeholder="Örn: urn:mail:defaultgb@firma.com"
                           />
                           <p className="text-xs text-muted-foreground">
@@ -705,7 +721,9 @@ function SettingsPage() {
                   Harici Veri Yedekleme ve Dışa Aktarma (JSON)
                 </CardTitle>
                 <CardDescription>
-                  Supabase bulut veritabanınızdaki tüm fatura, cari, ürün, stok, tahsilat ve işlem geçmişi verilerinizi tek tıkla kendi bilgisayarınıza güvenli JSON dosyası olarak indirebilirsiniz.
+                  Supabase bulut veritabanınızdaki tüm fatura, cari, ürün, stok, tahsilat ve işlem
+                  geçmişi verilerinizi tek tıkla kendi bilgisayarınıza güvenli JSON dosyası olarak
+                  indirebilirsiniz.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -713,16 +731,32 @@ function SettingsPage() {
                   <div className="flex items-start gap-3">
                     <ShieldCheck className="size-5 text-indigo-600 dark:text-indigo-400 mt-0.5" />
                     <div className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
-                      <p className="font-semibold text-sm text-indigo-900 dark:text-indigo-200">Tam Veri Güvenliği ve Yedekleme Garantisi</p>
-                      <p>• Bilgisayarınızdan uygulamayı silseniz veya sıfırlasanız dahi Supabase üzerindeki verileriniz silinmez.</p>
-                      <p>• Çevrimdışı (offline) arşiv amacıyla dilediğiniz an verilerinizi JSON formatında bilgisayarınıza indirebilirsiniz.</p>
+                      <p className="font-semibold text-sm text-indigo-900 dark:text-indigo-200">
+                        Tam Veri Güvenliği ve Yedekleme Garantisi
+                      </p>
+                      <p>
+                        • Bilgisayarınızdan uygulamayı silseniz veya sıfırlasanız dahi Supabase
+                        üzerindeki verileriniz silinmez.
+                      </p>
+                      <p>
+                        • Çevrimdışı (offline) arşiv amacıyla dilediğiniz an verilerinizi JSON
+                        formatında bilgisayarınıza indirebilirsiniz.
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-4 pt-2">
-                  <Button onClick={exportFullBackup} disabled={exportingBackup} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-                    {exportingBackup ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                  <Button
+                    onClick={exportFullBackup}
+                    disabled={exportingBackup}
+                    className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    {exportingBackup ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Download className="size-4" />
+                    )}
                     Tüm Muhasebe Verilerini İndir / Yedekle (JSON)
                   </Button>
                 </div>
@@ -737,15 +771,20 @@ function SettingsPage() {
 
 function BankApiSettings() {
   const [selectedBank, setSelectedBank] = useState("kuveyt_turk");
-  const [bankConfigs, setBankConfigs] = useState<Record<string, {
-    apiKey: string;
-    secretKey: string;
-    merchantId: string;
-    terminalId: string;
-    webhookUrl: string;
-    isLive: boolean;
-    enabled: boolean;
-  }>>(() => {
+  const [bankConfigs, setBankConfigs] = useState<
+    Record<
+      string,
+      {
+        apiKey: string;
+        secretKey: string;
+        merchantId: string;
+        terminalId: string;
+        webhookUrl: string;
+        isLive: boolean;
+        enabled: boolean;
+      }
+    >
+  >(() => {
     const saved = localStorage.getItem("bank_api_settings");
     if (saved) {
       try {
@@ -857,7 +896,8 @@ function BankApiSettings() {
             <div>
               <CardTitle className="text-base">Banka API & POS Entegrasyonları</CardTitle>
               <CardDescription>
-                Banka hesap ekstreleri, otomatik havale/EFT eşleşmesi ve sanal POS tahsilatları için API anahtarları
+                Banka hesap ekstreleri, otomatik havale/EFT eşleşmesi ve sanal POS tahsilatları için
+                API anahtarları
               </CardDescription>
             </div>
             <Badge variant={current.enabled ? "default" : "secondary"}>
@@ -936,7 +976,9 @@ function BankApiSettings() {
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="webhook-url">Geri Bildirim / Webhook URL (Banka Portalına Eklenecek)</Label>
+              <Label htmlFor="webhook-url">
+                Geri Bildirim / Webhook URL (Banka Portalına Eklenecek)
+              </Label>
               <Input
                 id="webhook-url"
                 value={current.webhookUrl}
@@ -960,7 +1002,8 @@ function BankApiSettings() {
       <div className="flex items-center gap-2 rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
         <ShieldCheck className="size-4 shrink-0 text-primary" />
         <span>
-          Banka API anahtarlarınız ve kimlik doğrulama token'larınız yüksek güvenlikli ortamda korunur ve yalnızca otomatik ekstre çekimi ile POS doğrulamalarında kullanılır.
+          Banka API anahtarlarınız ve kimlik doğrulama token'larınız yüksek güvenlikli ortamda
+          korunur ve yalnızca otomatik ekstre çekimi ile POS doğrulamalarında kullanılır.
         </span>
       </div>
     </div>
@@ -1088,7 +1131,9 @@ function EdmTestCard() {
             </h4>
           </div>
           <p className="text-xs text-muted-foreground">
-            Sunucu tarafında tanımlı <code>EDM_TEST_USERNAME</code> ve <code>EDM_TEST_PASSWORD</code> ortam değişkenleriyle EDM TEST servisine Login SOAP isteği yapılır.
+            Sunucu tarafında tanımlı <code>EDM_TEST_USERNAME</code> ve{" "}
+            <code>EDM_TEST_PASSWORD</code> ortam değişkenleriyle EDM TEST servisine Login SOAP
+            isteği yapılır.
           </p>
 
           {loginResult ? (
@@ -1106,7 +1151,9 @@ function EdmTestCard() {
               )}
               <div>
                 <p className="font-medium">
-                  {loginResult.success ? "EDM TEST bağlantısı başarılı." : "EDM TEST bağlantısı başarısız."}
+                  {loginResult.success
+                    ? "EDM TEST bağlantısı başarılı."
+                    : "EDM TEST bağlantısı başarısız."}
                 </p>
                 <p className="mt-1 opacity-90">{loginResult.message}</p>
               </div>
@@ -1120,7 +1167,11 @@ function EdmTestCard() {
             size="sm"
             className="gap-2 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950/50"
           >
-            {loginLoading ? <Loader2 className="size-4 animate-spin" /> : <Radio className="size-4 text-indigo-600 dark:text-indigo-400" />}
+            {loginLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Radio className="size-4 text-indigo-600 dark:text-indigo-400" />
+            )}
             EDM Bağlantısını Test Et
           </Button>
         </div>
@@ -1135,7 +1186,9 @@ function EdmTestCard() {
           </div>
 
           <div className="rounded border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-            <strong>⚠️ Güvenlik Uyarısı:</strong> Bu test butonu yalnızca <code>https://test.edmbilisim.com.tr</code> TEST ortamında örnek bir UBL-TR e-Fatura oluşturup gönderir. Canlı e-Fatura sistemine kesinlikle istek atılmaz.
+            <strong>⚠️ Güvenlik Uyarısı:</strong> Bu test butonu yalnızca{" "}
+            <code>https://test.edmbilisim.com.tr</code> TEST ortamında örnek bir UBL-TR e-Fatura
+            oluşturup gönderir. Canlı e-Fatura sistemine kesinlikle istek atılmaz.
           </div>
 
           {invoiceResult ? (
@@ -1153,7 +1206,9 @@ function EdmTestCard() {
               )}
               <div className="space-y-1">
                 <p className="font-medium">
-                  {invoiceResult.success ? "Fatura EDM TEST Ortamına Başarıyla Gönderildi." : "Fatura Gönderimi Başarısız."}
+                  {invoiceResult.success
+                    ? "Fatura EDM TEST Ortamına Başarıyla Gönderildi."
+                    : "Fatura Gönderimi Başarısız."}
                 </p>
                 <p className="opacity-90">{invoiceResult.message}</p>
                 {invoiceResult.success ? (
@@ -1174,7 +1229,11 @@ function EdmTestCard() {
             className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
             size="sm"
           >
-            {invoiceLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {invoiceLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Send className="size-4" />
+            )}
             TEST Faturası Oluştur ve Gönder
           </Button>
         </div>
@@ -1182,5 +1241,3 @@ function EdmTestCard() {
     </Card>
   );
 }
-
-

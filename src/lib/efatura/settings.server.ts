@@ -9,6 +9,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { decryptSecret, encryptSecret } from "./crypto.server";
 import {
   getProvider,
+  normalizeApiKey,
   type ConnectionCredentials,
   type ProviderId,
 } from "./providers.server";
@@ -172,8 +173,8 @@ export async function saveIntegrator(
   if (input.senderAlias !== undefined) {
     patch["integrator_sender_alias"] = input.senderAlias.trim();
   }
-  if (input.apiKey && input.apiKey.length > 0) {
-    patch["integrator_api_key_encrypted"] = encryptSecret(input.apiKey);
+  if (input.apiKey && normalizeApiKey(input.apiKey).length > 0) {
+    patch["integrator_api_key_encrypted"] = encryptSecret(normalizeApiKey(input.apiKey));
   }
   if (input.enabled) {
     patch["active_provider"] = "INTEGRATOR";
@@ -208,7 +209,10 @@ export function resolveActiveCredentials(
       environment: row.gib_environment,
     };
   }
-  if (row.active_provider === "INTEGRATOR" || (row.integrator_enabled && row.integrator_api_key_encrypted)) {
+  if (
+    row.active_provider === "INTEGRATOR" ||
+    (row.integrator_enabled && row.integrator_api_key_encrypted)
+  ) {
     return {
       provider: "INTEGRATOR" as ProviderId,
       username: row.integrator_api_username || "",
@@ -236,11 +240,12 @@ export async function runConnectionTest(
 ) {
   const row = await loadSettings(userId, client);
 
+  const normalizedOverrideKey = overrides?.apiKey ? normalizeApiKey(overrides.apiKey) : "";
   const rawSecret =
-    overrides?.apiKey && overrides.apiKey.trim().length > 0
-      ? overrides.apiKey
+    normalizedOverrideKey.length > 0
+      ? normalizedOverrideKey
       : row.integrator_api_key_encrypted
-        ? decryptSecret(row.integrator_api_key_encrypted)
+        ? normalizeApiKey(decryptSecret(row.integrator_api_key_encrypted))
         : "";
 
   const baseUrl =
@@ -260,13 +265,15 @@ export async function runConnectionTest(
       ? {
           provider,
           username: row.gib_username,
-          secret: row.gib_password_encrypted ? decryptSecret(row.gib_password_encrypted).trim() : "",
+          secret: row.gib_password_encrypted
+            ? decryptSecret(row.gib_password_encrypted).trim()
+            : "",
           environment: row.gib_environment,
         }
       : {
           provider,
           username,
-          secret: rawSecret.trim(),
+          secret: rawSecret,
           baseUrl,
           integratorName,
         };
@@ -279,7 +286,12 @@ export async function runConnectionTest(
   }
 
   // If test was successful AND overrides were provided, automatically save working settings!
-  if (result.ok && provider === "INTEGRATOR" && overrides?.apiKey && overrides.apiKey.trim().length > 0) {
+  if (
+    result.ok &&
+    provider === "INTEGRATOR" &&
+    overrides?.apiKey &&
+    overrides.apiKey.trim().length > 0
+  ) {
     const autoSavePatch: Patch = {
       active_provider: "INTEGRATOR",
       integrator_enabled: true,
@@ -348,8 +360,14 @@ export async function sendInvoiceToActiveProvider(
       const integratorUserVkn = (row.integrator_api_username || "").replace(/\D/g, "");
 
       // 1. Check if invoice seller VKN matches company profile VKN
-      if (cleanProfileVkn.length >= 10 && invoiceSellerVkn.length >= 10 && cleanProfileVkn !== invoiceSellerVkn) {
-        console.warn(`[INVOICE PREFLIGHT MISMATCH] Profil VKN (${cleanProfileVkn}) ile Fatura Gönderen VKN (${invoiceSellerVkn}) uyuşmuyor.`);
+      if (
+        cleanProfileVkn.length >= 10 &&
+        invoiceSellerVkn.length >= 10 &&
+        cleanProfileVkn !== invoiceSellerVkn
+      ) {
+        console.warn(
+          `[INVOICE PREFLIGHT MISMATCH] Profil VKN (${cleanProfileVkn}) ile Fatura Gönderen VKN (${invoiceSellerVkn}) uyuşmuyor.`,
+        );
         return {
           ok: false,
           message: "Firma VKN/TCKN ile NES entegrasyon VKN/TCKN uyuşmuyor.",
@@ -358,8 +376,14 @@ export async function sendInvoiceToActiveProvider(
       }
 
       // 2. Check if NES account VKN (if provided in username) matches company profile VKN
-      if (integratorUserVkn.length >= 10 && cleanProfileVkn.length >= 10 && integratorUserVkn !== cleanProfileVkn) {
-        console.warn(`[INVOICE PREFLIGHT MISMATCH] NES Kullanıcı VKN (${integratorUserVkn}) ile Profil VKN (${cleanProfileVkn}) uyuşmuyor.`);
+      if (
+        integratorUserVkn.length >= 10 &&
+        cleanProfileVkn.length >= 10 &&
+        integratorUserVkn !== cleanProfileVkn
+      ) {
+        console.warn(
+          `[INVOICE PREFLIGHT MISMATCH] NES Kullanıcı VKN (${integratorUserVkn}) ile Profil VKN (${cleanProfileVkn}) uyuşmuyor.`,
+        );
         return {
           ok: false,
           message: "Firma VKN/TCKN ile NES entegrasyon VKN/TCKN uyuşmuyor.",
@@ -369,11 +393,12 @@ export async function sendInvoiceToActiveProvider(
 
       // Ensure invoiceData has the correct sellerTaxNumber from verified profile
       invoiceData["sellerTaxNumber"] = cleanProfileVkn;
-      invoiceData["sellerName"] = profile.company_title || (invoiceData["sellerName"] as string) || "";
+      invoiceData["sellerName"] =
+        profile.company_title || (invoiceData["sellerName"] as string) || "";
 
       // 3. Sender GB Alias Resolution and Enforcement
       let resolvedGbAlias = String(
-        invoiceData["senderAlias"] || credentials.senderAlias || ""
+        invoiceData["senderAlias"] || credentials.senderAlias || "",
       ).trim();
 
       if (resolvedGbAlias.toLowerCase() === "defaultgb") {
@@ -396,9 +421,15 @@ export async function sendInvoiceToActiveProvider(
               (Array.isArray(json.aliases) && json.aliases[0]) ||
               (Array.isArray(json.gbAliases) && json.gbAliases[0]) ||
               "";
-            if (foundAlias && typeof foundAlias === "string" && foundAlias.toLowerCase() !== "defaultgb") {
+            if (
+              foundAlias &&
+              typeof foundAlias === "string" &&
+              foundAlias.toLowerCase() !== "defaultgb"
+            ) {
               resolvedGbAlias = foundAlias.trim();
-              console.log(`[INVOICE PREFLIGHT] NES API'den gerçek GB Etiketi otomatik çekildi: ${resolvedGbAlias}`);
+              console.log(
+                `[INVOICE PREFLIGHT] NES API'den gerçek GB Etiketi otomatik çekildi: ${resolvedGbAlias}`,
+              );
             }
           }
         } catch (fetchErr) {
@@ -441,7 +472,9 @@ export async function sendInvoiceToActiveProvider(
             error_message: null,
           })
           .eq("ettn", ettn);
-        console.log(`[INVOICE] Supabase status güncellendi: SENT / Ref: ${result.externalId || ettn} (${ettn})`);
+        console.log(
+          `[INVOICE] Supabase status güncellendi: SENT / Ref: ${result.externalId || ettn} (${ettn})`,
+        );
       } else {
         await client
           .from("invoices")
