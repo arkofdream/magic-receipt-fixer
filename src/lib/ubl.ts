@@ -402,3 +402,49 @@ function escapeXml(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 }
+
+export type UblForensicMetadata = {
+  supplierVkn: string;
+  customerVkn: string;
+  supplierEndpointId: string;
+  customerEndpointId: string;
+  uuid: string;
+  invoiceNumber: string;
+  xmlLength: number;
+};
+
+export function parseUblXmlForensic(xml: string): UblForensicMetadata {
+  if (!xml) {
+    return {
+      supplierVkn: "BELİRTİLMEDİ",
+      customerVkn: "BELİRTİLMEDİ",
+      supplierEndpointId: "TANIMLANMADI",
+      customerEndpointId: "TANIMLANMADI",
+      uuid: "YOK",
+      invoiceNumber: "YOK",
+      xmlLength: 0,
+    };
+  }
+
+  const supplierPartyMatch = xml.match(/<cac:AccountingSupplierParty>([\s\S]*?)<\/cac:AccountingSupplierParty>/);
+  const customerPartyMatch = xml.match(/<cac:AccountingCustomerParty>([\s\S]*?)<\/cac:AccountingCustomerParty>/);
+
+  const supplierVknMatch = supplierPartyMatch ? supplierPartyMatch[1].match(/<cbc:ID[^>]*>([^<]+)<\/cbc:ID>/) : null;
+  const customerVknMatch = customerPartyMatch ? customerPartyMatch[1].match(/<cbc:ID[^>]*>([^<]+)<\/cbc:ID>/) : null;
+
+  const supplierEpMatch = supplierPartyMatch ? supplierPartyMatch[1].match(/<cbc:EndpointID[^>]*>([^<]+)<\/cbc:EndpointID>/) : null;
+  const customerEpMatch = customerPartyMatch ? customerPartyMatch[1].match(/<cbc:EndpointID[^>]*>([^<]+)<\/cbc:EndpointID>/) : null;
+
+  const uuidMatch = xml.match(/<cbc:UUID>([^<]+)<\/cbc:UUID>/);
+  const idMatch = xml.match(/<cbc:ID>([^<]+)<\/cbc:ID>/);
+
+  return {
+    supplierVkn: supplierVknMatch ? supplierVknMatch[1].trim() : "BELİRTİLMEDİ",
+    customerVkn: customerVknMatch ? customerVknMatch[1].trim() : "BELİRTİLMEDİ",
+    supplierEndpointId: supplierEpMatch ? supplierEpMatch[1].trim() : "TANIMLANMADI (FormData SenderAlias ile iletilir)",
+    customerEndpointId: customerEpMatch ? customerEpMatch[1].trim() : "TANIMLANMADI (FormData ReceiverAlias ile iletilir)",
+    uuid: uuidMatch ? uuidMatch[1].trim() : "YOK",
+    invoiceNumber: idMatch ? idMatch[1].trim() : "YOK",
+    xmlLength: xml.length,
+  };
+}

@@ -493,9 +493,43 @@ class IntegratorProvider implements EInvoiceProvider {
           body: formData,
         });
 
-        console.log(`[INVOICE] API HTTP status: ${res.status}`);
         const text = await res.text().catch(() => "");
         console.log(`[INVOICE] API response alındı (${text.length} bayt)`);
+
+        // NES FORENSIC RESPONSE OBSERVER LOG
+        const contentType = res.headers.get("content-type") || "BİLİNMİYOR";
+        const wwwAuth = res.headers.get("www-authenticate") || "YOK";
+        const correlationId =
+          res.headers.get("x-correlation-id") ||
+          res.headers.get("x-request-id") ||
+          res.headers.get("cf-ray") ||
+          "YOK";
+
+        let nesErrorCode = "YOK";
+        let nesErrorMessage = "YOK";
+
+        if (text.trim().startsWith("{")) {
+          try {
+            const parsed = JSON.parse(text);
+            nesErrorCode = String(
+              parsed.code || parsed.errorCode || parsed.errors?.[0]?.code || "YOK",
+            );
+            nesErrorMessage = String(
+              parsed.message || parsed.errorDescription || parsed.errors?.[0]?.description || "YOK",
+            );
+          } catch {
+            // Raw text fallback
+          }
+        }
+
+        console.log(`[NES FORENSIC RESPONSE]
+HTTP Status: ${res.status}
+Status Text: ${res.statusText || "N/A"}
+Content-Type: ${contentType}
+WWW-Authenticate: ${wwwAuth}
+NES Error Code: ${nesErrorCode}
+NES Error Message: ${nesErrorMessage}
+Correlation/Request ID: ${correlationId}`);
 
         if (res.ok) {
           console.log("[INVOICE] Gönderim sonucu: BAŞARILI (Kuyruğa Alındı)");

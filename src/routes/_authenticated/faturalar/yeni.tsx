@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2, Send, Save, FileText, UserCheck } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Send, Save, FileText, UserCheck, FileCode, Copy, Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
@@ -17,10 +17,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { validateVknTckn } from "@/lib/validation";
-import { roundDecimal } from "@/lib/ubl";
+import { createUblTrInvoice, parseUblXmlForensic, roundDecimal } from "@/lib/ubl";
+import { getMyCompanyProfile } from "@/lib/profile.functions";
 
 const POPULAR_TAX_OFFICES = [
   "Kadıköy V.D.",
@@ -189,6 +198,67 @@ function NewInvoicePage() {
   ]);
 
   const [submitting, setSubmitting] = useState(false);
+
+  // XML Forensic Modal State
+  const [showXmlModal, setShowXmlModal] = useState(false);
+  const [previewXmlString, setPreviewXmlString] = useState("");
+
+  // Firma Profili (Satıcı VKN)
+  const { data: companyProfile } = useQuery({
+    queryKey: ["company-profile"],
+    queryFn: () => getMyCompanyProfile(),
+  });
+
+  function handlePreviewXml() {
+    try {
+      const ettn = crypto.randomUUID ? crypto.randomUUID() : `ETTN-${Date.now()}`;
+      const ublXml = createUblTrInvoice({
+        uuid: ettn,
+        invoiceNumber: customInvoiceNumber.trim() || `EAR${new Date().getFullYear()}000000001`,
+        issueDate,
+        issueTime,
+        currency,
+        profileId,
+        invoiceTypeCode,
+        seller: {
+          taxNumber: companyProfile?.vknTckn || sellerTaxNumber.trim() || "1234567801",
+          name: companyProfile?.companyTitle || sellerName.trim() || "Satıcı Firma",
+          taxOffice: companyProfile?.taxOffice || "",
+          address: companyProfile?.address || "",
+        },
+        buyer: {
+          taxNumber: buyerTaxNumber.trim() || "11111111111",
+          name: buyerName.trim() || "Alıcı Müşteri",
+          taxOffice: buyerTaxOffice.trim(),
+          address: buyerAddress.trim(),
+          city: buyerCity.trim(),
+          district: buyerDistrict.trim(),
+        },
+        lines: lines.map((l) => ({
+          name: l.name || "Ürün/Hizmet",
+          quantity: Number(l.quantity) || 1,
+          unitPrice: Number(l.unitPrice) || 0,
+          discountRate: Number(l.discountRate) || 0,
+          vatRate: Number(l.vatRate) || 20,
+        })),
+        note: note.trim(),
+      });
+
+      setPreviewXmlString(ublXml);
+      setShowXmlModal(true);
+
+      const forensic = parseUblXmlForensic(ublXml);
+      console.log("[NES XML FORENSIC]", {
+        supplierVkn: forensic.supplierVkn,
+        customerVkn: forensic.customerVkn,
+        supplierEndpointId: forensic.supplierEndpointId,
+        customerEndpointId: forensic.customerEndpointId,
+        xmlLength: forensic.xmlLength,
+      });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "XML önizleme oluşturulamadı.");
+    }
+  }
 
   // VKN / TCKN Validation State
   const taxValidation = useMemo(() => {
@@ -433,6 +503,13 @@ function NewInvoicePage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate({ to: "/faturalar" })}>
             <ArrowLeft className="mr-1 size-4" /> Faturalara Dön
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handlePreviewXml}
+            className="gap-1.5 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+          >
+            <FileCode className="size-4" /> XML'i Görüntüle
           </Button>
           <Button variant="secondary" disabled={submitting} onClick={handleSaveDraft}>
             <Save className="mr-1 size-4" /> Taslak Kaydet
@@ -801,6 +878,91 @@ function NewInvoicePage() {
           </Card>
         </div>
       </div>
+
+      {/* NES UBL-TR 2.1 XML FORENSIC MODAL */}
+      <Dialog open={showXmlModal} onOpenChange={setShowXmlModal}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <FileCode className="size-5 text-indigo-600 dark:text-indigo-400" /> NES UBL-TR 2.1 XML Forensic Önizleme
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              NES API sunucusuna iletilmek üzere oluşturulan ham UBL-TR 2.1 XML belgesi ve doğrulanmış parti metadataları.
+            </DialogDescription>
+          </DialogHeader>
+
+          {(() => {
+            const metadata = parseUblXmlForensic(previewXmlString);
+            return (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                {/* FORENSIC METADATA CARDS */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-muted/40 p-3 rounded-lg border border-border/60 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-[11px] block font-medium">Gönderici VKN / TCKN</span>
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 block">{metadata.supplierVkn}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-[11px] block font-medium">Alıcı VKN / TCKN</span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 block">{metadata.customerVkn}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-[11px] block font-medium">Gönderici EndpointID</span>
+                    <span className="font-mono text-[11px] text-foreground truncate block" title={metadata.supplierEndpointId}>{metadata.supplierEndpointId}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-[11px] block font-medium">Alıcı EndpointID</span>
+                    <span className="font-mono text-[11px] text-foreground truncate block" title={metadata.customerEndpointId}>{metadata.customerEndpointId}</span>
+                  </div>
+                </div>
+
+                {/* XML CODE DISPLAY AREA */}
+                <div className="relative rounded-md border border-border/80 bg-slate-950 text-slate-100 p-4 font-mono text-xs overflow-x-auto max-h-[350px]">
+                  <pre className="whitespace-pre">{previewXmlString}</pre>
+                </div>
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between pt-2 border-t">
+            <span className="text-xs text-muted-foreground font-mono">
+              Uzunluk: {previewXmlString.length} bayt
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(previewXmlString);
+                  toast.success("UBL XML kopyalandı!");
+                }}
+                className="gap-1.5"
+              >
+                <Copy className="size-3.5" /> Kopyala
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  const blob = new Blob([previewXmlString], { type: "application/xml" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `UBL-TR-${parseUblXmlForensic(previewXmlString).uuid}.xml`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("UBL XML dosyası indirildi!");
+                }}
+                className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <Download className="size-3.5" /> XML'i İndir
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowXmlModal(false)}>
+                Kapat
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
