@@ -546,13 +546,13 @@ function NewInvoicePage() {
                     onValueChange={(custId) => {
                       const c = customers.find((item: any) => item.id === custId);
                       if (c) {
-                        setBuyerName(c.name || "");
-                        setBuyerTaxNumber(c.tax_number || c.tckn || "");
+                        setBuyerName(c.title || c.name || "");
+                        setBuyerTaxNumber(c.vkn_tckn || c.tax_number || c.tckn || "");
                         setBuyerTaxOffice(c.tax_office || "");
                         setBuyerAddress(c.address || "");
                         setBuyerCity(c.city || "");
                         setBuyerDistrict(c.district || "");
-                        toast.success(`${c.name} bilgileri forma aktarıldı.`);
+                        toast.success(`${c.title || c.name} bilgileri forma aktarıldı.`);
                       }
                     }}
                   >
@@ -562,7 +562,7 @@ function NewInvoicePage() {
                     <SelectContent>
                       {customers.map((c: any) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name} ({c.tax_number || c.tckn || "No VKN"})
+                          {c.title || c.name} ({c.vkn_tckn || c.tax_number || c.tckn || "No VKN"})
                         </SelectItem>
                       ))}
                     </SelectContent>

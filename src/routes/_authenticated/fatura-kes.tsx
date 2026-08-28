@@ -1158,7 +1158,7 @@ function NewInvoicePage() {
                               return (
                                 <div className="space-y-1">
                                   <Input
-                                    className={`h-8 text-xs bg-background font-mono ${
+                                    className={`h-8 text-xs bg-background text-foreground font-mono font-semibold ${
                                       isQtyError
                                         ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold"
                                         : ""
@@ -1166,6 +1166,7 @@ function NewInvoicePage() {
                                     type="number"
                                     min="0.0001"
                                     step="any"
+                                    placeholder="1"
                                     value={item.quantity === 0 ? "" : item.quantity}
                                     onChange={(e) => {
                                       const val = e.target.value.replace(",", ".");
@@ -1191,7 +1192,7 @@ function NewInvoicePage() {
                               onValueChange={(v) => updateItem(item.id, { unit: v })}
                               disabled={isNonEditable}
                             >
-                              <SelectTrigger className="h-8 text-xs bg-background">
+                              <SelectTrigger className="h-8 text-xs bg-background text-foreground font-semibold">
                                 <SelectValue placeholder="Birim" />
                               </SelectTrigger>
                               <SelectContent>
@@ -1207,7 +1208,7 @@ function NewInvoicePage() {
                           {/* 5. BİRİM FİYAT */}
                           <td className="py-2 px-2.5 align-top pt-2">
                             <Input
-                              className="h-8 text-xs bg-background font-mono"
+                              className="h-8 text-xs bg-background text-foreground font-mono font-semibold"
                               type="number"
                               min="0"
                               step="any"
@@ -1229,7 +1230,7 @@ function NewInvoicePage() {
                               onValueChange={(v) => updateItem(item.id, { vatRate: Number(v) })}
                               disabled={isNonEditable}
                             >
-                              <SelectTrigger className="h-8 text-xs bg-background">
+                              <SelectTrigger className="h-8 text-xs bg-background text-foreground font-semibold">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1245,7 +1246,7 @@ function NewInvoicePage() {
                           {/* 7. İSKONTO */}
                           <td className="py-2 px-2.5 align-top pt-2">
                             <Input
-                              className="h-8 text-xs bg-background font-mono"
+                              className="h-8 text-xs bg-background text-foreground font-mono font-semibold"
                               type="number"
                               min="0"
                               max="100"
