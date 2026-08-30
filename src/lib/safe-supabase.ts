@@ -44,32 +44,16 @@ export async function safeSoftDelete(
 
   if (error) {
     if (isMissingColumnError(error)) {
-      // Hard delete fallback
-      if (table === "invoices") {
-        await supabase.from("account_transactions").delete().eq("source_id", id);
-        await supabase.from("stock_movements").delete().eq("source_id", id);
-      }
+      // Finansal kayitlarin manuel silinmesi FAZ 6A kapsaminda kaldirildi. 
+      // Eger fis taslak ise finansal kaydi yoktur. Eger onayli ise silinemez.
+      
       const { error: hardErr } = await supabase.from(table as any).delete().eq("id", id);
       if (hardErr) throw hardErr;
     } else {
       throw error;
     }
   } else {
-    // Soft delete succeeded, soft-delete related records if possible
-    if (table === "invoices") {
-      try {
-        await supabase
-          .from("account_transactions")
-          .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
-          .eq("source_id", id);
-        await supabase
-          .from("stock_movements")
-          .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
-          .eq("source_id", id);
-      } catch {
-        // ignore if related soft-delete fails
-      }
-    }
+    // Gecici fisler haricinde kayit silinmedigi icin cascade update iptal edildi.
   }
 }
 

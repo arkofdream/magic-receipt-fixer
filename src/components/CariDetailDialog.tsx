@@ -130,17 +130,17 @@ export function CariDetailDialog({
       const amount = Number(form.amount);
       if (!amount || amount <= 0) throw new Error("Geçerli bir tutar girin.");
       const userId = await currentUserId();
-      const { error } = await supabase.from("account_transactions").insert({
-        user_id: userId,
-        customer_id: customerId,
-        txn_type: form.txnType,
-        amount,
-        txn_date: form.txnDate,
-        due_date: form.dueDate || null,
-        document_no: form.documentNo,
-        description: form.description,
+      const { data, error } = await supabase.rpc("process_manual_account_transaction", {
+        p_customer_id: customerId,
+        p_txn_type: form.txnType,
+        p_amount: amount,
+        p_txn_date: form.txnDate,
+        p_due_date: form.dueDate || null,
+        p_document_no: form.documentNo,
+        p_description: form.description
       });
       if (error) throw error;
+      if (data && !data.success) throw new Error(data.message || "Islem basarisiz.");
     },
     onSuccess: () => {
       toast.success("Cari hareket kaydedildi.");
@@ -158,29 +158,15 @@ export function CariDetailDialog({
       if (!virman.targetId) throw new Error("Karşı cariyi seçin.");
       const userId = await currentUserId();
       const description = virman.description || "Cari virman";
-      const { error } = await supabase.from("account_transactions").insert([
-        {
-          user_id: userId,
-          customer_id: customerId,
-          counter_customer_id: virman.targetId,
-          txn_type: "ALACAK",
-          amount,
-          txn_date: today(),
-          description,
-          source: "VIRMAN",
-        },
-        {
-          user_id: userId,
-          customer_id: virman.targetId,
-          counter_customer_id: customerId,
-          txn_type: "BORC",
-          amount,
-          txn_date: today(),
-          description,
-          source: "VIRMAN",
-        },
-      ]);
+      const { data, error } = await supabase.rpc("process_customer_virman", {
+        p_source_customer_id: customerId,
+        p_target_customer_id: virman.targetId,
+        p_amount: amount,
+        p_txn_date: today(),
+        p_description: description
+      });
       if (error) throw error;
+      if (data && !data.success) throw new Error(data.message || "Virman islemi basarisiz.");
     },
     onSuccess: () => {
       toast.success("Virman tamamlandı.");

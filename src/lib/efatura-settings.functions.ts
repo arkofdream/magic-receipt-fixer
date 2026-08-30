@@ -92,6 +92,9 @@ const sendInvoiceSchema = z.object({
   grandTotal: z.number().optional(),
   type: z.string().optional(),
   items: z.array(z.record(z.unknown())).optional(),
+  isDirectSend: z.string().optional(),
+  isEinvoiceTaxpayer: z.boolean().optional(),
+  profileId: z.string().optional(),
 });
 
 export const sendInvoiceToProvider = createServerFn({ method: "POST" })
