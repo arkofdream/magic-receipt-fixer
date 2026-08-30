@@ -697,31 +697,48 @@ function NewInvoicePage() {
             if (error) throw error;
   
             if (newStatus === "ONAYLANDI" && (operationMode === "SATIS" || type === "E_ARSIV" || type === "SATIS")) {
-            try {
-              const { sendInvoiceToProvider } = await import("@/lib/efatura-settings.functions");
-              const res = await sendInvoiceToProvider({
-                data: {
-                  ettn,
-                  invoiceNumber: (_result as any)?.invoice_number || ettn,
-                  customerName: customer.title || (customer as any).name || "",
-                  customerTaxNumber: customer.vknTckn,
-                  grandTotal: totals.grandTotal,
-                  type,
-                  isDirectSend: "true",
-                  isEinvoiceTaxpayer: Boolean(customer?.isEinvoiceTaxpayer),
-                  profileId: Boolean(customer?.isEinvoiceTaxpayer) ? "TICARIFATURA" : "EARSIVFATURA",
-                  items: JSON.parse(JSON.stringify(items)),
-                },
-              });
-              if (res && res.ok) {
-                toast.success("Fatura NES Bilgi servisine başarıyla yüklendi!");
-              } else if (res && res.message) {
-                toast.info(`Entegratör Yanıtı: ${res.message}`);
+              try {
+                let actualInvoiceNo = (_result as any)?.invoice_number;
+                if (!actualInvoiceNo || actualInvoiceNo === ettn) {
+                  const { data: invRow } = await supabase
+                    .from("invoices")
+                    .select("invoice_number")
+                    .eq("id", targetInvoiceId)
+                    .maybeSingle();
+                  actualInvoiceNo = invRow?.invoice_number;
+                }
+
+                const INVOICE_NO_REGEX = /^[A-Za-z0-9]{3}(?:19|20)\d{2}\d{9}$/;
+                if (!actualInvoiceNo || !INVOICE_NO_REGEX.test(actualInvoiceNo)) {
+                  const pfx = (serialPrefix || "EAR").toUpperCase().padEnd(3, "X").slice(0, 3);
+                  const yr = new Date().getFullYear();
+                  actualInvoiceNo = `${pfx}${yr}${String(Date.now()).slice(-9)}`;
+                }
+
+                const { sendInvoiceToProvider } = await import("@/lib/efatura-settings.functions");
+                const res = await sendInvoiceToProvider({
+                  data: {
+                    ettn,
+                    invoiceNumber: actualInvoiceNo,
+                    customerName: customer.title || (customer as any).name || "",
+                    customerTaxNumber: customer.vknTckn,
+                    grandTotal: totals.grandTotal,
+                    type,
+                    isDirectSend: "true",
+                    isEinvoiceTaxpayer: Boolean(customer?.isEinvoiceTaxpayer),
+                    profileId: Boolean(customer?.isEinvoiceTaxpayer) ? "TICARIFATURA" : "EARSIVFATURA",
+                    items: JSON.parse(JSON.stringify(items)),
+                  },
+                });
+                if (res && res.ok) {
+                  toast.success("Fatura NES Bilgi servisine başarıyla yüklendi!");
+                } else if (res && res.message) {
+                  toast.info(`Entegratör Yanıtı: ${res.message}`);
+                }
+              } catch (providerErr) {
+                console.error("Entegratör gönderim uyarısı:", providerErr);
               }
-            } catch (providerErr) {
-              console.error("Entegratör gönderim uyarısı:", providerErr);
             }
-          }
         }
       }
     },
@@ -1087,13 +1104,37 @@ function NewInvoicePage() {
                 </Select>
               </div>
 
+              <datalist id="vkn-datalist">
+                {filteredPartners.map((c) => (
+                  <option key={c.id} value={c.vkn_tckn}>
+                    {c.title}
+                  </option>
+                ))}
+              </datalist>
+              <datalist id="title-datalist">
+                {filteredPartners.map((c) => (
+                  <option key={c.id} value={c.title}>
+                    {c.vkn_tckn}
+                  </option>
+                ))}
+              </datalist>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="vkn">VKN / TCKN *</Label>
                   <Input
                     id="vkn"
+                    list="vkn-datalist"
                     value={customer.vknTckn}
-                    onChange={(e) => setCustomer({ ...customer, vknTckn: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const match = customers.find((c) => c.vkn_tckn === val || c.title === val);
+                      if (match) {
+                        handleCustomerSelect(match.id);
+                      } else {
+                        setCustomer({ ...customer, vknTckn: val });
+                      }
+                    }}
                     disabled={isNonEditable}
                     maxLength={11}
                   />
@@ -1107,8 +1148,17 @@ function NewInvoicePage() {
                   <Label htmlFor="title">Ünvan / Ad Soyad *</Label>
                   <Input
                     id="title"
+                    list="title-datalist"
                     value={customer.title}
-                    onChange={(e) => setCustomer({ ...customer, title: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const match = customers.find((c) => c.title.toLowerCase() === val.toLowerCase() || c.vkn_tckn === val);
+                      if (match) {
+                        handleCustomerSelect(match.id);
+                      } else {
+                        setCustomer({ ...customer, title: val });
+                      }
+                    }}
                     disabled={isNonEditable}
                   />
                 </div>

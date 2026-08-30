@@ -143,8 +143,17 @@
     border-color: var(--color-border);
   }
 
-  body {
+  html, body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Prevent auto-zooming on focus in iOS Safari for small text inputs */
+  @media (max-width: 768px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
   }
 }

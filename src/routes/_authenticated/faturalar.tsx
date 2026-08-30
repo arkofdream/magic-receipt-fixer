@@ -486,8 +486,8 @@ function InvoicesPage() {
                 <p>Seçilen filtrelere uygun fatura bulunamadı.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto max-w-full">
+                <table className="w-full min-w-[750px] text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                       <th className="w-10 py-2 pr-2">

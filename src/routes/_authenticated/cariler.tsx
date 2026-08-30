@@ -974,8 +974,8 @@ function CustomersPage() {
               ) : visible.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Bu listede kayıt yok.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="overflow-x-auto max-w-full">
+                  <table className="w-full min-w-[700px] text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                         <th className="py-2 pr-4">Kod / VKN</th>
@@ -1278,7 +1278,7 @@ function CustomersPage() {
                 <div className="py-12 text-center text-xs text-muted-foreground">Filtrelere uygun cari bulunamadı.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full min-w-[750px] text-xs">
                     <thead>
                       <tr className="bg-muted/40 text-left font-semibold border-b border-border">
                         <th className="py-2.5 px-3">Cari Unvanı</th>

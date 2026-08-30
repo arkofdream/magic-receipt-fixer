@@ -96,7 +96,7 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background w-full max-w-full overflow-x-hidden">
       <aside className="hidden w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <div className="border-b border-sidebar-border px-6 py-6">
           <p className="text-lg font-bold tracking-tight">Magic Receipt</p>
@@ -161,9 +161,9 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6 py-4">
-          <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-1 flex-col w-full max-w-full overflow-x-hidden">
+        <header className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-border bg-card px-3 sm:px-6 py-3 min-w-0 max-w-full">
+          <div className="flex items-center gap-2.5 min-w-0">
             {/* Mobile Hamburger Menu */}
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -242,22 +242,22 @@ export function AppShell({
               </SheetContent>
             </Sheet>
 
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
-              {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-xl font-bold tracking-tight text-foreground truncate">{title}</h1>
+              {subtitle ? <p className="text-xs sm:text-sm text-muted-foreground truncate">{subtitle}</p> : null}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-start sm:justify-end min-w-0 max-w-full">
             <Button asChild variant="outline" size="sm" className="hidden gap-2 sm:inline-flex">
               <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
                 <Download className="size-4" />
                 Windows App
               </a>
             </Button>
-            <Button asChild variant="outline" size="sm" className="relative gap-2">
+            <Button asChild variant="outline" size="sm" className="relative gap-1.5 text-xs h-8 px-2.5">
               <Link to="/guncellemeler">
-                <Sparkles className="size-4" />
-                Güncellemeler
+                <Sparkles className="size-3.5" />
+                <span>Güncellemeler</span>
                 {hasUnseenUpdates ? (
                   <span
                     className="absolute -top-1 -right-1 size-2 rounded-full bg-primary"
@@ -270,7 +270,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-3 sm:p-6 min-w-0 max-w-full overflow-x-hidden">{children}</main>
       </div>
     </div>
   );
