@@ -549,19 +549,17 @@ function CustomersPage() {
       if (isNaN(amt) || amt <= 0) {
         throw new Error("Lütfen geçerli ve 0'dan büyük bir tahsilat tutarı girin.");
       }
-      const userId = await currentUserId();
-      const { error } = await supabase.from("account_transactions").insert({
-        user_id: userId,
-        customer_id: collectionCustomer.id,
-        txn_date: collectionDate,
-        txn_type: "TAHSILAT",
-        amount: amt,
-        document_no: collectionDocNo.trim(),
-        description: collectionDesc.trim() || `Müşteri Tahsilatı - ${collectionCustomer.title}`,
-        source: "MUSTERI_TAHSILATI",
-        source_id: collectionCustomer.id,
+      const { data, error } = await supabase.rpc("process_manual_account_transaction", {
+        p_customer_id: collectionCustomer.id,
+        p_txn_type: "TAHSILAT",
+        p_amount: amt,
+        p_txn_date: collectionDate,
+        p_due_date: null,
+        p_document_no: collectionDocNo.trim(),
+        p_description: collectionDesc.trim() || `Müşteri Tahsilatı - ${collectionCustomer.title}`
       });
       if (error) throw error;
+      if (data && !data.success) throw new Error(data.message || "Tahsilat islemi basarisiz.");
     },
     onSuccess: () => {
       toast.success("Tahsilat kaydı başarıyla oluşturuldu ve cari bakiyeden düşüldü.");

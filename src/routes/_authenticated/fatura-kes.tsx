@@ -116,92 +116,7 @@ export const Route = createFileRoute("/_authenticated/fatura-kes")({
   component: NewInvoicePage,
 });
 
-function ProductCombobox({
-  value,
-  onSelect,
-  disabled,
-  products,
-  isLoading,
-  operationMode,
-}: {
-  value?: string;
-  onSelect: (id: string) => void;
-  disabled?: boolean;
-  products: Array<{ id: string; name: string; code?: string; unit_price?: number; purchase_price?: number }>;
-  isLoading?: boolean;
-  operationMode?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const selectedProduct = products.find((p) => p.id === value);
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className="h-8 w-full justify-between text-xs bg-background font-normal px-2.5"
-        >
-          <span className="truncate">
-            {selectedProduct ? selectedProduct.name : "Katalogdan ürün seç..."}
-          </span>
-          <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] sm:w-[360px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Ürün adı veya kodu ara..." className="h-8 text-xs" />
-          <CommandList className="max-h-[220px] overflow-y-auto">
-            {isLoading ? (
-              <div className="p-3 text-xs text-muted-foreground text-center">Ürünler yükleniyor...</div>
-            ) : (
-              <>
-                <CommandEmpty className="py-3 text-xs text-muted-foreground text-center">
-                  Ürün bulunamadı.
-                </CommandEmpty>
-                <CommandGroup>
-                  {products.map((p) => {
-                    const isPurchase = operationMode === "ALIS" || operationMode === "ALIS_IADE";
-                    const priceText = isPurchase
-                      ? `Alış: ${formatMoney(p.purchase_price ?? 0)}`
-                      : `Satış: ${formatMoney(p.unit_price ?? 0)}`;
-                    const isSelected = p.id === value;
-
-                    return (
-                      <CommandItem
-                        key={p.id}
-                        value={`${p.name} ${p.code || ""}`}
-                        onSelect={() => {
-                          onSelect(p.id);
-                          setOpen(false);
-                        }}
-                        className="text-xs flex items-center justify-between py-1.5 px-2 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <Check
-                            className={`size-3.5 text-primary ${
-                              isSelected ? "opacity-100" : "opacity-0"
-                            }`}
-                          />
-                          <span className="truncate font-medium">{p.name}</span>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground font-mono ml-2 shrink-0">
-                          {priceText}
-                        </span>
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function NewInvoicePage() {
   const navigate = useNavigate();
@@ -578,7 +493,10 @@ function NewInvoicePage() {
           throw new Error("Tedarikçi fatura numarası zorunludur.");
         }
 
-        const { data: _result, error } = await supabase.rpc("create_purchase_invoice", {
+        const cleanPrefix = (serialPrefix || customer.customPrefix || "EAR").trim().toUpperCase().slice(0, 3);
+        const ettn = generateEttn();
+
+        const rpcArgs: any = {
           p_invoice_date: date,
           p_supplier_id: customerId || null,
           p_invoice_number: supplierInvoiceNumber.trim(),
@@ -595,9 +513,31 @@ function NewInvoicePage() {
           p_exchange_rate: 1,
           p_notes: notes.trim(),
           p_payment_info: paymentInfo.trim(),
-          p_ettn: generateEttn(),
-          p_status: newStatus,
-        });
+        };
+
+        let rpcName = "";
+
+        if (editId && existingInvoice) {
+          // Güncelleme senaryosu (Sadece taslaklar güncellenebilir)
+          rpcArgs.p_invoice_id = editId;
+          if (newStatus === "ONAYLANDI") {
+            rpcName = "update_and_approve_purchase_invoice";
+          } else {
+            rpcName = "update_purchase_invoice";
+            rpcArgs.p_status = newStatus;
+          }
+        } else {
+          // Yeni oluşturma senaryosu
+          rpcArgs.p_ettn = ettn;
+          if (newStatus === "ONAYLANDI") {
+            rpcName = "create_and_approve_purchase_invoice";
+          } else {
+            rpcName = "create_purchase_invoice";
+            rpcArgs.p_status = newStatus;
+          }
+        }
+
+        const { data: _result, error } = await supabase.rpc(rpcName as any, rpcArgs);
         if (error) throw error;
 
       } else if (operationMode === "ALIS_IADE") {
@@ -661,32 +601,41 @@ function NewInvoicePage() {
             .eq("id", editId);
           if (updateError) throw updateError;
         } else {
-          const ettn = generateEttn();
-          const cleanPrefix = (serialPrefix || customer.customPrefix || "EAR").trim().toUpperCase().slice(0, 3);
-          const { data: _result, error } = await supabase.rpc("create_sales_invoice", {
-            p_invoice_date: date,
-            p_type: type,
-            p_status: newStatus,
-            p_customer_id: customerId || null,
-            p_warehouse_id: warehouseId || null,
-            p_customer_info: JSON.parse(JSON.stringify({ ...customer, customPrefix: cleanPrefix })),
-            p_items: JSON.parse(JSON.stringify(items)),
-            p_subtotal: totals.subtotal,
-            p_total_discount: totals.totalDiscount,
-            p_taxable_amount: totals.taxableAmount,
-            p_total_vat: totals.totalVat,
-            p_total_tevkifat: totals.totalTevkifat,
-            p_grand_total: totals.grandTotal,
-            p_currency: currency,
-            p_exchange_rate: 1,
-            p_notes: notes.trim(),
-            p_payment_info: paymentInfo.trim(),
-            p_ettn: ettn,
-            p_prefix: cleanPrefix,
-          });
-          if (error) throw error;
+            const ettn = generateEttn();
+            const cleanPrefix = (serialPrefix || customer.customPrefix || "EAR").trim().toUpperCase().slice(0, 3);
+            
+            const rpcName = newStatus === "ONAYLANDI" ? "create_and_approve_sales_invoice" : "create_sales_invoice";
+            
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rpcArgs: any = {
+              p_invoice_date: date,
+              p_type: type,
+              p_customer_id: customerId || null,
+              p_warehouse_id: warehouseId || null,
+              p_customer_info: JSON.parse(JSON.stringify({ ...customer, customPrefix: cleanPrefix })),
+              p_items: JSON.parse(JSON.stringify(items)),
+              p_subtotal: totals.subtotal,
+              p_total_discount: totals.totalDiscount,
+              p_taxable_amount: totals.taxableAmount,
+              p_total_vat: totals.totalVat,
+              p_total_tevkifat: totals.totalTevkifat,
+              p_grand_total: totals.grandTotal,
+              p_currency: currency,
+              p_exchange_rate: 1,
+              p_notes: notes.trim(),
+              p_payment_info: paymentInfo.trim(),
+              p_ettn: ettn,
+              p_prefix: cleanPrefix,
+            };
+            
+            if (newStatus !== "ONAYLANDI") {
+              rpcArgs.p_status = newStatus;
+            }
 
-          if (newStatus === "ONAYLANDI" && (operationMode === "SATIS" || type === "E_ARSIV" || type === "SATIS")) {
+            const { data: _result, error } = await supabase.rpc(rpcName as any, rpcArgs);
+            if (error) throw error;
+  
+            if (newStatus === "ONAYLANDI" && (operationMode === "SATIS" || type === "E_ARSIV" || type === "SATIS")) {
             try {
               const { sendInvoiceToProvider } = await import("@/lib/efatura-settings.functions");
               const res = await sendInvoiceToProvider({
@@ -698,6 +647,8 @@ function NewInvoicePage() {
                   grandTotal: totals.grandTotal,
                   type,
                   isDirectSend: "true",
+                  isEinvoiceTaxpayer: Boolean(customer?.isEinvoiceTaxpayer),
+                  profileId: Boolean(customer?.isEinvoiceTaxpayer) ? "TICARIFATURA" : "EARSIVFATURA",
                   items: JSON.parse(JSON.stringify(items)),
                 },
               });
@@ -1181,20 +1132,25 @@ function NewInvoicePage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
+              <datalist id="products-datalist">
+                {products.map((p) => (
+                  <option key={p.id} value={p.name} />
+                ))}
+              </datalist>
               {/* DESKTOP & TABLET KOMPAKT TABLO GÖRÜNÜMÜ */}
               <div className="hidden md:block overflow-x-auto rounded-md border border-border/60">
                 <table className="w-full min-w-[850px] text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-muted/50 border-b border-border/60 text-muted-foreground font-medium">
                       <th className="py-2 px-2.5 w-8 text-center">#</th>
-                      <th className="py-2 px-2.5 min-w-[200px]">Katalog / Ürün Adı</th>
-                      <th className="py-2 px-2.5 w-24">Miktar</th>
+                      <th className="py-2 px-2.5 min-w-[200px]">Ürün / Hizmet Adı</th>
+                      <th className="py-2 px-2.5 w-32">Miktar</th>
                       <th className="py-2 px-2.5 w-28">Birim</th>
                       <th className="py-2 px-2.5 w-32">
                         {operationMode === "ALIS" ? "Alış Fiyatı" : "Birim Fiyat"}
                       </th>
                       <th className="py-2 px-2.5 w-20">KDV</th>
-                      <th className="py-2 px-2.5 w-20">İsk. %</th>
+                      <th className="py-2 px-2.5 w-24">İsk. %</th>
                       <th className="py-2 px-2.5 w-32 text-right">Satır Toplamı</th>
                       {showDescription && (
                         <th className="py-2 px-2.5 min-w-[180px]">Kalem Açıklaması</th>
@@ -1212,25 +1168,32 @@ function NewInvoicePage() {
                             {index + 1}
                           </td>
 
-                          {/* 2. KATALOG SEÇİCİ & KALEM ADI */}
+                          {/* 2. TEK ÜRÜN / HİZMET ALANI (DATALIST + ENTER DESTEĞİ) */}
                           <td className="py-2 px-2.5 space-y-1.5 align-top pt-2">
-                            <ProductCombobox
-                              value={item.productId || undefined}
-                              onSelect={(val) => handleProductSelect(item.id, val)}
+                            <Input
+                              list="products-datalist"
+                              className="h-8 text-xs bg-background"
+                              value={item.name}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const matched = products.find((p) => p.name === val);
+                                if (matched) {
+                                  handleProductSelect(item.id, matched.id);
+                                } else {
+                                  updateItem(item.id, { name: val, productId: undefined, code: "" });
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  if (index === items.length - 1) {
+                                    addItem();
+                                  }
+                                }
+                              }}
+                              placeholder="Katalogdan seç veya yaz..."
                               disabled={isNonEditable}
-                              products={products}
-                              isLoading={productsLoading}
-                              operationMode={operationMode}
                             />
-                            {!item.productId && (
-                              <Input
-                                className="h-8 text-xs bg-background"
-                                value={item.name}
-                                onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                                placeholder="Kalem adı / hizmet *"
-                                disabled={isNonEditable}
-                              />
-                            )}
                           </td>
 
                           {/* 3. MİKTAR */}
@@ -1240,7 +1203,7 @@ function NewInvoicePage() {
                               return (
                                 <div className="space-y-1">
                                   <Input
-                                    className={`h-8 text-xs bg-background text-foreground font-mono font-semibold ${
+                                    className={`h-8 text-xs bg-background text-foreground font-mono font-semibold w-full ${
                                       isQtyError
                                         ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold"
                                         : ""
@@ -1254,6 +1217,14 @@ function NewInvoicePage() {
                                       const val = e.target.value.replace(",", ".");
                                       const parsed = val === "" ? 0 : Number(val);
                                       updateItem(item.id, { quantity: isNaN(parsed) ? 0 : parsed });
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        if (index === items.length - 1) {
+                                          addItem();
+                                        }
+                                      }
                                     }}
                                     disabled={isNonEditable}
                                   />
@@ -1290,7 +1261,7 @@ function NewInvoicePage() {
                           {/* 5. BİRİM FİYAT */}
                           <td className="py-2 px-2.5 align-top pt-2">
                             <Input
-                              className="h-8 text-xs bg-background text-foreground font-mono font-semibold"
+                              className="h-8 text-xs bg-background text-foreground font-mono font-semibold w-full"
                               type="number"
                               min="0"
                               step="any"
@@ -1300,6 +1271,14 @@ function NewInvoicePage() {
                                 const val = e.target.value.replace(",", ".");
                                 const parsed = val === "" ? 0 : Number(val);
                                 updateItem(item.id, { unitPrice: isNaN(parsed) ? 0 : parsed });
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  if (index === items.length - 1) {
+                                    addItem();
+                                  }
+                                }
                               }}
                               disabled={isNonEditable}
                             />
@@ -1328,7 +1307,7 @@ function NewInvoicePage() {
                           {/* 7. İSKONTO */}
                           <td className="py-2 px-2.5 align-top pt-2">
                             <Input
-                              className="h-8 text-xs bg-background text-foreground font-mono font-semibold"
+                              className="h-8 text-xs bg-background text-foreground font-mono font-semibold w-full"
                               type="number"
                               min="0"
                               max="100"
@@ -1339,6 +1318,14 @@ function NewInvoicePage() {
                                 const val = e.target.value.replace(",", ".");
                                 const parsed = val === "" ? 0 : Number(val);
                                 updateItem(item.id, { discountRate: isNaN(parsed) ? 0 : parsed });
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  if (index === items.length - 1) {
+                                    addItem();
+                                  }
+                                }
                               }}
                               disabled={isNonEditable}
                             />
@@ -1409,33 +1396,51 @@ function NewInvoicePage() {
                           </Button>
                         )}
                       </div>
-                      <ProductCombobox
-                        value={item.productId || undefined}
-                        onSelect={(val) => handleProductSelect(item.id, val)}
+                      <Input
+                        list="products-datalist"
+                        className="h-8 text-xs font-medium"
+                        placeholder="Katalogdan seç veya yaz..."
+                        value={item.name}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const matched = products.find((p) => p.name === val);
+                          if (matched) {
+                            handleProductSelect(item.id, matched.id);
+                          } else {
+                            updateItem(item.id, { name: val, productId: undefined, code: "" });
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (index === items.length - 1) {
+                              addItem();
+                            }
+                          }
+                        }}
                         disabled={isNonEditable}
-                        products={products}
-                        isLoading={productsLoading}
-                        operationMode={operationMode}
                       />
-                      {!item.productId && (
-                        <Input
-                          className="h-8 text-xs"
-                          placeholder="Ürün veya Hizmet Adı *"
-                          value={item.name}
-                          onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                          disabled={isNonEditable}
-                        />
-                      )}
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-[10px]">Miktar</Label>
                           <Input
-                            className="h-8 text-xs font-mono"
+                            className="h-8 text-xs font-mono w-full"
                             type="number"
+                            step="any"
                             value={item.quantity === 0 ? "" : item.quantity}
-                            onChange={(e) =>
-                              updateItem(item.id, { quantity: Number(e.target.value) || 0 })
-                            }
+                            onChange={(e) => {
+                              const val = e.target.value.replace(",", ".");
+                              const parsed = val === "" ? 0 : Number(val);
+                              updateItem(item.id, { quantity: isNaN(parsed) ? 0 : parsed });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (index === items.length - 1) {
+                                  addItem();
+                                }
+                              }
+                            }}
                             disabled={isNonEditable}
                           />
                         </div>
@@ -1463,12 +1468,23 @@ function NewInvoicePage() {
                         <div>
                           <Label className="text-[10px]">Birim Fiyat</Label>
                           <Input
-                            className="h-8 text-xs font-mono"
+                            className="h-8 text-xs font-mono w-full"
                             type="number"
+                            step="any"
                             value={item.unitPrice === 0 ? "" : item.unitPrice}
-                            onChange={(e) =>
-                              updateItem(item.id, { unitPrice: Number(e.target.value) || 0 })
-                            }
+                            onChange={(e) => {
+                              const val = e.target.value.replace(",", ".");
+                              const parsed = val === "" ? 0 : Number(val);
+                              updateItem(item.id, { unitPrice: isNaN(parsed) ? 0 : parsed });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (index === items.length - 1) {
+                                  addItem();
+                                }
+                              }
+                            }}
                             disabled={isNonEditable}
                           />
                         </div>
@@ -1494,12 +1510,23 @@ function NewInvoicePage() {
                         <div>
                           <Label className="text-[10px]">İskonto %</Label>
                           <Input
-                            className="h-8 text-xs font-mono"
+                            className="h-8 text-xs font-mono w-full"
                             type="number"
+                            step="any"
                             value={item.discountRate === 0 ? "" : item.discountRate}
-                            onChange={(e) =>
-                              updateItem(item.id, { discountRate: Number(e.target.value) || 0 })
-                            }
+                            onChange={(e) => {
+                              const val = e.target.value.replace(",", ".");
+                              const parsed = val === "" ? 0 : Number(val);
+                              updateItem(item.id, { discountRate: isNaN(parsed) ? 0 : parsed });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (index === items.length - 1) {
+                                  addItem();
+                                }
+                              }
+                            }}
                             disabled={isNonEditable}
                           />
                         </div>

@@ -143,58 +143,24 @@ function InvoicesPage() {
 
   const sign = useMutation({
     mutationFn: async (inv: InvoiceRow) => {
-      const { error } = await supabase
-        .from("invoices")
-        .update({ status: "ONAYLANDI", gib_approval_date: new Date().toISOString(), posted: true })
-        .eq("id", inv.id);
-      if (error) throw error;
-
-      if (inv.posted) return;
-      const isReturn = inv.type === "IADE";
-
-      if (inv.customer_id) {
-        const { error: txnError } = await supabase.from("account_transactions").insert({
-          user_id: inv.user_id,
-          customer_id: inv.customer_id,
-          txn_date: inv.invoice_date,
-          txn_type: isReturn ? "ALACAK" : "BORC",
-          amount: Number(inv.grand_total),
-          document_no: inv.invoice_number,
-          description: isReturn ? "İade faturası kaydı" : "Satış faturası borç kaydı",
-          source: "FATURA",
-          source_id: inv.id,
-        });
-        if (txnError) throw txnError;
+      if (inv.type === "IADE") {
+        throw new Error("İade faturaları onaylanamaz (taslak kullanılamaz).");
       }
+      
+      const isPurchase = inv.type === "ALIS" || inv.type === "GELEN_FATURA" || inv.type === "GELEN_E_ARSIV";
+      const rpcName = isPurchase ? "approve_purchase_invoice" : "approve_sales_invoice";
 
-      const invItems =
-        (inv.items as unknown as { productId?: string; quantity: number; unitPrice: number }[]) ??
-        [];
-      const stockRows = invItems
-        .filter((i) => i.productId)
-        .map((i) => ({
-          user_id: inv.user_id,
-          product_id: i.productId as string,
-          warehouse_id: inv.warehouse_id,
-          customer_id: inv.customer_id,
-          movement_date: inv.invoice_date,
-          movement_type: isReturn ? "GIRIS" : "CIKIS",
-          quantity: Math.max(0, Number(i.quantity) || 0),
-          unit_price: roundMoney(Number(i.unitPrice) || 0),
-          document_no: inv.invoice_number,
-          description: isReturn
-            ? "Fatura kaynaklı stok iade girişi"
-            : "Fatura kaynaklı stok çıkışı",
-          source: "FATURA",
-          source_id: inv.id,
-        }));
-      if (stockRows.length > 0) {
-        const { error: stockError } = await supabase.from("stock_movements").insert(stockRows);
-        if (stockError) throw stockError;
+      const { data, error } = await supabase.rpc(rpcName, {
+        p_invoice_id: inv.id
+      });
+      
+      if (error) throw error;
+      if (data && !data.success) {
+        throw new Error(data.message || "Fatura onaylanırken bir hata oluştu.");
       }
     },
     onSuccess: () => {
-      toast.success("Fatura onaylandı; cari ve stok hareketleri işlendi.");
+      toast.success("Fatura başarıyla onaylandı ve muhasebeleşti.");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balances"] });
@@ -211,18 +177,19 @@ function InvoicesPage() {
           "Bu fatura bir cari karta bağlı değil. Tahsilatı Cariler ekranından girin.",
         );
       if (amount <= 0) throw new Error("Tahsil edilecek tutar kalmadı.");
-      const { error } = await supabase.from("account_transactions").insert({
-        user_id: inv.user_id,
-        customer_id: inv.customer_id,
-        txn_date: new Date().toISOString().slice(0, 10),
-        txn_type: "TAHSILAT",
-        amount: roundMoney(amount),
-        document_no: inv.invoice_number,
-        description: "Fatura tahsilatı",
-        source: "FATURA_TAHSILAT",
-        source_id: inv.id,
+      
+      const isPurchase = inv.type === "ALIS" || inv.type === "GELEN_FATURA" || inv.type === "GELEN_E_ARSIV";
+
+      const { data, error } = await supabase.rpc("process_invoice_payment", {
+        p_invoice_id: inv.id,
+        p_amount: amount,
+        p_is_purchase: isPurchase
       });
+      
       if (error) throw error;
+      if (data && !data.success) {
+        throw new Error(data.message || "Tahsilat kaydedilirken hata oluştu.");
+      }
     },
     onSuccess: () => {
       toast.success("Tahsilat başarıyla kaydedildi.");

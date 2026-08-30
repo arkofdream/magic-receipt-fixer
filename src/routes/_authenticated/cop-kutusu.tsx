@@ -167,17 +167,7 @@ function TrashBinPage() {
         .eq("id", id);
       if (error) throw error;
 
-      // If restoring an invoice, also restore associated account_transactions and stock_movements
-      if (table === "invoices") {
-        await supabase
-          .from("account_transactions")
-          .update({ deleted_at: null, deleted_by: null })
-          .eq("source_id", id);
-        await supabase
-          .from("stock_movements")
-          .update({ deleted_at: null, deleted_by: null })
-          .eq("source_id", id);
-      }
+      // Finansal kayitlarin restore edilmesi iptal edildi, zira onayli kayitlar silinemez.
     },
     onSuccess: (_, variables) => {
       toast.success("Kayıt başarıyla geri yüklendi!");
@@ -200,11 +190,7 @@ function TrashBinPage() {
   // Permanent Delete Mutation
   const hardDeleteItem = useMutation({
     mutationFn: async ({ table, id }: { table: TableType; id: string }) => {
-      // If hard deleting an invoice, clean up associated transactions
-      if (table === "invoices") {
-        await supabase.from("account_transactions").delete().eq("source_id", id);
-        await supabase.from("stock_movements").delete().eq("source_id", id);
-      }
+      // Finansal tablolarin manuel cascade silinmesi iptal edildi.
       const { error } = await supabase.from(table).delete().eq("id", id);
       if (error) throw error;
     },

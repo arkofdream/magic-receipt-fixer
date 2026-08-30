@@ -401,41 +401,35 @@ function StockPage() {
         ) {
           throw new Error("Farklı kaynak ve hedef depo seçiniz.");
         }
-        const base = {
-          user_id: userId,
-          product_id: form.productId,
-          quantity,
-          unit_price: Number(form.unitPrice) || 0,
-          movement_date: form.movementDate,
-          document_no: form.documentNo,
-          description: form.description || "Depo transfer hareketi",
-          source: "TRANSFER",
-        };
-        const { error } = await supabase.from("stock_movements").insert([
-          {
-            ...base,
-            movement_type: "CIKIS",
-            warehouse_id: form.warehouseId,
-            target_warehouse_id: form.targetWarehouseId,
-          },
-          { ...base, movement_type: "GIRIS", warehouse_id: form.targetWarehouseId },
-        ]);
+        const { data, error } = await supabase.rpc("process_manual_stock_movement", {
+          p_product_id: form.productId,
+          p_movement_type: "TRANSFER",
+          p_quantity: quantity,
+          p_unit_price: Number(form.unitPrice) || 0,
+          p_warehouse_id: form.warehouseId,
+          p_target_warehouse_id: form.targetWarehouseId,
+          p_movement_date: form.movementDate,
+          p_document_no: form.documentNo,
+          p_description: form.description || "Depo transfer hareketi"
+        });
         if (error) throw error;
+        if (data && !data.success) throw new Error(data.message || "Transfer basarisiz.");
         return;
       }
 
-      const { error } = await supabase.from("stock_movements").insert({
-        user_id: userId,
-        product_id: form.productId,
-        warehouse_id: form.warehouseId || null,
-        movement_type: form.movementType,
-        quantity,
-        unit_price: Number(form.unitPrice) || 0,
-        movement_date: form.movementDate,
-        document_no: form.documentNo,
-        description: form.description,
+      const { data, error } = await supabase.rpc("process_manual_stock_movement", {
+        p_product_id: form.productId,
+        p_movement_type: form.movementType,
+        p_quantity: quantity,
+        p_unit_price: Number(form.unitPrice) || 0,
+        p_warehouse_id: form.warehouseId || null,
+        p_target_warehouse_id: null,
+        p_movement_date: form.movementDate,
+        p_document_no: form.documentNo,
+        p_description: form.description
       });
       if (error) throw error;
+      if (data && !data.success) throw new Error(data.message || "Stok hareketi basarisiz.");
     },
     onSuccess: () => {
       toast.success("Stok hareketi kaydedildi.");
