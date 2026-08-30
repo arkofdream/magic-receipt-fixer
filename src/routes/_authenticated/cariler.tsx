@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, ErrorComponent } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Download, Clock, AlertTriangle, Calendar, ShieldAlert, Search, TrendingUp, TrendingDown, CheckCircle2 } from "lucide-react";
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { ErrorComponent, createFileRoute } from "@tanstack/react-router";
 import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import { emptyCustomer, formatMoney, type InvoiceCustomer } from "@/lib/invoice";
