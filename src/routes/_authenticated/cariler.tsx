@@ -22,12 +22,24 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { ErrorComponent, createFileRoute } from "@tanstack/react-router";
 import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
 import { emptyCustomer, formatMoney, type InvoiceCustomer } from "@/lib/invoice";
 import { PARTNER_LABELS, type PartnerType } from "@/lib/cari";
 
 export const Route = createFileRoute("/_authenticated/cariler")({
+  errorComponent: ({ error }) => {
+    return (
+      <div className="p-8 text-center text-rose-500">
+        <h2 className="text-xl font-bold mb-4">Sayfa yüklenemedi</h2>
+        <p className="text-sm">{error.message || "Bilinmeyen bir hata oluştu."}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md">
+          Sayfayı Yenile
+        </button>
+      </div>
+    );
+  },
   head: () => ({
     meta: [
       { title: "Cari Hesaplar | e-Fatura Portalı" },

@@ -21,6 +21,67 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+// NumericGridInput component handles React's type="number" decimal typing issue
+function NumericGridInput({
+  value,
+  onChange,
+  onEnter,
+  disabled,
+  className,
+  placeholder,
+  hasError,
+  min,
+  max,
+}: {
+  value: number;
+  onChange: (val: number) => void;
+  onEnter?: () => void;
+  disabled?: boolean;
+  className?: string;
+  placeholder?: string;
+  hasError?: boolean;
+  min?: string;
+  max?: string;
+}) {
+  const [localVal, setLocalVal] = useState(value === 0 ? "" : String(value));
+  useEffect(() => {
+    if (value === 0 && localVal === "") return;
+    if (Number(localVal) !== value && localVal !== value + "." && !localVal.endsWith("0")) {
+      setLocalVal(value === 0 ? "" : String(value));
+    }
+  }, [value]);
+
+  return (
+    <Input
+      className={`${className} ${hasError ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold" : ""}`}
+      type="number"
+      min={min}
+      max={max}
+      step="any"
+      placeholder={placeholder}
+      value={localVal}
+      onChange={(e) => {
+        const val = e.target.value.replace(",", ".");
+        setLocalVal(val);
+        const parsed = val === "" ? 0 : Number(val);
+        if (!isNaN(parsed)) {
+          onChange(parsed);
+        }
+      }}
+      onBlur={() => {
+        if (localVal.endsWith(".")) setLocalVal(localVal.slice(0, -1));
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onEnter?.();
+        }
+      }}
+      disabled={disabled}
+    />
+  );
+}
+
 import { AppShell } from "@/components/AppShell";
 import { AddressSelect } from "@/components/AddressSelect";
 import { Button } from "@/components/ui/button";
@@ -1202,29 +1263,15 @@ function NewInvoicePage() {
                               const isQtyError = isInvalidQuantity(item.quantity);
                               return (
                                 <div className="space-y-1">
-                                  <Input
-                                    className={`h-8 text-xs bg-background text-foreground font-mono font-semibold w-full ${
-                                      isQtyError
-                                        ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold"
-                                        : ""
-                                    }`}
-                                    type="number"
+                                  <NumericGridInput
+                                    className="h-8 text-xs bg-background text-foreground font-mono font-semibold w-full"
                                     min="0.0001"
-                                    step="any"
                                     placeholder="1"
-                                    value={item.quantity === 0 ? "" : item.quantity}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(",", ".");
-                                      const parsed = val === "" ? 0 : Number(val);
-                                      updateItem(item.id, { quantity: isNaN(parsed) ? 0 : parsed });
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        if (index === items.length - 1) {
-                                          addItem();
-                                        }
-                                      }
+                                    value={item.quantity}
+                                    hasError={isQtyError}
+                                    onChange={(val) => updateItem(item.id, { quantity: val })}
+                                    onEnter={() => {
+                                      if (index === items.length - 1) addItem();
                                     }}
                                     disabled={isNonEditable}
                                   />
@@ -1260,25 +1307,14 @@ function NewInvoicePage() {
 
                           {/* 5. BİRİM FİYAT */}
                           <td className="py-2 px-2.5 align-top pt-2">
-                            <Input
+                            <NumericGridInput
                               className="h-8 text-xs bg-background text-foreground font-mono font-semibold w-full"
-                              type="number"
                               min="0"
-                              step="any"
                               placeholder="0.00"
-                              value={item.unitPrice === 0 ? "" : item.unitPrice}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(",", ".");
-                                const parsed = val === "" ? 0 : Number(val);
-                                updateItem(item.id, { unitPrice: isNaN(parsed) ? 0 : parsed });
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  if (index === items.length - 1) {
-                                    addItem();
-                                  }
-                                }
+                              value={item.unitPrice}
+                              onChange={(val) => updateItem(item.id, { unitPrice: val })}
+                              onEnter={() => {
+                                if (index === items.length - 1) addItem();
                               }}
                               disabled={isNonEditable}
                             />
@@ -1306,26 +1342,15 @@ function NewInvoicePage() {
 
                           {/* 7. İSKONTO */}
                           <td className="py-2 px-2.5 align-top pt-2">
-                            <Input
+                            <NumericGridInput
                               className="h-8 text-xs bg-background text-foreground font-mono font-semibold w-full"
-                              type="number"
                               min="0"
                               max="100"
-                              step="any"
                               placeholder="0"
-                              value={item.discountRate === 0 ? "" : item.discountRate}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(",", ".");
-                                const parsed = val === "" ? 0 : Number(val);
-                                updateItem(item.id, { discountRate: isNaN(parsed) ? 0 : parsed });
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  if (index === items.length - 1) {
-                                    addItem();
-                                  }
-                                }
+                              value={item.discountRate}
+                              onChange={(val) => updateItem(item.id, { discountRate: val })}
+                              onEnter={() => {
+                                if (index === items.length - 1) addItem();
                               }}
                               disabled={isNonEditable}
                             />
@@ -1423,23 +1448,12 @@ function NewInvoicePage() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-[10px]">Miktar</Label>
-                          <Input
+                          <NumericGridInput
                             className="h-8 text-xs font-mono w-full"
-                            type="number"
-                            step="any"
-                            value={item.quantity === 0 ? "" : item.quantity}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(",", ".");
-                              const parsed = val === "" ? 0 : Number(val);
-                              updateItem(item.id, { quantity: isNaN(parsed) ? 0 : parsed });
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                if (index === items.length - 1) {
-                                  addItem();
-                                }
-                              }
+                            value={item.quantity}
+                            onChange={(val) => updateItem(item.id, { quantity: val })}
+                            onEnter={() => {
+                              if (index === items.length - 1) addItem();
                             }}
                             disabled={isNonEditable}
                           />
@@ -1467,23 +1481,12 @@ function NewInvoicePage() {
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <Label className="text-[10px]">Birim Fiyat</Label>
-                          <Input
+                          <NumericGridInput
                             className="h-8 text-xs font-mono w-full"
-                            type="number"
-                            step="any"
-                            value={item.unitPrice === 0 ? "" : item.unitPrice}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(",", ".");
-                              const parsed = val === "" ? 0 : Number(val);
-                              updateItem(item.id, { unitPrice: isNaN(parsed) ? 0 : parsed });
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                if (index === items.length - 1) {
-                                  addItem();
-                                }
-                              }
+                            value={item.unitPrice}
+                            onChange={(val) => updateItem(item.id, { unitPrice: val })}
+                            onEnter={() => {
+                              if (index === items.length - 1) addItem();
                             }}
                             disabled={isNonEditable}
                           />
@@ -1509,23 +1512,12 @@ function NewInvoicePage() {
                         </div>
                         <div>
                           <Label className="text-[10px]">İskonto %</Label>
-                          <Input
+                          <NumericGridInput
                             className="h-8 text-xs font-mono w-full"
-                            type="number"
-                            step="any"
-                            value={item.discountRate === 0 ? "" : item.discountRate}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(",", ".");
-                              const parsed = val === "" ? 0 : Number(val);
-                              updateItem(item.id, { discountRate: isNaN(parsed) ? 0 : parsed });
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                if (index === items.length - 1) {
-                                  addItem();
-                                }
-                              }
+                            value={item.discountRate}
+                            onChange={(val) => updateItem(item.id, { discountRate: val })}
+                            onEnter={() => {
+                              if (index === items.length - 1) addItem();
                             }}
                             disabled={isNonEditable}
                           />

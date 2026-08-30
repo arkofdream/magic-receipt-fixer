@@ -153,8 +153,11 @@ function NewInvoicePage() {
   const { data: customers = [] } = useQuery({
     queryKey: ["customers-dropdown"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("name");
-      if (error) return [];
+      const { data, error } = await supabase.from("customers").select("*").order("title");
+      if (error) {
+        console.error("Müşteri hatası:", error);
+        return [];
+      }
       return data || [];
     },
   });
@@ -623,13 +626,13 @@ function NewInvoicePage() {
                     onValueChange={(custId) => {
                       const c = customers.find((item: any) => item.id === custId);
                       if (c) {
-                        setBuyerName(c.title || c.name || "");
-                        setBuyerTaxNumber(c.vkn_tckn || c.tax_number || c.tckn || "");
+                        setBuyerName(c.title || "");
+                        setBuyerTaxNumber(c.vkn_tckn || "");
                         setBuyerTaxOffice(c.tax_office || "");
                         setBuyerAddress(c.address || "");
                         setBuyerCity(c.city || "");
                         setBuyerDistrict(c.district || "");
-                        toast.success(`${c.title || c.name} bilgileri forma aktarıldı.`);
+                        toast.success(`${c.title} bilgileri forma aktarıldı.`);
                       }
                     }}
                   >
@@ -743,54 +746,59 @@ function NewInvoicePage() {
             {lines.map((line, idx) => (
               <div
                 key={line.id}
-                className="grid grid-cols-12 gap-2 items-center border p-3 rounded-md bg-card"
+                className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:items-center border p-3 rounded-md bg-card"
               >
-                <div className="col-span-1 text-center font-bold text-xs text-muted-foreground">
-                  #{idx + 1}
+                <div className="sm:col-span-1 font-bold text-xs text-muted-foreground flex justify-between sm:justify-center">
+                  <span>Satır</span>
+                  <span>#{idx + 1}</span>
                 </div>
-                <div className="col-span-3">
+                <div className="sm:col-span-3">
                   <Input
                     placeholder="Ürün / Hizmet Adı *"
                     value={line.name}
                     onChange={(e) => updateLine(line.id, "name", e.target.value)}
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Input
                     type="number"
-                    min="1"
+                    min="0.0001"
+                    step="any"
                     placeholder="Miktar"
-                    value={line.quantity}
-                    onChange={(e) =>
-                      updateLine(line.id, "quantity", parseFloat(e.target.value) || 0)
-                    }
+                    defaultValue={line.quantity === 0 ? "" : line.quantity}
+                    onBlur={(e) => {
+                      const val = e.target.value.replace(",", ".");
+                      updateLine(line.id, "quantity", val === "" ? 0 : Number(val));
+                    }}
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Input
                     type="number"
-                    step="0.01"
+                    step="any"
                     placeholder="Birim Fiyat (TL)"
-                    value={line.unitPrice}
-                    onChange={(e) =>
-                      updateLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)
-                    }
+                    defaultValue={line.unitPrice === 0 ? "" : line.unitPrice}
+                    onBlur={(e) => {
+                      const val = e.target.value.replace(",", ".");
+                      updateLine(line.id, "unitPrice", val === "" ? 0 : Number(val));
+                    }}
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Input
                     type="number"
                     min="0"
                     max="100"
-                    step="0.01"
+                    step="any"
                     placeholder="İsk. %"
-                    value={line.discountRate || ""}
-                    onChange={(e) =>
-                      updateLine(line.id, "discountRate", parseFloat(e.target.value) || 0)
-                    }
+                    defaultValue={line.discountRate === 0 ? "" : line.discountRate}
+                    onBlur={(e) => {
+                      const val = e.target.value.replace(",", ".");
+                      updateLine(line.id, "discountRate", val === "" ? 0 : Number(val));
+                    }}
                   />
                 </div>
-                <div className="col-span-1.5">
+                <div className="sm:col-span-1">
                   <Select
                     value={String(line.vatRate)}
                     onValueChange={(v) => updateLine(line.id, "vatRate", parseInt(v, 10))}
@@ -806,7 +814,7 @@ function NewInvoicePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="col-span-0.5 text-right">
+                <div className="sm:col-span-1 text-right">
                   <Button
                     size="icon"
                     variant="ghost"
