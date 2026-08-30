@@ -53,7 +53,7 @@ function NumericGridInput({
 
   return (
     <Input
-      className={`${className} ${hasError ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold" : ""}`}
+      className={`${className} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none px-1.5 ${hasError ? "border-destructive focus-visible:ring-destructive text-destructive font-semibold" : ""}`}
       type="number"
       min={min}
       max={max}
@@ -1207,11 +1207,11 @@ function NewInvoicePage() {
                       <th className="py-2 px-2.5 min-w-[200px]">Ürün / Hizmet Adı</th>
                       <th className="py-2 px-2.5 w-32">Miktar</th>
                       <th className="py-2 px-2.5 w-28">Birim</th>
-                      <th className="py-2 px-2.5 w-32">
+                      <th className="py-2 px-2.5 w-36 min-w-[120px]">
                         {operationMode === "ALIS" ? "Alış Fiyatı" : "Birim Fiyat"}
                       </th>
                       <th className="py-2 px-2.5 w-20">KDV</th>
-                      <th className="py-2 px-2.5 w-24">İsk. %</th>
+                      <th className="py-2 px-2.5 w-28 min-w-[90px]">İsk. %</th>
                       <th className="py-2 px-2.5 w-32 text-right">Satır Toplamı</th>
                       {showDescription && (
                         <th className="py-2 px-2.5 min-w-[180px]">Kalem Açıklaması</th>

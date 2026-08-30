@@ -77,6 +77,7 @@ export function AppShell({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const hasUnseenUpdates = useHasUnseenChangelog();
@@ -164,7 +165,7 @@ export function AppShell({
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6 py-4">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger Menu */}
-            <Sheet>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="outline" size="icon" className="md:hidden shrink-0">
                   <Menu className="size-5" />
@@ -181,6 +182,7 @@ export function AppShell({
                     <Link
                       key={item.to}
                       to={item.to}
+                      onClick={() => setMobileMenuOpen(false)}
                       className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                       activeProps={{
                         className:
@@ -200,6 +202,7 @@ export function AppShell({
                   {flags.data?.isAdmin ? (
                     <Link
                       to="/admin"
+                      onClick={() => setMobileMenuOpen(false)}
                       className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                       activeProps={{
                         className:
@@ -217,6 +220,7 @@ export function AppShell({
                     variant="ghost"
                     size="sm"
                     className="w-full justify-start gap-3 text-xs text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    onClick={() => setMobileMenuOpen(false)}
                   >
                     <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
                       <Download className="size-4 text-primary" />
@@ -226,7 +230,10 @@ export function AppShell({
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-3 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    onClick={handleSignOut}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleSignOut();
+                    }}
                   >
                     <LogOut className="size-4" />
                     Çıkış Yap
