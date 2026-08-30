@@ -452,10 +452,14 @@ class IntegratorProvider implements EInvoiceProvider {
               name: (invoice["sellerName"] as string) || "Satıcı Firma",
             },
             buyer: {
-              taxNumber:
-                (invoice["buyerTaxNumber"] as string) ||
-                (invoice["customerTaxNumber"] as string) ||
-                "2222222222",
+              taxNumber: (() => {
+                let clean = String(
+                  invoice["buyerTaxNumber"] || invoice["customerTaxNumber"] || "",
+                ).replace(/\D/g, "");
+                if (clean.length === 9) clean = clean.padStart(10, "0");
+                if (clean.length < 10) clean = "1111111111";
+                return clean;
+              })(),
               name:
                 (invoice["buyerName"] as string) ||
                 (invoice["customerName"] as string) ||

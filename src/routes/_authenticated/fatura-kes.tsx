@@ -503,21 +503,34 @@ function NewInvoicePage() {
     setCustomerId(cId);
     const selected = customers.find((c) => c.id === cId);
     if (selected) {
+      const vkn = (selected.vkn_tckn || (selected as any).vkn || (selected as any).tckn || (selected as any).tax_number || "").toString().trim();
+      const title = (selected.title || (selected as any).name || (selected as any).unvan || "").toString().trim();
+      const taxOffice = (selected.tax_office || (selected as any).taxOffice || (selected as any).vergi_dairesi || "").toString().trim();
+      const address = (selected.address || (selected as any).adres || "").toString().trim();
+      const city = (selected.city || (selected as any).il || (selected as any).sehir || "").toString().trim();
+      const district = (selected.district || (selected as any).ilce || "").toString().trim();
+      const neighborhood = ((selected as any).neighborhood || (selected as any).mahalle || "").toString().trim();
+      const email = (selected.email || (selected as any).eposta || "").toString().trim();
+      const phone = (selected.phone || (selected as any).telefon || (selected as any).tel || "").toString().trim();
+      const pfx = (selected as any).custom_prefix || customPrefix;
+
       setCustomer({
-        vknTckn: selected.vkn_tckn || "",
-        title: selected.title || "",
-        taxOffice: selected.tax_office || "",
-        address: selected.address || "",
-        city: selected.city || "",
-        district: selected.district || "",
-        neighborhood: (selected as any).neighborhood || "",
-        email: selected.email || "",
-        phone: selected.phone || "",
-        customPrefix: (selected as any).custom_prefix || customPrefix,
+        vknTckn: vkn,
+        title,
+        taxOffice,
+        address,
+        city,
+        district,
+        neighborhood,
+        email,
+        phone,
+        customPrefix: pfx,
       });
+
       if ((selected as any).custom_prefix) {
         setSerialPrefix((selected as any).custom_prefix);
       }
+      toast.success(`${title || vkn} bilgileri forma yüklendi.`);
     }
   }
 
