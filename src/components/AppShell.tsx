@@ -18,8 +18,11 @@ import {
   Landmark,
   Monitor,
   Trash2,
+  Menu,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -158,10 +161,84 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-6 py-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
-            {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6 py-4">
+          <div className="flex items-center gap-3">
+            {/* Mobile Hamburger Menu */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="md:hidden shrink-0">
+                  <Menu className="size-5" />
+                  <span className="sr-only">Menüyü Aç</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 bg-sidebar p-0 text-sidebar-foreground flex flex-col">
+                <SheetHeader className="border-b border-sidebar-border p-6 text-left">
+                  <SheetTitle className="text-lg font-bold tracking-tight text-sidebar-foreground">Magic Receipt</SheetTitle>
+                  <p className="text-xs text-sidebar-foreground/60">Ön Muhasebe & e-Fatura</p>
+                </SheetHeader>
+                <nav className="flex flex-1 flex-col gap-1 p-3 overflow-y-auto">
+                  {nav.map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      activeProps={{
+                        className:
+                          "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold bg-sidebar-primary text-sidebar-primary-foreground",
+                      }}
+                    >
+                      <item.icon className="size-4" />
+                      {item.label}
+                      {item.to === "/guncellemeler" && hasUnseenUpdates ? (
+                        <span
+                          className="ml-auto size-2 rounded-full bg-primary"
+                          aria-label="Yeni güncelleme var"
+                        />
+                      ) : null}
+                    </Link>
+                  ))}
+                  {flags.data?.isAdmin ? (
+                    <Link
+                      to="/admin"
+                      className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      activeProps={{
+                        className:
+                          "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold bg-sidebar-primary text-sidebar-primary-foreground",
+                      }}
+                    >
+                      <ShieldCheck className="size-4" />
+                      Yönetim Paneli
+                    </Link>
+                  ) : null}
+                </nav>
+                <div className="space-y-1 border-t border-sidebar-border p-3">
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-3 text-xs text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  >
+                    <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
+                      <Download className="size-4 text-primary" />
+                      Windows Uygulaması (İndir)
+                    </a>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="size-4" />
+                    Çıkış Yap
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
+              {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm" className="hidden gap-2 sm:inline-flex">
