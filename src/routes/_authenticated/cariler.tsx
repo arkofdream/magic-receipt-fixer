@@ -28,15 +28,23 @@ import { emptyCustomer, formatMoney, type InvoiceCustomer } from "@/lib/invoice"
 import { PARTNER_LABELS, type PartnerType } from "@/lib/cari";
 
 export const Route = createFileRoute("/_authenticated/cariler")({
-  errorComponent: ({ error }) => {
+  errorComponent: ({ error, reset }: any) => {
     return (
-      <div className="p-8 text-center text-rose-500">
-        <h2 className="text-xl font-bold mb-4">Sayfa yüklenemedi</h2>
-        <p className="text-sm">{error.message || "Bilinmeyen bir hata oluştu."}</p>
-        <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md">
-          Sayfayı Yenile
-        </button>
-      </div>
+      <AppShell title="Cari Hesaplar & Vade Takip" subtitle="Müşteri ve tedarikçi cari hesapları">
+        <div className="p-8 text-center bg-card rounded-lg border border-border/60 max-w-lg mx-auto my-12 space-y-4 shadow-sm">
+          <AlertTriangle className="size-10 text-amber-500 mx-auto" />
+          <h2 className="text-lg font-bold text-foreground">Sayfa Yüklenirken Bir Sorun Oluştu</h2>
+          <p className="text-xs text-muted-foreground">{error?.message || "Veriler alınırken beklenmeyen bir hata oluştu."}</p>
+          <div className="flex justify-center gap-3 pt-2">
+            <Button onClick={() => (reset ? reset() : window.location.reload())} size="sm">
+              Yeniden Dene
+            </Button>
+            <Button onClick={() => (window.location.href = "/dashboard")} variant="outline" size="sm">
+              Panele Dön
+            </Button>
+          </div>
+        </div>
+      </AppShell>
     );
   },
   head: () => ({
@@ -159,30 +167,45 @@ function CustomersPage() {
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-      if (error && isMissingColumnError(error)) {
-        const fallback = await supabase
+      try {
+        const { data, error } = await supabase
           .from("customers")
           .select("*")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false });
-        if (fallback.error) throw fallback.error;
-        return fallback.data;
+        if (error && isMissingColumnError(error)) {
+          const fallback = await supabase
+            .from("customers")
+            .select("*")
+            .order("created_at", { ascending: false });
+          return fallback.data ?? [];
+        }
+        if (error) {
+          console.warn("[CUSTOMERS FETCH ERROR]", error);
+          return [];
+        }
+        return data ?? [];
+      } catch (err) {
+        console.warn("[CUSTOMERS CATCH ERROR]", err);
+        return [];
       }
-      if (error) throw error;
-      return data;
     },
   });
 
   const { data: balances = [] } = useQuery({
     queryKey: ["customer-balances"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customer_balances").select("*");
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase.from("customer_balances").select("*");
+        if (error) {
+          console.warn("[BALANCES FETCH ERROR]", error);
+          return [];
+        }
+        return data ?? [];
+      } catch (err) {
+        console.warn("[BALANCES CATCH ERROR]", err);
+        return [];
+      }
     },
   });
 

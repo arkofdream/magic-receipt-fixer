@@ -816,52 +816,47 @@ function NewInvoicePage() {
               : "e-Fatura / e-Arşiv faturası oluşturun veya taslak olarak kaydedin."
       }
       actions={
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate({ to: "/faturalar" })}>
-            <ArrowLeft className="size-4 mr-1.5" /> Geri Dön
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs px-2 sm:px-3" onClick={() => navigate({ to: "/faturalar" })}>
+            <ArrowLeft className="size-3.5 mr-1" /> <span className="hidden xs:inline">Geri</span> Dön
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={handlePreviewXml}
-            className="gap-1.5 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            className="h-8 text-xs px-2 sm:px-3 gap-1 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
           >
-            <FileCode className="size-4" /> XML'i Görüntüle
+            <FileCode className="size-3.5" /> <span className="hidden sm:inline">XML</span> Önizle
           </Button>
           {!isNonEditable && (
             <>
               <Button
                 variant="outline"
                 size="sm"
+                className="h-8 text-xs px-2 sm:px-3"
                 disabled={saveInvoice.isPending}
                 onClick={() => saveInvoice.mutate("TASLAK")}
               >
-                Taslak Kaydet
+                Taslak
               </Button>
               <Button
                 size="sm"
-                className="bg-primary text-primary-foreground font-semibold"
+                className="h-8 text-xs px-2.5 sm:px-3 bg-primary text-primary-foreground font-semibold"
                 disabled={saveInvoice.isPending}
                 onClick={() => saveInvoice.mutate("ONAYLANDI")}
               >
                 {saveInvoice.isPending
                   ? "İşleniyor..."
-                  : operationMode === "ALIS"
-                    ? "Alış Faturasını Onayla & Kaydet"
-                    : operationMode === "ALIS_IADE"
-                      ? "Alış İadesini Onayla"
-                      : operationMode === "SATIS_IADE"
-                        ? "Satış İadesini Onayla"
-                        : "Faturayı Onayla & Gönder"}
+                  : "Onayla"}
               </Button>
             </>
           )}
         </div>
       }
     >
-      {/* İŞLEM MODU SEÇİCİ */}
+      {/* 4 MOD SEÇİCİ TAB (SATIŞ, SATIŞ İADESİ, ALIŞ, ALIŞ İADESİ) */}
       {!editId && (
-        <div className="mb-4">
+        <div className="mb-6 max-w-full overflow-x-hidden">
           <Tabs
             value={operationMode}
             onValueChange={(v) => {
@@ -875,17 +870,17 @@ function NewInvoicePage() {
               else setType("SATIS");
             }}
           >
-            <TabsList className="grid grid-cols-4 max-w-2xl bg-muted/80">
-              <TabsTrigger value="SATIS" className="gap-1.5 font-medium text-xs">
+            <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full max-w-2xl bg-muted/80 h-auto p-1 gap-1">
+              <TabsTrigger value="SATIS" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <Send className="size-3.5" /> Satış Faturası
               </TabsTrigger>
-              <TabsTrigger value="SATIS_IADE" className="gap-1.5 font-medium text-xs">
+              <TabsTrigger value="SATIS_IADE" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <CornerUpLeft className="size-3.5 text-amber-500" /> Satış İadesi
               </TabsTrigger>
-              <TabsTrigger value="ALIS" className="gap-1.5 font-medium text-xs">
+              <TabsTrigger value="ALIS" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <ShoppingCart className="size-3.5" /> Alış Faturası
               </TabsTrigger>
-              <TabsTrigger value="ALIS_IADE" className="gap-1.5 font-medium text-xs">
+              <TabsTrigger value="ALIS_IADE" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <RotateCcw className="size-3.5 text-destructive" /> Alış İadesi
               </TabsTrigger>
             </TabsList>
