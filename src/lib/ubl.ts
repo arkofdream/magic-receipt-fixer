@@ -107,7 +107,7 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
   if (!data.seller.name || !data.seller.name.trim()) {
     throw new Error("Fatura doğrulaması başarısız: Satıcı unvanı boş olamaz.");
   }
-  validateTaxNumberFormat(data.seller.taxNumber, "Satıcı");
+  const validatedSellerTax = validateTaxNumberFormat(data.seller.taxNumber, "Satıcı");
 
   if (!data.buyer) {
     throw new Error("Fatura doğrulaması başarısız: Alıcı bilgileri eksik.");
@@ -115,7 +115,7 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
   if (!data.buyer.name || !data.buyer.name.trim()) {
     throw new Error("Fatura doğrulaması başarısız: Alıcı unvanı boş olamaz.");
   }
-  validateTaxNumberFormat(data.buyer.taxNumber, "Alıcı");
+  const validatedBuyerTax = validateTaxNumberFormat(data.buyer.taxNumber, "Alıcı");
 
   if (!data.lines || !Array.isArray(data.lines) || data.lines.length === 0) {
     throw new Error(
@@ -223,11 +223,11 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
     invoiceTypeCode: data.invoiceTypeCode || "SATIS",
     seller: {
       ...data.seller,
-      taxNumber: data.seller.taxNumber.trim(),
+      taxNumber: validatedSellerTax.taxNumber,
     },
     buyer: {
       ...data.buyer,
-      taxNumber: data.buyer.taxNumber.trim(),
+      taxNumber: validatedBuyerTax.taxNumber,
     },
     lines: data.lines,
     vatGroups,

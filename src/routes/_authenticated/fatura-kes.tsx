@@ -816,15 +816,15 @@ function NewInvoicePage() {
               : "e-Fatura / e-Arşiv faturası oluşturun veya taslak olarak kaydedin."
       }
       actions={
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs px-2 sm:px-3" onClick={() => navigate({ to: "/faturalar" })}>
-            <ArrowLeft className="size-3.5 mr-1" /> <span className="hidden xs:inline">Geri</span> Dön
+        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 overflow-hidden w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="h-8 text-[11px] sm:text-xs px-2 sm:px-3 whitespace-nowrap" onClick={() => navigate({ to: "/faturalar" })}>
+            <ArrowLeft className="size-3.5 mr-1" /> <span className="hidden sm:inline">Geri Dön</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={handlePreviewXml}
-            className="h-8 text-xs px-2 sm:px-3 gap-1 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            className="h-8 text-[11px] sm:text-xs px-2 sm:px-3 gap-1 whitespace-nowrap border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
           >
             <FileCode className="size-3.5" /> <span className="hidden sm:inline">XML</span> Önizle
           </Button>
@@ -833,7 +833,7 @@ function NewInvoicePage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs px-2 sm:px-3"
+                className="h-8 text-[11px] sm:text-xs px-2 sm:px-3 whitespace-nowrap"
                 disabled={saveInvoice.isPending}
                 onClick={() => saveInvoice.mutate("TASLAK")}
               >
@@ -841,7 +841,7 @@ function NewInvoicePage() {
               </Button>
               <Button
                 size="sm"
-                className="h-8 text-xs px-2.5 sm:px-3 bg-primary text-primary-foreground font-semibold"
+                className="h-8 text-[11px] sm:text-xs px-2.5 sm:px-3 whitespace-nowrap bg-primary text-primary-foreground font-semibold"
                 disabled={saveInvoice.isPending}
                 onClick={() => saveInvoice.mutate("ONAYLANDI")}
               >
@@ -856,7 +856,7 @@ function NewInvoicePage() {
     >
       {/* 4 MOD SEÇİCİ TAB (SATIŞ, SATIŞ İADESİ, ALIŞ, ALIŞ İADESİ) */}
       {!editId && (
-        <div className="mb-6 max-w-full overflow-x-hidden">
+        <div className="mb-6 w-full">
           <Tabs
             value={operationMode}
             onValueChange={(v) => {
@@ -870,17 +870,17 @@ function NewInvoicePage() {
               else setType("SATIS");
             }}
           >
-            <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full max-w-2xl bg-muted/80 h-auto p-1 gap-1">
-              <TabsTrigger value="SATIS" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
+            <TabsList className="flex overflow-x-auto w-full max-w-full sm:max-w-2xl bg-muted/80 h-auto p-1 gap-1 flex-nowrap scrollbar-hide" style={{ WebkitOverflowScrolling: "touch" }}>
+              <TabsTrigger value="SATIS" className="flex-1 min-w-[120px] whitespace-nowrap gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <Send className="size-3.5" /> Satış Faturası
               </TabsTrigger>
-              <TabsTrigger value="SATIS_IADE" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
+              <TabsTrigger value="SATIS_IADE" className="flex-1 min-w-[120px] whitespace-nowrap gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <CornerUpLeft className="size-3.5 text-amber-500" /> Satış İadesi
               </TabsTrigger>
-              <TabsTrigger value="ALIS" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
+              <TabsTrigger value="ALIS" className="flex-1 min-w-[120px] whitespace-nowrap gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <ShoppingCart className="size-3.5" /> Alış Faturası
               </TabsTrigger>
-              <TabsTrigger value="ALIS_IADE" className="gap-1 font-medium text-[11px] sm:text-xs py-1.5">
+              <TabsTrigger value="ALIS_IADE" className="flex-1 min-w-[120px] whitespace-nowrap gap-1 font-medium text-[11px] sm:text-xs py-1.5">
                 <RotateCcw className="size-3.5 text-destructive" /> Alış İadesi
               </TabsTrigger>
             </TabsList>
@@ -888,9 +888,9 @@ function NewInvoicePage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="flex flex-col gap-6 lg:flex-row">
         {/* SOL VE ORTA: FORM ALANLARI */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className="space-y-6 flex-1 w-full overflow-hidden">
           {/* 1. FATURA TİPİ VE TEMEL BİLGİLER */}
           <Card>
             <CardHeader className="pb-3">
@@ -1536,7 +1536,7 @@ function NewInvoicePage() {
                           </Select>
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         <div>
                           <Label className="text-[10px]">Birim Fiyat</Label>
                           <NumericGridInput
@@ -1636,7 +1636,7 @@ function NewInvoicePage() {
         </div>
 
         {/* SAĞ PANEL: ÖZET VE TOPLAMLAR */}
-        <div className="space-y-6">
+        <div className="space-y-6 w-full lg:w-[320px] xl:w-[400px] flex-shrink-0">
           <Card className="sticky top-6 border-primary/20 bg-card">
             <CardHeader className="pb-3 border-b border-border/50">
               <CardTitle className="text-base">Genel Toplam Özeti</CardTitle>
