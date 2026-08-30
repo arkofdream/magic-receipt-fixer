@@ -221,21 +221,28 @@ function CustomersPage() {
   const { data: allTransactions = [], isLoading: txnsLoading } = useQuery({
     queryKey: ["all-account-transactions-aging"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("account_transactions")
-        .select("*")
-        .is("deleted_at", null)
-        .order("txn_date", { ascending: true });
-      if (error && isMissingColumnError(error)) {
-        const fallback = await supabase
+      try {
+        const { data, error } = await supabase
           .from("account_transactions")
           .select("*")
+          .is("deleted_at", null)
           .order("txn_date", { ascending: true });
-        if (fallback.error) throw fallback.error;
-        return fallback.data ?? [];
+        if (error && isMissingColumnError(error)) {
+          const fallback = await supabase
+            .from("account_transactions")
+            .select("*")
+            .order("txn_date", { ascending: true });
+          return fallback.data ?? [];
+        }
+        if (error) {
+          console.warn("[AGING TXNS FETCH WARN]", error);
+          return [];
+        }
+        return data ?? [];
+      } catch (err) {
+        console.warn("[AGING TXNS CATCH WARN]", err);
+        return [];
       }
-      if (error) throw error;
-      return data ?? [];
     },
   });
 

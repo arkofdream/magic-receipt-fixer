@@ -349,52 +349,21 @@ export async function sendInvoiceToActiveProvider(
       .eq("id", userId)
       .maybeSingle();
 
-    if (profile && profile.vkn_tckn) {
-      const cleanProfileVkn = profile.vkn_tckn.replace(/\D/g, "");
+    const integratorUserVkn = (row.integrator_api_username || "").replace(/\D/g, "");
+    const profileVkn = (profile?.vkn_tckn || "").replace(/\D/g, "");
+    const cleanProfileVkn = profileVkn.length >= 10 ? profileVkn : integratorUserVkn;
+
+    if (cleanProfileVkn.length >= 10) {
       const invoiceSellerVkn = (
         (invoiceData["sellerTaxNumber"] as string) ||
         (invoiceData["seller_tax_number"] as string) ||
         cleanProfileVkn
       ).replace(/\D/g, "");
 
-      const integratorUserVkn = (row.integrator_api_username || "").replace(/\D/g, "");
-
-      // 1. Check if invoice seller VKN matches company profile VKN
-      if (
-        cleanProfileVkn.length >= 10 &&
-        invoiceSellerVkn.length >= 10 &&
-        cleanProfileVkn !== invoiceSellerVkn
-      ) {
-        console.warn(
-          `[INVOICE PREFLIGHT MISMATCH] Profil VKN (${cleanProfileVkn}) ile Fatura Gönderen VKN (${invoiceSellerVkn}) uyuşmuyor.`,
-        );
-        return {
-          ok: false,
-          message: "Firma VKN/TCKN ile NES entegrasyon VKN/TCKN uyuşmuyor.",
-          ettn,
-        };
-      }
-
-      // 2. Check if NES account VKN (if provided in username) matches company profile VKN
-      if (
-        integratorUserVkn.length >= 10 &&
-        cleanProfileVkn.length >= 10 &&
-        integratorUserVkn !== cleanProfileVkn
-      ) {
-        console.warn(
-          `[INVOICE PREFLIGHT MISMATCH] NES Kullanıcı VKN (${integratorUserVkn}) ile Profil VKN (${cleanProfileVkn}) uyuşmuyor.`,
-        );
-        return {
-          ok: false,
-          message: "Firma VKN/TCKN ile NES entegrasyon VKN/TCKN uyuşmuyor.",
-          ettn,
-        };
-      }
-
-      // Ensure invoiceData has the correct sellerTaxNumber from verified profile
+      // Ensure invoiceData has the correct sellerTaxNumber from verified profile or integrator username
       invoiceData["sellerTaxNumber"] = cleanProfileVkn;
       invoiceData["sellerName"] =
-        profile.company_title || (invoiceData["sellerName"] as string) || "";
+        profile?.company_title || (invoiceData["sellerName"] as string) || "Firma Unvanı";
 
       // 3. Sender GB Alias Resolution and Enforcement
       let resolvedGbAlias = String(
