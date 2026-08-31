@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+
 
 export interface UblParty {
   taxNumber: string; // VKN (10 digits) or TCKN (11 digits)
@@ -195,7 +195,7 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
       throw new Error(`Fatura doğrulaması başarısız: Geçersiz UUID formatı ("${uuid}").`);
     }
   } else {
-    uuid = randomUUID().toLowerCase();
+    uuid = globalThis.crypto.randomUUID().toLowerCase();
   }
 
   let invoiceNumber = (data.invoiceNumber || "").trim();

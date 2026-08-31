@@ -375,7 +375,7 @@ export function roundMoney(amount: number): number {
 
 export function newItem(): InvoiceItem {
   return {
-    id: crypto.randomUUID(),
+    id: globalThis.crypto.randomUUID(),
     productId: "",
     code: "",
     name: "",
@@ -472,7 +472,7 @@ export function formatDate(value: string | null | undefined) {
 }
 
 export function generateEttn(): string {
-  return crypto.randomUUID().toLowerCase();
+  return globalThis.crypto.randomUUID().toLowerCase();
 }
 
 /**
