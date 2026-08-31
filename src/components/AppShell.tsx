@@ -19,6 +19,11 @@ import {
   Monitor,
   Trash2,
   Menu,
+  Receipt,
+  ShoppingCart,
+  Calendar,
+  Wallet,
+  Banknote,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -26,6 +31,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { CHANGELOG_SEEN_KEY, LATEST_CHANGELOG_ID } from "@/lib/changelog";
 import { DESKTOP_DOWNLOAD_URL } from "@/lib/download";
 import { getMyAccountFlags } from "@/lib/subscription.functions";
@@ -36,7 +42,12 @@ const nav = [
   { to: "/dashboard", label: "Kontrol Paneli", icon: LayoutDashboard },
   { to: "/fatura-kes", label: "Fatura Kes", icon: FilePlus2 },
   { to: "/faturalar", label: "Fatura Arşivi", icon: FolderOpen },
-  { to: "/cariler", label: "Cariler & Vade Takip", icon: Users },
+  { to: "/satis-faturalari", label: "Satış Faturaları", icon: Receipt },
+  { to: "/alis-faturalari", label: "Alış Faturaları", icon: ShoppingCart },
+  { to: "/tahsilat", label: "Tahsilat", icon: Wallet },
+  { to: "/odeme", label: "Ödeme", icon: Banknote },
+  { to: "/cariler", label: "Cari Hesaplar", icon: Users },
+  { to: "/vade-takip", label: "Vade Takibi", icon: Calendar },
   { to: "/muhasebe", label: "Muhasebe & Finans", icon: Landmark },
   { to: "/urunler", label: "Ürün & Hizmet", icon: Package },
   { to: "/stok", label: "Stok Yönetimi", icon: Boxes },

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useLocation } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Download, FileDown, Trash2, Edit, Filter, Plus, ArrowUpDown, FileText } from "lucide-react";
@@ -74,12 +74,17 @@ const TYPE_BADGE_MAP: Record<string, { label: string; variant: "default" | "seco
   ISTISNA: { label: "İstisna (%0)", variant: "secondary" },
 };
 
-function InvoicesPage() {
+export function InvoicesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const location = useLocation();
+
+  const isSales = location.pathname.includes('satis-faturalari');
+  const isPurchase = location.pathname.includes('alis-faturalari');
+  const initialTab = isSales ? "OUTGOING" : isPurchase ? "INCOMING" : "ALL";
 
   // Filtreler
-  const [activeTab, setActiveTab] = useState("ALL");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [invoiceNoSearch, setInvoiceNoSearch] = useState("");

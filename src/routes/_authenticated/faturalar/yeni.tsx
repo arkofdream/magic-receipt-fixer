@@ -214,7 +214,7 @@ function NewInvoicePage() {
 
   function handlePreviewXml() {
     try {
-      const ettn = crypto.randomUUID ? crypto.randomUUID() : `ETTN-${Date.now()}`;
+      const ettn = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `ETTN-${Date.now()}`;
       const ublXml = createUblTrInvoice({
         uuid: ettn,
         invoiceNumber: customInvoiceNumber.trim() || `EAR${new Date().getFullYear()}000000001`,
