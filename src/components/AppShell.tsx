@@ -24,6 +24,7 @@ import {
   Calendar,
   Wallet,
   Banknote,
+  PieChart,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -46,6 +47,8 @@ const nav = [
   { to: "/alis-faturalari", label: "Alış Faturaları", icon: ShoppingCart },
   { to: "/tahsilat", label: "Tahsilat", icon: Wallet },
   { to: "/odeme", label: "Ödeme", icon: Banknote },
+  { to: "/kasa", label: "Kasa (100)", icon: Wallet },
+  { to: "/banka", label: "Banka (102)", icon: Landmark },
   { to: "/cariler", label: "Cari Hesaplar", icon: Users },
   { to: "/vade-takip", label: "Vade Takibi", icon: Calendar },
   { to: "/muhasebe", label: "Muhasebe & Finans", icon: Landmark },
@@ -53,6 +56,7 @@ const nav = [
   { to: "/stok", label: "Stok Yönetimi", icon: Boxes },
 
   { to: "/pos-satislar", label: "POS Satışları", icon: CreditCard },
+  { to: "/raporlar", label: "Raporlar", icon: PieChart },
   { to: "/z-raporu", label: "Günlük Z Raporu", icon: BarChart3 },
   { to: "/cop-kutusu", label: "Çöp Kutusu & Log", icon: Trash2 },
   { to: "/ayarlar", label: "Entegrasyon Ayarları", icon: Settings },
