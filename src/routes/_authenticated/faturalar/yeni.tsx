@@ -29,6 +29,8 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { validateVknTckn } from "@/lib/validation";
 import { createUblTrInvoice, parseUblXmlForensic, roundDecimal } from "@/lib/ubl";
+import { calculateTotals, formatMoney, getTotalsDisplay } from "@/lib/invoice";
+import { generateUUID } from "@/lib/uuid";
 import { getMyCompanyProfile } from "@/lib/profile.functions";
 
 const POPULAR_TAX_OFFICES = [
@@ -214,7 +216,7 @@ function NewInvoicePage() {
 
   function handlePreviewXml() {
     try {
-      const ettn = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `ETTN-${Date.now()}`;
+      const ettn = generateUUID();
       const ublXml = createUblTrInvoice({
         uuid: ettn,
         invoiceNumber: customInvoiceNumber.trim() || `EAR${new Date().getFullYear()}000000001`,

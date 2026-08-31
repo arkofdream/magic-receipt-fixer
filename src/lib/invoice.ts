@@ -1,4 +1,5 @@
 import { validateTCKN, validateVKN, validateVknTckn } from "./validation.ts";
+import { generateUUID } from "./uuid.ts";
 
 export type InvoiceItem = {
   id: string;
@@ -375,7 +376,7 @@ export function roundMoney(amount: number): number {
 
 export function newItem(): InvoiceItem {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: generateUUID(),
     productId: "",
     code: "",
     name: "",
@@ -472,7 +473,7 @@ export function formatDate(value: string | null | undefined) {
 }
 
 export function generateEttn(): string {
-  return globalThis.crypto.randomUUID().toLowerCase();
+  return generateUUID().toLowerCase();
 }
 
 /**

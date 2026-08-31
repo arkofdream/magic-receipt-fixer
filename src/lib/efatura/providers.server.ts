@@ -8,6 +8,7 @@
  */
 
 import { getIntegratorConfig } from "./integrators.config";
+import { generateUUID } from "../uuid";
 
 export type ProviderId = "GIB" | "INTEGRATOR";
 
@@ -179,7 +180,7 @@ class GibPortalProvider implements EInvoiceProvider {
         },
         body: new URLSearchParams({
           cmd: "EARSIV_PORTAL_LOGIN",
-          callid: crypto.randomUUID(),
+          callid: generateUUID(),
           pageName: "RG_LOGIN",
           token: "",
           jp: JSON.stringify({
@@ -226,7 +227,7 @@ class GibPortalProvider implements EInvoiceProvider {
     const invalid = validateCredentials(credentials);
     if (invalid) return { ok: false, message: invalid.message };
 
-    const ettn = (invoice["ettn"] as string) || crypto.randomUUID().toUpperCase();
+    const ettn = (invoice["ettn"] as string) || generateUUID().toUpperCase();
     return {
       ok: false,
       message:
@@ -381,7 +382,7 @@ class IntegratorProvider implements EInvoiceProvider {
     const invalid = validateCredentials(credentials);
     if (invalid) return { ok: false, message: invalid.message };
 
-    const ettn = (invoice["ettn"] as string) || crypto.randomUUID().toUpperCase();
+    const ettn = (invoice["ettn"] as string) || generateUUID().toUpperCase();
     const integrator = credentials.integratorName || "Entegratör";
 
     if (
