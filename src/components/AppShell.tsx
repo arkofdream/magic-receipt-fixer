@@ -36,7 +36,7 @@ const nav = [
   { to: "/dashboard", label: "Kontrol Paneli", icon: LayoutDashboard },
   { to: "/fatura-kes", label: "Fatura Kes", icon: FilePlus2 },
   { to: "/faturalar", label: "Fatura Arşivi", icon: FolderOpen },
-  { to: "/cariler", label: "Cari Hesaplar", icon: Users },
+  { to: "/cariler", label: "Cariler & Vade Takip", icon: Users },
   { to: "/muhasebe", label: "Muhasebe & Finans", icon: Landmark },
   { to: "/urunler", label: "Ürün & Hizmet", icon: Package },
   { to: "/stok", label: "Stok Yönetimi", icon: Boxes },

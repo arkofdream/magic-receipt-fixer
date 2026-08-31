@@ -1307,8 +1307,9 @@ function CustomersPage() {
               ) : filteredAgingList.length === 0 ? (
                 <div className="py-12 text-center text-xs text-muted-foreground">Filtrelere uygun cari bulunamadı.</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[750px] text-xs">
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full min-w-[750px] text-xs">
                     <thead>
                       <tr className="bg-muted/40 text-left font-semibold border-b border-border">
                         <th className="py-2.5 px-3">Cari Unvanı</th>
@@ -1391,6 +1392,47 @@ function CustomersPage() {
                     </tbody>
                   </table>
                 </div>
+
+                <div className="md:hidden space-y-3">
+                  {filteredAgingList.map((row) => {
+                    const c = row.customer;
+                    return (
+                      <Card key={c.id} className="p-3 space-y-2 border border-border/80 text-xs">
+                        <div className="flex justify-between items-start border-b border-border/50 pb-2">
+                          <div>
+                            <div className="font-semibold">{c.title}</div>
+                            <div className="text-[10px] text-muted-foreground">{c.vkn_tckn}</div>
+                          </div>
+                          <Badge variant={c.partner_type === "MUSTERI" ? "default" : "secondary"} className="text-[10px]">
+                            {c.partner_type === "MUSTERI" ? "Müşteri" : "Tedarikçi"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="font-medium">Net Bakiye</span>
+                          <span className={`font-bold ${row.balance > 0 ? "text-emerald-600 dark:text-emerald-400" : row.balance < 0 ? "text-rose-600 dark:text-rose-400" : ""}`}>
+                            {formatMoney(row.balance)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1 border-t border-border/50 font-mono text-[11px]">
+                          {row.notDue > 0 && <><span className="text-muted-foreground">Vadesi Gelmemiş:</span> <span className="text-right text-blue-600 dark:text-blue-400">{formatMoney(row.notDue)}</span></>}
+                          {row.b0_30 > 0 && <><span className="text-muted-foreground">0-30 Gün:</span> <span className="text-right text-emerald-600 dark:text-emerald-400">{formatMoney(row.b0_30)}</span></>}
+                          {row.b31_60 > 0 && <><span className="text-muted-foreground">31-60 Gün:</span> <span className="text-right text-amber-600 dark:text-amber-400">{formatMoney(row.b31_60)}</span></>}
+                          {row.b61_90 > 0 && <><span className="text-muted-foreground">61-90 Gün:</span> <span className="text-right text-orange-600 dark:text-orange-400">{formatMoney(row.b61_90)}</span></>}
+                          {row.b91_180 > 0 && <><span className="text-muted-foreground">91-180 Gün:</span> <span className="text-right text-rose-600 dark:text-rose-400 font-bold">{formatMoney(row.b91_180)}</span></>}
+                          {row.b181_365 > 0 && <><span className="text-muted-foreground">181-365 Gün:</span> <span className="text-right text-purple-600 dark:text-purple-400 font-bold">{formatMoney(row.b181_365)}</span></>}
+                          {row.b365Plus > 0 && <><span className="text-muted-foreground">365+ Gün:</span> <span className="text-right text-red-600 dark:text-red-400 font-black">{formatMoney(row.b365Plus)}</span></>}
+                          {row.noDueDate > 0 && <><span className="text-muted-foreground">Vade Yok:</span> <span className="text-right">{formatMoney(row.noDueDate)}</span></>}
+                        </div>
+                        <div className="pt-2 border-t border-border/50 flex justify-end">
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setDetailId(c.id)}>
+                            Ekstre İncele
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

@@ -1140,6 +1140,7 @@ function NewInvoicePage() {
                       if (match) {
                         handleCustomerSelect(match.id);
                       } else {
+                        if (customerId) setCustomerId("");
                         setCustomer({ ...customer, vknTckn: val });
                       }
                     }}
@@ -1164,6 +1165,7 @@ function NewInvoicePage() {
                       if (match) {
                         handleCustomerSelect(match.id);
                       } else {
+                        if (customerId) setCustomerId("");
                         setCustomer({ ...customer, title: val });
                       }
                     }}
@@ -1295,7 +1297,7 @@ function NewInvoicePage() {
                               value={item.name}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                const matched = products.find((p) => p.name === val);
+                                const matched = products.find((p) => p.name.trim().toLowerCase() === val.trim().toLowerCase());
                                 if (matched) {
                                   handleProductSelect(item.id, matched.id);
                                 } else {
@@ -1486,7 +1488,7 @@ function NewInvoicePage() {
                         value={item.name}
                         onChange={(e) => {
                           const val = e.target.value;
-                          const matched = products.find((p) => p.name === val);
+                          const matched = products.find((p) => p.name.trim().toLowerCase() === val.trim().toLowerCase());
                           if (matched) {
                             handleProductSelect(item.id, matched.id);
                           } else {
@@ -1689,9 +1691,9 @@ function NewInvoicePage() {
               </div>
 
               {!isNonEditable && (
-                <div className="pt-4 space-y-2">
+                <div className="pt-4 space-y-2 md:static md:p-0 md:bg-transparent md:border-none sticky bottom-0 bg-background/95 backdrop-blur p-4 border-t border-border z-20 -mx-6 -mb-6 mt-4 md:mx-0 md:-mb-0 md:mt-0">
                   <Button
-                    className="w-full bg-primary text-primary-foreground font-semibold h-10"
+                    className="w-full bg-primary text-primary-foreground font-semibold h-10 shadow-md"
                     disabled={saveInvoice.isPending}
                     onClick={() => saveInvoice.mutate("ONAYLANDI")}
                   >
