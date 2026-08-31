@@ -123,9 +123,9 @@ BEGIN
 
       IF v_product_id IS NULL THEN
         INSERT INTO public.products (
-          user_id, name, unit, unit_price, vat_rate, stock_quantity, track_stock, is_active, created_at, updated_at
+          user_id, name, unit, unit_price, vat_rate, track_stock, is_active, created_at, updated_at
         ) VALUES (
-          v_user_id, v_item_name, v_unit, v_unit_price, v_vat_rate, 0, true, true, v_now, v_now
+          v_user_id, v_item_name, v_unit, v_unit_price, v_vat_rate, true, true, v_now, v_now
         ) RETURNING id INTO v_product_id;
       END IF;
     END IF;
@@ -395,9 +395,9 @@ BEGIN
 
       IF v_product_id IS NULL THEN
         INSERT INTO public.products (
-          user_id, name, unit, unit_price, vat_rate, stock_quantity, track_stock, is_active, created_at, updated_at
+          user_id, name, unit, unit_price, vat_rate, track_stock, is_active, created_at, updated_at
         ) VALUES (
-          v_user_id, v_item_name, v_unit, v_unit_price, v_vat_rate, 0, true, true, v_now, v_now
+          v_user_id, v_item_name, v_unit, v_unit_price, v_vat_rate, true, true, v_now, v_now
         ) RETURNING id INTO v_product_id;
       END IF;
     END IF;
