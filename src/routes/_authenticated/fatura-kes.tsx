@@ -195,6 +195,60 @@ function NewInvoicePage() {
   const [currency, setCurrency] = useState("TRY");
   const [customerId, setCustomerId] = useState("");
   const [customer, setCustomer] = useState<InvoiceCustomer>(emptyCustomer);
+
+  // GİB mükellef / posta kutusu (alias) sorgulama durumu
+  type GibAliasOption = { alias: string; mail: string; unit: string };
+  const [taxpayerLoading, setTaxpayerLoading] = useState(false);
+  const [taxpayerInfo, setTaxpayerInfo] = useState<
+    { identifier: string; isEinvoiceUser: boolean; title: string | null; aliases: GibAliasOption[] } | null
+  >(null);
+  const [selectedAlias, setSelectedAlias] = useState<string>("");
+
+  async function handleTaxpayerLookup() {
+    const id = (customer.vknTckn || "").replace(/\D/g, "");
+    if (id.length !== 10 && id.length !== 11) {
+      toast.error("Mükellef sorgusu için 10 haneli VKN veya 11 haneli TCKN giriniz.");
+      return;
+    }
+    setTaxpayerLoading(true);
+    try {
+      const { apiFetch } = await import("@/lib/api-client");
+      const res = await apiFetch(`/api/edm/taxpayer?vkn=${encodeURIComponent(id)}`);
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        setTaxpayerInfo(null);
+        toast.error(json?.message || `Mükellef sorgulaması başarısız (HTTP ${res.status}).`);
+        return;
+      }
+      const info = json.data;
+      setTaxpayerInfo({
+        identifier: info.identifier,
+        isEinvoiceUser: Boolean(info.isEinvoiceUser),
+        title: info.title ?? null,
+        aliases: (info.aliases || []) as GibAliasOption[],
+      });
+      if (!info.isEinvoiceUser) {
+        setSelectedAlias("");
+        toast.info("Bu VKN/TCKN e-Fatura mükellefi değil. e-Arşiv fatura düzenlenecek.");
+        return;
+      }
+      if (info.title && !customer.title.trim()) {
+        setCustomer((prev) => ({ ...prev, title: info.title }));
+      }
+      const aliases: GibAliasOption[] = info.aliases || [];
+      if (aliases.length === 1) {
+        setSelectedAlias(aliases[0]!.alias);
+      } else if (selectedAlias && !aliases.some((a) => a.alias === selectedAlias)) {
+        setSelectedAlias("");
+      }
+      toast.success(`${info.title || info.identifier}: ${aliases.length} geçerli posta kutusu etiketi bulundu.`);
+    } catch (err) {
+      setTaxpayerInfo(null);
+      toast.error(err instanceof Error ? err.message : "Mükellef sorgulaması yapılamadı.");
+    } finally {
+      setTaxpayerLoading(false);
+    }
+  }
   const [items, setItems] = useState<InvoiceItem[]>([newItem()]);
   const [notes, setNotes] = useState("");
   const [paymentInfo, setPaymentInfo] = useState("");
@@ -737,7 +791,9 @@ function NewInvoicePage() {
                 }
 
                 const { apiFetch } = await import("@/lib/api-client");
-                const isEinvoiceTaxpayer = Boolean((customer as any)?.isEinvoiceTaxpayer);
+                const isEinvoiceTaxpayer =
+                  Boolean(taxpayerInfo?.isEinvoiceUser && selectedAlias) ||
+                  Boolean((customer as any)?.isEinvoiceTaxpayer);
 
                 // 1) NES/EDM gönderimi — /faturalar/yeni ile birebir aynı uç nokta ve payload
                 const sendRes = await apiFetch("/api/edm/invoice", {
@@ -759,6 +815,7 @@ function NewInvoicePage() {
                     },
                     buyer: {
                       taxNumber: customer.vknTckn,
+                      alias: selectedAlias || undefined,
                       name: customer.title || (customer as any).name || "",
                       taxOffice: customer.taxOffice || "",
                       address: customer.address || "",
@@ -1207,6 +1264,8 @@ function NewInvoicePage() {
                         handleCustomerSelect(match.id);
                       } else {
                         if (customerId) setCustomerId("");
+                        setTaxpayerInfo(null);
+                        setSelectedAlias("");
                         setCustomer({ ...customer, vknTckn: val });
                       }
                     }}
@@ -1238,6 +1297,56 @@ function NewInvoicePage() {
                     disabled={isNonEditable}
                   />
                 </div>
+              </div>
+
+              {/* GİB e-Fatura mükellef / posta kutusu (alias) sorgulama */}
+              <div className="space-y-2 rounded-md border p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTaxpayerLookup}
+                    disabled={isNonEditable || taxpayerLoading}
+                  >
+                    {taxpayerLoading ? "Sorgulanıyor..." : "GİB Mükellef Sorgula"}
+                  </Button>
+                  {taxpayerInfo && (
+                    <Badge variant={taxpayerInfo.isEinvoiceUser ? "default" : "secondary"}>
+                      {taxpayerInfo.isEinvoiceUser ? "e-Fatura Mükellefi" : "e-Arşiv (Mükellef Değil)"}
+                    </Badge>
+                  )}
+                  {selectedAlias && (
+                    <Badge variant="outline" className="gap-1 font-mono">
+                      {selectedAlias.replace(/^urn:mail:/i, "")}
+                      <button
+                        type="button"
+                        aria-label="Etiketi kaldır"
+                        className="ml-1 text-muted-foreground hover:text-foreground"
+                        onClick={() => setSelectedAlias("")}
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )}
+                </div>
+                {taxpayerInfo?.isEinvoiceUser && (
+                  <div className="space-y-1">
+                    <Label htmlFor="gib-alias">GİB Posta Kutusu Etiketi (TICARIFATURA için zorunlu)</Label>
+                    <Select value={selectedAlias} onValueChange={setSelectedAlias} disabled={isNonEditable}>
+                      <SelectTrigger id="gib-alias">
+                        <SelectValue placeholder="Etiket seçin" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {taxpayerInfo.aliases.map((a) => (
+                          <SelectItem key={a.alias} value={a.alias} className="font-mono text-xs">
+                            {a.mail}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
