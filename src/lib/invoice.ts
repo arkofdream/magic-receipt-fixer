@@ -14,6 +14,8 @@ export type InvoiceItem = {
   tevkifatCode?: string;
   tevkifatRate?: number;
   description?: string;
+  /** UI: kalem seçimi tamamlandı (chip gösterimi) */
+  locked?: boolean;
 };
 
 export type InvoiceCustomer = {

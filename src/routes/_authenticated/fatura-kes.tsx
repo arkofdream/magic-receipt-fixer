@@ -84,6 +84,7 @@ function NumericGridInput({
 
 import { AppShell } from "@/components/AppShell";
 import { AddressSelect } from "@/components/AddressSelect";
+import { ProductPicker } from "@/components/ProductPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -499,6 +500,7 @@ function NewInvoicePage() {
       unitPrice: selectedPrice,
       vatRate: Number(p.vat_rate ?? 20),
       discountRate: Number(p.discount_rate ?? 0),
+      locked: true,
     });
   }
 
@@ -1301,31 +1303,25 @@ function NewInvoicePage() {
 
                           {/* 2. TEK ÜRÜN / HİZMET ALANI (DATALIST + ENTER DESTEĞİ) */}
                           <td className="py-2 px-2.5 space-y-1.5 align-top pt-2">
-                            <Input
-                              list="products-datalist"
-                              className="h-8 text-xs bg-background"
+                            <ProductPicker
                               value={item.name}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const matched = products.find((p) => p.name.trim().toLowerCase() === val.trim().toLowerCase());
-                                if (matched) {
-                                  handleProductSelect(item.id, matched.id);
-                                } else {
-                                  updateItem(item.id, { name: val, productId: undefined, code: "" });
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  if (index === items.length - 1) {
-                                    addItem();
-                                  }
-                                }
-                              }}
-                              placeholder="Katalogdan seç veya yaz..."
+                              productId={item.productId || undefined}
+                              locked={item.locked}
+                              products={products}
                               disabled={isNonEditable}
+                              onTextChange={(val) =>
+                                updateItem(item.id, { name: val, productId: undefined, code: "", locked: false })
+                              }
+                              onSelectProduct={(pid) => handleProductSelect(item.id, pid)}
+                              onCommitFreeText={(name) =>
+                                updateItem(item.id, { name, productId: undefined, code: "", locked: true })
+                              }
+                              onClear={() =>
+                                updateItem(item.id, { name: "", productId: undefined, code: "", locked: false })
+                              }
                             />
                           </td>
+
 
                           {/* 3. MİKTAR */}
                           <td className="py-2 px-2.5 align-top pt-2">
@@ -1491,30 +1487,24 @@ function NewInvoicePage() {
                           </Button>
                         )}
                       </div>
-                      <Input
-                        list="products-datalist"
-                        className="h-8 text-xs font-medium"
-                        placeholder="Katalogdan seç veya yaz..."
+                      <ProductPicker
                         value={item.name}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const matched = products.find((p) => p.name.trim().toLowerCase() === val.trim().toLowerCase());
-                          if (matched) {
-                            handleProductSelect(item.id, matched.id);
-                          } else {
-                            updateItem(item.id, { name: val, productId: undefined, code: "" });
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            if (index === items.length - 1) {
-                              addItem();
-                            }
-                          }
-                        }}
+                        productId={item.productId || undefined}
+                        locked={item.locked}
+                        products={products}
                         disabled={isNonEditable}
+                        onTextChange={(val) =>
+                          updateItem(item.id, { name: val, productId: undefined, code: "", locked: false })
+                        }
+                        onSelectProduct={(pid) => handleProductSelect(item.id, pid)}
+                        onCommitFreeText={(name) =>
+                          updateItem(item.id, { name, productId: undefined, code: "", locked: true })
+                        }
+                        onClear={() =>
+                          updateItem(item.id, { name: "", productId: undefined, code: "", locked: false })
+                        }
                       />
+
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-[10px]">Miktar</Label>
