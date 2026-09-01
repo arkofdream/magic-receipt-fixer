@@ -175,10 +175,12 @@ export async function createPendingInvoiceRecord(
     // Check if an existing invoice already exists in DB
     const existing = await findInvoiceByEttnOrNumber(cleanEttn, data.invoiceNumber, provider, userId);
     if (existing) {
+      // Muhasebe durumu (TASLAK/ONAYLANDI/IPTAL) korunur; entegratör durumu edm_status alanına yazılır.
       const updateData: Record<string, any> = {
-        status: "PENDING",
+        ...(isDomainStatus(existing.status) ? { edm_status: "PENDING" } : { status: "PENDING" }),
         provider,
         raw_ubl_xml: rawUblXml,
+
         seller_tax_number: data.seller.taxNumber,
         seller_name: data.seller.name,
         buyer_tax_number: data.buyer.taxNumber,
@@ -285,6 +287,14 @@ export async function createPendingInvoiceRecord(
 }
 
 /**
+ * Muhasebe (domain) durumları: bu durumlar entegratör akışı tarafından ezilmez.
+ */
+export function isDomainStatus(status?: string | null): boolean {
+  const s = (status || "").toUpperCase();
+  return s === "TASLAK" || s === "ONAYLANDI" || s === "IPTAL";
+}
+
+/**
  * State machine status transitions validator.
  * Prevents invalid status regressions (e.g. ACCEPTED -> PENDING, SENT -> DRAFT).
  */
@@ -316,13 +326,15 @@ export async function updateInvoiceResultRecord(
 
   // Check current status before updating
   const existing = await findInvoiceByEttnOrNumber(cleanEttn, "", "EDM", userId);
-  if (existing && !isAllowedStatusTransition(existing.status, mappedStatus)) {
+  const keepDomainStatus = isDomainStatus(existing?.status);
+  if (existing && !keepDomainStatus && !isAllowedStatusTransition(existing.status, mappedStatus)) {
     console.warn(`[InvoiceRepository] Status geçişi engellendi: ${existing.status} -> ${mappedStatus}`);
     return;
   }
 
   const updatePayload = {
-    status: mappedStatus,
+    ...(keepDomainStatus ? {} : { status: mappedStatus }),
+
     edm_status: result.status || (isSuccess ? "PACKAGE - PROCESSING" : "FAILED"),
     edm_return_code: isSuccess ? "0" : "ERROR",
     edm_return_message: result.message,
@@ -352,10 +364,11 @@ export async function updateInvoiceResultRecord(
         let fallbackQuery = supabaseAdmin
           .from("invoices")
           .update({
-            status: mappedStatus,
+            ...(keepDomainStatus ? {} : { status: mappedStatus }),
             notes: result.message ? `[EDM] ${result.message}` : undefined,
             updated_at: processedAt,
           });
+
         if (userId) fallbackQuery = fallbackQuery.eq("user_id", userId);
         if (targetId) {
           fallbackQuery = fallbackQuery.eq("id", targetId);
