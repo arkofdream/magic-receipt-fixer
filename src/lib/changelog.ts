@@ -14,6 +14,23 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-09-01-b",
+    version: "1.4.2",
+    date: "2026-09-01",
+    title: "İade miktarı kontrolü ve KDV raporu düzeltmeleri",
+    summary:
+      "İade edilen miktar artık faturadaki kalan iade edilebilir miktarı aşamıyor; KDV beyan özeti ve gelir tablosu gerçek fatura verileriyle tam uyumlu.",
+    changes: [
+      { type: "Yeni", text: "İade miktarı kontrolü: bir faturadan toplamda faturadaki miktardan fazlası iade edilemiyor (kısmi, çoklu ve ondalıklı iadeler dahil)." },
+      { type: "Yeni", text: "İade faturaları artık orijinal faturaya bağlı olarak saklanıyor." },
+      { type: "Düzeltme", text: "İptal edilmiş bir satış faturasına iade yapılması engellendi." },
+      { type: "Düzeltme", text: "KDV beyan özetinde satış KDV'si 0 görünmesi giderildi; satış ve alış iadeleri doğru yönde hesaplanıyor." },
+      { type: "Düzeltme", text: "Gelir tablosunda brüt kâr marjı hesabındaki sayısal taşma hatası giderildi." },
+      { type: "İyileştirme", text: "Satılan malın maliyeti mutabakatı satış iadelerini de kapsıyor; mutabakat farkı sıfırlandı." },
+    ],
+  },
+  {
+
     id: "2026-09-01",
     version: "1.4.1",
     date: "2026-09-01",
