@@ -287,6 +287,14 @@ export async function createPendingInvoiceRecord(
 }
 
 /**
+ * Muhasebe (domain) durumları: bu durumlar entegratör akışı tarafından ezilmez.
+ */
+export function isDomainStatus(status?: string | null): boolean {
+  const s = (status || "").toUpperCase();
+  return s === "TASLAK" || s === "ONAYLANDI" || s === "IPTAL";
+}
+
+/**
  * State machine status transitions validator.
  * Prevents invalid status regressions (e.g. ACCEPTED -> PENDING, SENT -> DRAFT).
  */
@@ -318,13 +326,15 @@ export async function updateInvoiceResultRecord(
 
   // Check current status before updating
   const existing = await findInvoiceByEttnOrNumber(cleanEttn, "", "EDM", userId);
-  if (existing && !isAllowedStatusTransition(existing.status, mappedStatus)) {
+  const keepDomainStatus = isDomainStatus(existing?.status);
+  if (existing && !keepDomainStatus && !isAllowedStatusTransition(existing.status, mappedStatus)) {
     console.warn(`[InvoiceRepository] Status geçişi engellendi: ${existing.status} -> ${mappedStatus}`);
     return;
   }
 
   const updatePayload = {
-    status: mappedStatus,
+    ...(keepDomainStatus ? {} : { status: mappedStatus }),
+
     edm_status: result.status || (isSuccess ? "PACKAGE - PROCESSING" : "FAILED"),
     edm_return_code: isSuccess ? "0" : "ERROR",
     edm_return_message: result.message,
