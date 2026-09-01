@@ -736,29 +736,83 @@ function NewInvoicePage() {
                   actualInvoiceNo = `${pfx}${yr}${String(Date.now()).slice(-9)}`;
                 }
 
-                const { sendInvoiceToProvider } = await import("@/lib/efatura-settings.functions");
-                const res = await sendInvoiceToProvider({
-                  data: {
-                    ettn,
+                const { apiFetch } = await import("@/lib/api-client");
+                const isEinvoiceTaxpayer = Boolean((customer as any)?.isEinvoiceTaxpayer);
+
+                // 1) NES/EDM gönderimi — /faturalar/yeni ile birebir aynı uç nokta ve payload
+                const sendRes = await apiFetch("/api/edm/invoice", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    uuid: ettn,
                     invoiceNumber: actualInvoiceNo,
-                    customerName: customer.title || (customer as any).name || "",
-                    customerTaxNumber: customer.vknTckn,
-                    grandTotal: totals.grandTotal,
-                    type,
-                    isDirectSend: "true",
-                    isEinvoiceTaxpayer: Boolean((customer as any)?.isEinvoiceTaxpayer),
-                    profileId: Boolean((customer as any)?.isEinvoiceTaxpayer) ? "TICARIFATURA" : "EARSIVFATURA",
-                    items: JSON.parse(JSON.stringify(items)),
-                  },
+                    issueDate: date,
+                    issueTime: new Date().toISOString().split("T")[1]?.slice(0, 8) || "12:00:00",
+                    currency: "TRY",
+                    profileId: isEinvoiceTaxpayer ? "TICARIFATURA" : "EARSIVFATURA",
+                    invoiceTypeCode: "SATIS",
+                    seller: {
+                      taxNumber: companyProfile?.vknTckn || "",
+                      name: companyProfile?.companyTitle || "",
+                      taxOffice: companyProfile?.taxOffice || "",
+                      address: companyProfile?.address || "",
+                    },
+                    buyer: {
+                      taxNumber: customer.vknTckn,
+                      name: customer.title || (customer as any).name || "",
+                      taxOffice: customer.taxOffice || "",
+                      address: customer.address || "",
+                      city: customer.city || "",
+                      district: customer.district || "",
+                    },
+                    lines: items.map((it) => ({
+                      name: it.name || "Ürün/Hizmet",
+                      quantity: Number(it.quantity) || 1,
+                      unitPrice: Number(it.unitPrice) || 0,
+                      discountRate: Number(it.discountRate) || 0,
+                      vatRate: Number(it.vatRate) || 0,
+                    })),
+                    note: notes.trim(),
+                  }),
                 });
-                if (res && res.ok) {
-                  toast.success("Fatura NES Bilgi servisine başarıyla yüklendi!");
-                } else if (res && res.message) {
-                  toast.info(`Entegratör Yanıtı: ${res.message}`);
+
+                const sendJson = await sendRes.json().catch(() => null);
+                if (!sendRes.ok || !sendJson?.success) {
+                  toast.warning(
+                    `Fatura kaydedildi ancak entegratöre iletilemedi: ${sendJson?.message || `HTTP ${sendRes.status}`}`,
+                  );
+                } else {
+                  toast.success(
+                    `Fatura entegratöre iletildi (No: ${sendJson.invoiceNumber || actualInvoiceNo}${
+                      sendJson.edmReference ? `, Ref: ${sendJson.edmReference}` : ""
+                    }).`,
+                  );
+
+                  // 2) Durum sorgulama (polling) — SENT/ACCEPTED olana kadar
+                  const invoiceKey = (_result as any)?.invoice_id || ettn;
+                  for (let attempt = 0; attempt < 5; attempt++) {
+                    await new Promise((r) => setTimeout(r, 2000));
+                    try {
+                      const stRes = await apiFetch(`/api/invoices/${encodeURIComponent(invoiceKey)}/status`);
+                      const stJson = await stRes.json().catch(() => null);
+                      const edmStatus = String(stJson?.data?.edmStatus || stJson?.data?.status || "").toUpperCase();
+                      if (edmStatus.includes("SENT") || edmStatus.includes("ACCEPTED") || edmStatus.includes("SUCCE")) {
+                        toast.success("Entegratör durumu: GÖNDERİLDİ (SENT).");
+                        break;
+                      }
+                      if (edmStatus.includes("FAIL") || edmStatus.includes("ERROR") || edmStatus.includes("REJECT")) {
+                        toast.error(`Entegratör durumu: ${edmStatus}. ${stJson?.message || ""}`);
+                        break;
+                      }
+                    } catch {
+                      break;
+                    }
+                  }
                 }
               } catch (providerErr) {
                 console.error("Entegratör gönderim uyarısı:", providerErr);
               }
+
             }
         }
       }
