@@ -631,7 +631,7 @@ function NewInvoicePage() {
           p_return_date: date,
           p_return_invoice_number: supplierInvoiceNumber.trim(),
           p_items: JSON.parse(JSON.stringify(items)),
-          p_warehouse_id: warehouseId || null,
+          p_warehouse_id: warehouseId || undefined,
           p_notes: notes.trim(),
         });
         if (error) throw error;
@@ -639,7 +639,7 @@ function NewInvoicePage() {
       } else if (operationMode === "SATIS_IADE") {
         // --- 3. SATIŞ İADESİ AKIŞI (create_sales_return) ---
         const { data: _result, error } = await supabase.rpc("create_sales_return", {
-          p_original_invoice_id: originalInvoiceId || undefined,
+          p_original_invoice_id: originalInvoiceId || "",
           p_return_date: date,
           p_items: JSON.parse(JSON.stringify(items)),
           p_description: notes.trim() || undefined,
@@ -741,8 +741,8 @@ function NewInvoicePage() {
                     grandTotal: totals.grandTotal,
                     type,
                     isDirectSend: "true",
-                    isEinvoiceTaxpayer: Boolean(customer?.isEinvoiceTaxpayer),
-                    profileId: Boolean(customer?.isEinvoiceTaxpayer) ? "TICARIFATURA" : "EARSIVFATURA",
+                    isEinvoiceTaxpayer: Boolean((customer as any)?.isEinvoiceTaxpayer),
+                    profileId: Boolean((customer as any)?.isEinvoiceTaxpayer) ? "TICARIFATURA" : "EARSIVFATURA",
                     items: JSON.parse(JSON.stringify(items)),
                   },
                 });
@@ -1024,7 +1024,7 @@ function NewInvoicePage() {
                   <SelectContent>
                     {CURRENCY_OPTIONS.map((c) => (
                       <SelectItem key={c.code} value={c.code}>
-                        {c.code} ({c.symbol}) - {c.name}
+                        {c.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -320,7 +320,7 @@ function InvoicesPage() {
         inv.status === "PENDING" ||
         Boolean(inv.provider_reference || inv.trx_id);
 
-      const profile = (inv.profile_id || (inv as any).profileId || "").toUpperCase();
+      const profile = ((inv as any).profile_id || (inv as any).profileId || "").toUpperCase();
       if ((profile === "TICARIFATURA" || profile === "TEMELFATURA") && isSentToEdm) {
         throw new Error(
           "GİB mevzuatı gereği alıcıya iletilmiş e-Faturalar tek taraflı iptal edilemez. Alıcının 8 gün içinde RET yanıtı vermesi veya İade Faturası düzenlemesi gerekmektedir."
@@ -899,7 +899,7 @@ function InvoicesPage() {
                                       inv.status === "ACCEPTED" ||
                                       inv.status === "PROCESSING" ||
                                       inv.status === "PENDING";
-                                    const profile = (inv.profile_id || (inv as any).profileId || "").toUpperCase();
+                                    const profile = ((inv as any).profile_id || (inv as any).profileId || "").toUpperCase();
 
                                     if ((profile === "TICARIFATURA" || profile === "TEMELFATURA") && isSent) {
                                       alert(
