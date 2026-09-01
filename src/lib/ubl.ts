@@ -3,6 +3,8 @@ import { generateUUID } from "./uuid.ts";
 export interface UblParty {
   taxNumber: string; // VKN (10 digits) or TCKN (11 digits)
   name: string;
+  /** GİB posta kutusu / gönderici birim etiketi (örn. "urn:mail:merkezpk@nes.com.tr") */
+  alias?: string;
   taxOffice?: string;
   address?: string;
   district?: string;
@@ -251,6 +253,19 @@ function buildPersonXml(fullName: string): string {
 }
 
 /**
+ * GİB e-Fatura etiketini (alias) UBL cac:Party içindeki cbc:EndpointID olarak üretir.
+ * e-Arşiv faturalarında etiket kullanılmaz; bu durumda boş string döner.
+ */
+function buildEndpointIdXml(alias: string | undefined, profileId: string): string {
+  if (profileId === "EARSIVFATURA") return "";
+  const mail = String(alias || "")
+    .trim()
+    .replace(/^urn:mail:/i, "");
+  if (!mail) return "";
+  return `<cbc:EndpointID schemeID="EMAIL">${escapeXml(mail)}</cbc:EndpointID>`;
+}
+
+/**
  * Generates GİB UBL-TR 2.1 compliant XML content.
  */
 
@@ -299,6 +314,7 @@ export function createUblTrInvoice(data: UblInvoiceData): string {
 
   <cac:AccountingSupplierParty>
     <cac:Party>
+      ${buildEndpointIdXml(validated.seller.alias, validated.profileId)}
       <cac:PartyIdentification>
         <cbc:ID schemeID="${sellerSchemeId}">${validated.seller.taxNumber}</cbc:ID>
       </cac:PartyIdentification>
@@ -321,6 +337,7 @@ export function createUblTrInvoice(data: UblInvoiceData): string {
 
   <cac:AccountingCustomerParty>
     <cac:Party>
+      ${buildEndpointIdXml(validated.buyer.alias, validated.profileId)}
       <cac:PartyIdentification>
         <cbc:ID schemeID="${buyerSchemeId}">${validated.buyer.taxNumber}</cbc:ID>
       </cac:PartyIdentification>
