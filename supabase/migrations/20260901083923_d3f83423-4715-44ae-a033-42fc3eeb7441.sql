@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.sync_journal_entry_totals() FROM PUBLIC, anon, authenticated;
