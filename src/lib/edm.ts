@@ -33,6 +33,16 @@ export interface EdmInvoiceStatusResult {
 const DEFAULT_EDM_TEST_URL = "https://test.edmbilisim.com.tr/EFaturaEDM21ea/EFaturaEDM.svc";
 const FORBIDDEN_LIVE_HOST = "portal2.edmbilisim.com.tr";
 
+/** XML attribute değerlerini güvenli hale getirir. */
+function escapeXmlAttr(value: string): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+
 /**
  * Checks that the configured service URL is strictly a TEST URL
  * and not accidentally configured to the live EDM production host.
