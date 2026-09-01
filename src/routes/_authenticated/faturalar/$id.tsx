@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { INVOICE_STATUSES } from "@/lib/invoice";
 import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api-client";
 
 export const Route = createFileRoute("/_authenticated/faturalar/$id")({
   component: InvoiceDetailPage,
@@ -20,11 +21,35 @@ function InvoiceDetailPage() {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [downloadingXml, setDownloadingXml] = useState(false);
+
+  const handleDownloadXml = async (invoiceId: string, invoiceNumber: string) => {
+    setDownloadingXml(true);
+    try {
+      const res = await apiFetch(`/api/invoices/${encodeURIComponent(invoiceId)}/xml`);
+      if (!res.ok) {
+        throw new Error(res.status === 401 ? "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın." : "XML indirilemedi.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${invoiceNumber || invoiceId}.xml`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "XML indirilemedi.");
+    } finally {
+      setDownloadingXml(false);
+    }
+  };
 
   const { data: invoiceRes, isLoading, error } = useQuery({
     queryKey: ["invoice-detail", id],
     queryFn: async () => {
-      const res = await fetch(`/api/invoices/${encodeURIComponent(id)}`);
+      const res = await apiFetch(`/api/invoices/${encodeURIComponent(id)}`);
       const json = await res.json();
       if (!res.ok || !json.success) {
         throw new Error(json.message || "Fatura detayları alınamadı.");
@@ -39,7 +64,7 @@ function InvoiceDetailPage() {
     if (!invoice?.id) return;
     setRefreshing(true);
     try {
-      const res = await fetch(`/api/invoices/${encodeURIComponent(invoice.id)}/status`);
+      const res = await apiFetch(`/api/invoices/${encodeURIComponent(invoice.id)}/status`);
       const json = await res.json();
       if (!res.ok || !json.success) {
         throw new Error(json.message || "Durum güncellenemedi.");
@@ -79,7 +104,7 @@ function InvoiceDetailPage() {
     setCancelling(true);
     try {
       if (isSent) {
-        const res = await fetch("/api/edm/invoice/cancel", {
+        const res = await apiFetch("/api/edm/invoice/cancel", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ invoiceId: invoice.id, cancelReason: reason.trim() }),
@@ -143,10 +168,12 @@ function InvoiceDetailPage() {
             </Link>
           </Button>
           {invoice.raw_ubl_xml && (
-            <Button variant="outline" asChild>
-              <a href={`/api/invoices/${invoice.id}/xml`} target="_blank" rel="noreferrer">
-                <Download className="mr-1 size-4" /> UBL XML İndir
-              </a>
+            <Button
+              variant="outline"
+              disabled={downloadingXml}
+              onClick={() => handleDownloadXml(invoice.id, invoice.invoice_number)}
+            >
+              <Download className="mr-1 size-4" /> {downloadingXml ? "İndiriliyor..." : "UBL XML İndir"}
             </Button>
           )}
           <Button disabled={refreshing} onClick={handleRefreshStatus} className="gap-1">

@@ -23,6 +23,7 @@ import {
 
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1031,7 +1032,7 @@ function EdmTestCard() {
     setLoginLoading(true);
     setLoginResult(null);
     try {
-      const res = await fetch("/api/edm/test");
+      const res = await apiFetch("/api/edm/test");
       const data = await res.json();
       setLoginResult(data);
       if (data.success) {
@@ -1079,7 +1080,7 @@ function EdmTestCard() {
     };
 
     try {
-      const res = await fetch("/api/edm/invoice", {
+      const res = await apiFetch("/api/edm/invoice", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
