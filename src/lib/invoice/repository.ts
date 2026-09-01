@@ -175,10 +175,12 @@ export async function createPendingInvoiceRecord(
     // Check if an existing invoice already exists in DB
     const existing = await findInvoiceByEttnOrNumber(cleanEttn, data.invoiceNumber, provider, userId);
     if (existing) {
+      // Muhasebe durumu (TASLAK/ONAYLANDI/IPTAL) korunur; entegratör durumu edm_status alanına yazılır.
       const updateData: Record<string, any> = {
-        status: "PENDING",
+        ...(isDomainStatus(existing.status) ? { edm_status: "PENDING" } : { status: "PENDING" }),
         provider,
         raw_ubl_xml: rawUblXml,
+
         seller_tax_number: data.seller.taxNumber,
         seller_name: data.seller.name,
         buyer_tax_number: data.buyer.taxNumber,
