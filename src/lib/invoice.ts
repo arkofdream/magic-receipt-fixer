@@ -337,12 +337,12 @@ export const EXEMPTION_CODES = [
   { code: "250", name: "Diğer KDV İstisnaları ve Muafiyetler", label: "250 - Diğer KDV İstisnaları" },
 ] as const;
 
+// TL-ONLY MOD: Dövizli muhasebe (kur farkı, döviz kasa/banka değerlemesi) desteklenmediği
+// için yalnızca TRY seçilebilir. Backend tarafında da TL dışı işlemler reddedilir.
 export const CURRENCY_OPTIONS = [
   { code: "TRY", symbol: "₺", label: "Türk Lirası (TRY)" },
-  { code: "USD", symbol: "$", label: "Amerikan Doları (USD)" },
-  { code: "EUR", symbol: "€", label: "Euro (EUR)" },
-  { code: "GBP", symbol: "£", label: "İngiliz Sterlini (GBP)" },
 ] as const;
+
 
 export const UNIT_OPTIONS = [
   "Adet",
