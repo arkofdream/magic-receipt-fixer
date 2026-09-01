@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getInvoiceSummaryStats } from "../../../lib/invoice/repository.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 export const Route = createFileRoute("/api/invoices/summary")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
         try {
-          const stats = await getInvoiceSummaryStats();
+          const { userId } = await requireApiUser(request);
+          const stats = await getInvoiceSummaryStats(userId);
           return Response.json({
             success: true,
             message: "Fatura özet istatistikleri başarıyla getirildi.",
@@ -14,6 +16,8 @@ export const Route = createFileRoute("/api/invoices/summary")({
             error: null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Özet istatistikler alınamadı.";
           return Response.json(

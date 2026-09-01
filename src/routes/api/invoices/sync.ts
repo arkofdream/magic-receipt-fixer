@@ -1,14 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getPendingOrProcessingInvoices, updateInvoiceResultRecord } from "../../../lib/invoice/repository.ts";
 import { getEInvoiceProvider } from "../../../lib/einvoice/provider.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 export const Route = createFileRoute("/api/invoices/sync")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
         try {
+          const { userId } = await requireApiUser(request);
           // Fetch active invoices needing status update
-          const activeInvoices = await getPendingOrProcessingInvoices(20);
+          const activeInvoices = await getPendingOrProcessingInvoices(userId, 20);
 
           if (activeInvoices.length === 0) {
             return Response.json({
@@ -41,7 +43,7 @@ export const Route = createFileRoute("/api/invoices/sync")({
                   uuid: inv.ettn,
                   edmReference: inv.provider_reference || inv.trx_id,
                   status: statusResult.status || "SENT",
-                });
+                }, userId);
 
                 updatedCount++;
                 syncResults.push({
@@ -68,6 +70,8 @@ export const Route = createFileRoute("/api/invoices/sync")({
             error: null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Toplu durum senkronizasyonunda hata oluştu.";
           return Response.json(

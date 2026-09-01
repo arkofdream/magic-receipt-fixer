@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api-client";
 import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import {
   formatDate,
@@ -131,7 +132,7 @@ function InvoicesPage() {
           note: inv.notes || "Toplu entegratör gönderimi",
         };
 
-        const res = await fetch("/api/edm/invoice", {
+        const res = await apiFetch("/api/edm/invoice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -175,7 +176,7 @@ function InvoicesPage() {
   const { data: summaryStats } = useQuery({
     queryKey: ["invoices-summary"],
     queryFn: async () => {
-      const res = await fetch("/api/invoices/summary");
+      const res = await apiFetch("/api/invoices/summary");
       const json = await res.json();
       if (!res.ok || !json.success) return null;
       return json.data;
@@ -185,7 +186,7 @@ function InvoicesPage() {
   async function handleBatchSync() {
     setSyncing(true);
     try {
-      const res = await fetch("/api/invoices/sync", { method: "POST" });
+      const res = await apiFetch("/api/invoices/sync", { method: "POST" });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.message || "Senkronizasyon hatası.");
       toast.success(json.message);
@@ -328,7 +329,7 @@ function InvoicesPage() {
       }
 
       if (isSentToEdm && !isPurchase) {
-        const res = await fetch("/api/edm/invoice/cancel", {
+        const res = await apiFetch("/api/edm/invoice/cancel", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ invoiceId: inv.id, cancelReason: reason }),

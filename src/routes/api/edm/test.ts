@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { testEdmConnection } from "@/lib/edm";
+import { requireApiUser, authErrorResponse } from "@/lib/api-auth.server";
 
 export const Route = createFileRoute("/api/edm/test")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
         try {
+          await requireApiUser(request);
           const result = await testEdmConnection();
           return Response.json({
             success: result.success,
@@ -26,6 +28,8 @@ export const Route = createFileRoute("/api/edm/test")({
               : null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error
               ? error.message

@@ -1,18 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listInvoices } from "../../lib/invoice/repository.ts";
+import { requireApiUser, authErrorResponse } from "../../lib/api-auth.server.ts";
 
 export const Route = createFileRoute("/api/invoices")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         try {
+          const { userId } = await requireApiUser(request);
           const url = new URL(request.url);
           const page = parseInt(url.searchParams.get("page") || "1", 10);
           const pageSize = parseInt(url.searchParams.get("pageSize") || "20", 10);
           const status = url.searchParams.get("status") || undefined;
           const search = url.searchParams.get("search") || undefined;
 
-          const result = await listInvoices({ page, pageSize, status, search });
+          const result = await listInvoices({ userId, page, pageSize, status, search });
 
           return Response.json({
             success: true,
@@ -21,6 +23,8 @@ export const Route = createFileRoute("/api/invoices")({
             error: null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Faturalar listelenirken bir hata oluştu.";
           return Response.json(

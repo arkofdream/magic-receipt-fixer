@@ -1,14 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getInvoiceById, updateInvoiceResultRecord } from "../../../lib/invoice/repository.ts";
 import { getEInvoiceProvider } from "../../../lib/einvoice/provider.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 export const Route = createFileRoute("/api/invoices/$id/status")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
         try {
+          const { userId } = await requireApiUser(request);
           const id = params.id;
-          const invoice = await getInvoiceById(id);
+          const invoice = await getInvoiceById(id, userId);
 
           if (!invoice) {
             return Response.json(
@@ -53,10 +55,10 @@ export const Route = createFileRoute("/api/invoices/$id/status")({
               uuid: cleanEttn,
               edmReference: invoice.provider_reference || invoice.trx_id,
               status: statusResult.status || "PROCESSING",
-            });
+            }, userId);
           }
 
-          const updatedInvoice = await getInvoiceById(invoice.id || cleanEttn);
+          const updatedInvoice = await getInvoiceById(invoice.id || cleanEttn, userId);
 
           return Response.json({
             success: statusResult.success,
@@ -75,6 +77,8 @@ export const Route = createFileRoute("/api/invoices/$id/status")({
             error: statusResult.error || null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Fatura durumu sorgulanırken bir sunucu hatası oluştu.";
           return Response.json(

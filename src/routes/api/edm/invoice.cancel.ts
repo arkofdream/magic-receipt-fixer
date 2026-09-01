@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getInvoiceById, updateInvoiceResultRecord } from "../../../lib/invoice/repository.ts";
 import { cancelInvoiceInEdm } from "../../../lib/edm.ts";
-import { supabase } from "../../../integrations/supabase/client.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 const activeCancelLocks = new Set<string>();
 
@@ -12,64 +12,8 @@ export const Route = createFileRoute("/api/edm/invoice/cancel")({
         let lockKey: string | null = null;
 
         try {
-          // 0. FAIL-FAST AUTHENTICATION CHECK (Before any DB query, EDM SOAP call, or RPC)
-          const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
-          let token = "";
-          if (authHeader && authHeader.startsWith("Bearer ")) {
-            token = authHeader.slice(7).trim();
-          }
-
-          let authenticatedUserId: string | null = null;
-
-          if (token) {
-            const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-            if (!claimsError && claimsData?.claims?.sub) {
-              authenticatedUserId = String(claimsData.claims.sub);
-            } else {
-              const { data: userData, error: userError } = await supabase.auth.getUser(token);
-              if (!userError && userData?.user?.id) {
-                authenticatedUserId = userData.user.id;
-              }
-            }
-          } else {
-            const cookieHeader = request.headers.get("cookie") || "";
-            const match = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/) || cookieHeader.match(/sb-access-token=([^;]+)/);
-            if (match) {
-              try {
-                const parsed = JSON.parse(decodeURIComponent(match[1]));
-                token = Array.isArray(parsed) ? parsed[0] : (parsed.access_token || parsed);
-                if (token) {
-                  const { data: cookieUserData } = await supabase.auth.getUser(token);
-                  if (cookieUserData?.user?.id) {
-                    authenticatedUserId = cookieUserData.user.id;
-                  }
-                }
-              } catch {
-                // Ignore parsing errors and fallback to active session
-              }
-            }
-
-            if (!authenticatedUserId) {
-              const { data: sessionData } = await supabase.auth.getSession();
-              if (sessionData?.session?.user?.id) {
-                authenticatedUserId = sessionData.session.user.id;
-              }
-            }
-          }
-
-          if (!authenticatedUserId) {
-            return Response.json(
-              {
-                success: false,
-                message: "Yetkilendirme hatası: Oturum açmış kullanıcı bulunamadı.",
-                error: {
-                  code: "UNAUTHORIZED",
-                  message: "İptal işlemi için geçerli bir kullanıcı oturumu (Bearer token veya oturum çerezi) gereklidir.",
-                },
-              },
-              { status: 401 }
-            );
-          }
+          // 0. FAIL-FAST AUTHENTICATION (Bearer token / oturum çerezi)
+          const { userId: authenticatedUserId, supabase: authedSupabase } = await requireApiUser(request);
 
           const body = await request.json().catch(() => null);
           const invoiceId = body?.invoiceId || body?.id;
@@ -113,7 +57,7 @@ export const Route = createFileRoute("/api/edm/invoice/cancel")({
           activeCancelLocks.add(lockKey);
 
           // 3. Find invoice in Database & Tenant Ownership Check
-          const invoice = await getInvoiceById(invoiceId);
+          const invoice = await getInvoiceById(invoiceId, authenticatedUserId);
           if (!invoice) {
             return Response.json(
               {
@@ -126,11 +70,7 @@ export const Route = createFileRoute("/api/edm/invoice/cancel")({
           }
 
           // Strict Tenant Ownership Check
-          if (
-            invoice.user_id &&
-            invoice.user_id !== authenticatedUserId &&
-            invoice.user_id !== "00000000-0000-0000-0000-000000000000"
-          ) {
+          if (invoice.user_id !== authenticatedUserId) {
             return Response.json(
               {
                 success: false,
@@ -225,7 +165,7 @@ export const Route = createFileRoute("/api/edm/invoice/cancel")({
             invoice.type === "GELEN_E_ARSIV";
 
           const rpcName = isPurchase ? "cancel_purchase_invoice" : "cancel_sales_invoice";
-          const { error: rpcError } = await supabase.rpc(rpcName, {
+          const { error: rpcError } = await authedSupabase.rpc(rpcName, {
             p_invoice_id: invoice.id,
             p_cancel_reason: cancelReason,
           });
@@ -252,7 +192,7 @@ export const Route = createFileRoute("/api/edm/invoice/cancel")({
             invoiceNumber: invoice.invoice_number,
             uuid: cleanEttn || undefined,
             status: "IPTAL",
-          });
+          }, authenticatedUserId);
 
           return Response.json({
             success: true,
@@ -268,6 +208,8 @@ export const Route = createFileRoute("/api/edm/invoice/cancel")({
             error: null,
           });
         } catch (err: unknown) {
+          const authRes = authErrorResponse(err);
+          if (authRes) return authRes;
           const message = err instanceof Error ? err.message : "Sunucuda beklenmeyen bir iptal hatası oluştu.";
           return Response.json(
             {

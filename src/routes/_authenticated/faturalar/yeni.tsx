@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api-client";
 import { validateVknTckn } from "@/lib/validation";
 import { createUblTrInvoice, parseUblXmlForensic, roundDecimal } from "@/lib/ubl";
 import { formatMoney } from "@/lib/invoice";
@@ -417,7 +418,7 @@ function NewInvoicePage() {
         note,
       };
 
-      const res = await fetch("/api/invoices/draft", {
+      const res = await apiFetch("/api/invoices/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -477,7 +478,7 @@ function NewInvoicePage() {
         note,
       };
 
-      const res = await fetch("/api/edm/invoice", {
+      const res = await apiFetch("/api/edm/invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -1380,24 +1380,6 @@ export type Database = {
         }
         Relationships: []
       }
-      zz_f6_log: {
-        Row: {
-          id: number
-          k: string | null
-          v: string | null
-        }
-        Insert: {
-          id?: number
-          k?: string | null
-          v?: string | null
-        }
-        Update: {
-          id?: number
-          k?: string | null
-          v?: string | null
-        }
-        Relationships: []
-      }
     }
     Views: {
       customer_balances: {

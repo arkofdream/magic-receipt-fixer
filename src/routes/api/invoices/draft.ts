@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { validateAndCalculateInvoice, createUblTrInvoice, type UblInvoiceData } from "../../../lib/ubl.ts";
 import { createPendingInvoiceRecord } from "../../../lib/invoice/repository.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 export const Route = createFileRoute("/api/invoices/draft")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         try {
+          const { userId } = await requireApiUser(request);
           const body = await request.json().catch(() => null);
           const rawInvoiceData: UblInvoiceData = body?.invoice || body;
 
@@ -32,7 +34,7 @@ export const Route = createFileRoute("/api/invoices/draft")({
           const record = await createPendingInvoiceRecord(
             validatedData,
             rawUblXml,
-            "00000000-0000-0000-0000-000000000000",
+            userId,
             "EDM",
             true
           );
@@ -47,6 +49,8 @@ export const Route = createFileRoute("/api/invoices/draft")({
             error: null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Taslak kaydedilirken bir hata oluştu.";
           return Response.json(
