@@ -45,7 +45,7 @@ export interface ValidatedUblData {
   issueDate: string;
   issueTime: string;
   currency: string;
-  profileId: string;
+  profileId: "EARSIVFATURA" | "TICARIFATURA" | "TEMELFATURA";
   invoiceTypeCode: string;
   seller: UblParty;
   buyer: UblParty;
