@@ -6,6 +6,8 @@
 export interface EInvoiceParty {
   taxNumber: string; // VKN (10 digits) or TCKN (11 digits)
   name: string;
+  /** GİB posta kutusu / gönderici birim etiketi (e-Fatura) */
+  alias?: string;
   taxOffice?: string;
   address?: string;
   district?: string;
