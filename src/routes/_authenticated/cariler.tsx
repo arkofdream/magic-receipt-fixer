@@ -21,6 +21,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { isMissingColumnError, safeSoftDelete } from "@/lib/safe-supabase";
 import { downloadWorkbook, parseNumber, pickColumn, type SheetRow } from "@/lib/excel";
@@ -595,12 +602,13 @@ function CustomersPage() {
         p_txn_type: "TAHSILAT",
         p_amount: amt,
         p_txn_date: collectionDate,
-        p_due_date: null,
+        p_due_date: undefined,
         p_document_no: collectionDocNo.trim(),
         p_description: collectionDesc.trim() || `Müşteri Tahsilatı - ${collectionCustomer.title}`
       });
       if (error) throw error;
-      if (data && !data.success) throw new Error(data.message || "Tahsilat islemi basarisiz.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) throw new Error(_r.message || "Tahsilat islemi basarisiz.");
     },
     onSuccess: () => {
       toast.success("Tahsilat kaydı başarıyla oluşturuldu ve cari bakiyeden düşüldü.");
@@ -630,20 +638,20 @@ function CustomersPage() {
         .update({
           title: editForm.title.trim(),
           vkn_tckn: editForm.vknTckn.trim(),
-          code: editForm.code.trim() || null,
-          tax_office: editForm.taxOffice.trim() || null,
-          address: editForm.address.trim() || null,
-          city: editForm.city.trim() || null,
-          district: editForm.district.trim() || null,
-          neighborhood: editForm.neighborhood.trim() || null,
-          email: editForm.email.trim() || null,
-          phone: editForm.phone.trim() || null,
-          contact_name: editForm.contactName.trim() || null,
-          partner_group: editForm.partnerGroup.trim() || null,
+          code: editForm.code.trim(),
+          tax_office: editForm.taxOffice.trim(),
+          address: editForm.address.trim(),
+          city: editForm.city.trim(),
+          district: editForm.district.trim(),
+          neighborhood: editForm.neighborhood.trim(),
+          email: editForm.email.trim(),
+          phone: editForm.phone.trim(),
+          contact_name: editForm.contactName.trim(),
+          partner_group: editForm.partnerGroup.trim(),
           payment_term_days: Number(editForm.paymentTermDays) || 0,
           risk_limit: Number(editForm.riskLimit) || 0,
           opening_balance: Number(editForm.openingBalance) || 0,
-          note: editForm.note.trim() || null,
+          note: editForm.note.trim(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", editCustomer.id);

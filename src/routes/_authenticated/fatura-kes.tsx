@@ -127,7 +127,6 @@ import {
   INVOICE_TYPES,
   INVOICE_TYPE_DETAILS,
   TEVKIFAT_CODES,
-  TEVKIFAT_RATES,
   EXEMPTION_CODES,
   CURRENCY_OPTIONS,
   UNIT_OPTIONS,
@@ -396,7 +395,7 @@ function NewInvoicePage() {
         neighborhood: c.neighborhood || "",
         email: c.email || "",
         phone: c.phone || "",
-        customPrefix: c.customPrefix || customPrefix,
+        customPrefix: c.customPrefix || "",
       });
     }
 
@@ -463,7 +462,11 @@ function NewInvoicePage() {
 
   const isTevkifatli = operationMode === "SATIS" && (type === "TEVKIFAT" || Boolean(selectedTevkifatCode));
 
-  const totals = invoiceTotals(items, isTevkifatli);
+  const activeTevkifatRate = isTevkifatli
+    ? (TEVKIFAT_CODES.find((c) => c.code === selectedTevkifatCode)?.rate ?? 0)
+    : 0;
+
+  const totals = invoiceTotals(items, activeTevkifatRate);
 
   function addItem() {
     setItems([...items, newItem()]);
@@ -512,7 +515,7 @@ function NewInvoicePage() {
       const neighborhood = ((selected as any).neighborhood || (selected as any).mahalle || "").toString().trim();
       const email = (selected.email || (selected as any).eposta || "").toString().trim();
       const phone = (selected.phone || (selected as any).telefon || (selected as any).tel || "").toString().trim();
-      const pfx = (selected as any).custom_prefix || customPrefix;
+      const pfx = (selected as any).custom_prefix || "";
 
       setCustomer({
         vknTckn: vkn,
@@ -716,7 +719,7 @@ function NewInvoicePage() {
                   const { data: invRow } = await supabase
                     .from("invoices")
                     .select("invoice_number")
-                    .eq("id", targetInvoiceId)
+                    .eq("id", (_result as any)?.invoice_id)
                     .maybeSingle();
                   actualInvoiceNo = invRow?.invoice_number;
                 }
@@ -1051,7 +1054,7 @@ function NewInvoicePage() {
                     value={selectedTevkifatCode}
                     onValueChange={(val) => {
                       setSelectedTevkifatCode(val);
-                      const rate = TEVKIFAT_RATES[val] ?? 0;
+                      const rate = TEVKIFAT_CODES.find((c) => c.code === val)?.rate ?? 0;
                       setItems(
                         items.map((it) => ({
                           ...it,
@@ -1068,7 +1071,7 @@ function NewInvoicePage() {
                     <SelectContent>
                       {TEVKIFAT_CODES.map((t) => (
                         <SelectItem key={t.code} value={t.code}>
-                          [{t.code}] {t.name} (Tevkifat Oranı: {t.rateText})
+                          [{t.code}] {t.name} (Tevkifat Oranı: %{t.rate})
                         </SelectItem>
                       ))}
                     </SelectContent>

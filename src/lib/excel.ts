@@ -66,9 +66,12 @@ export function pickColumn(row: SheetRow, candidates: string[]): string {
 /**
  * Türkçe ve uluslararası para/sayı formatlarını (1.250,50 TL, 1,250.50, 500) güvenle sayıya çevirir.
  */
-export function parseNumber(value: string | number | null | undefined): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  if (!value) return 0;
+export function parseNumber(
+  value: string | number | null | undefined,
+  fallback = 0,
+): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+  if (!value) return fallback;
   const str = String(value)
     .trim()
     .replace(/\s|₺|TL|USD|\$|EUR|€|GBP|£/gi, "");

@@ -152,6 +152,7 @@ function RaporlarPage() {
       const paidMap = new Map<string, number>();
 
       for (const t of txns || []) {
+        if (!t.source_id) continue;
         if (t.due_date) dueDates.set(t.source_id, t.due_date);
         if (t.source === "FATURA_TAHSILAT" || t.source === "FATURA_ODEME") {
           paidMap.set(t.source_id, (paidMap.get(t.source_id) || 0) + Number(t.amount));

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,8 +43,8 @@ import {
   saveIntegratorSettings,
   setActiveProvider,
   testConnection,
-  type ConnectionSettingsView,
 } from "@/lib/efatura-settings.functions";
+import type { ConnectionSettingsView } from "@/lib/efatura/settings.server";
 import { getMyCompanyProfile, updateMyCompanyProfile } from "@/lib/profile.functions";
 import { getIntegratorConfig } from "@/lib/efatura/integrators.config";
 
@@ -137,6 +138,7 @@ function SettingsPage() {
     baseUrl: "",
     apiUsername: "",
     apiKey: "",
+    senderAlias: "",
   });
 
   async function handleVerifyVkn() {
@@ -298,7 +300,6 @@ function SettingsPage() {
         stockMovementsRes,
         posSalesRes,
         warehousesRes,
-        auditLogsRes,
       ] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
         supabase.from("customers").select("*").eq("user_id", userId),
@@ -308,7 +309,6 @@ function SettingsPage() {
         supabase.from("stock_movements").select("*").eq("user_id", userId),
         supabase.from("pos_sales").select("*").eq("user_id", userId),
         supabase.from("warehouses").select("*").eq("user_id", userId),
-        supabase.from("audit_logs").select("*").eq("user_id", userId),
       ]);
 
       const fullBackupPayload = {
@@ -323,7 +323,6 @@ function SettingsPage() {
         stock_movements: stockMovementsRes.data ?? [],
         pos_sales: posSalesRes.data ?? [],
         warehouses: warehousesRes.data ?? [],
-        audit_logs: auditLogsRes.data ?? [],
       };
 
       const jsonStr = JSON.stringify(fullBackupPayload, null, 2);

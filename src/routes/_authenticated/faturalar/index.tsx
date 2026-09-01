@@ -46,6 +46,9 @@ export const Route = createFileRoute("/_authenticated/faturalar/")({
 
 type InvoiceRow = {
   id: string;
+  provider_reference?: string | null;
+  trx_id?: string | null;
+  profile_id?: string | null;
   user_id: string;
   invoice_number: string;
   invoice_date: string;
@@ -260,8 +263,9 @@ function InvoicesPage() {
       });
       
       if (error) throw error;
-      if (data && !data.success) {
-        throw new Error(data.message || "Fatura onaylanırken bir hata oluştu.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) {
+        throw new Error(_r.message || "Fatura onaylanırken bir hata oluştu.");
       }
     },
     onSuccess: () => {
@@ -292,8 +296,9 @@ function InvoicesPage() {
       });
       
       if (error) throw error;
-      if (data && !data.success) {
-        throw new Error(data.message || "Tahsilat kaydedilirken hata oluştu.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) {
+        throw new Error(_r.message || "Tahsilat kaydedilirken hata oluştu.");
       }
     },
     onSuccess: () => {

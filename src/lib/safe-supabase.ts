@@ -61,7 +61,7 @@ export async function safeSoftDelete(
  * Perform a trash query (deleted_at is not null), returning [] if column is missing in DB.
  */
 export async function safeFetchTrash<T = any>(
-  fetchTrash: () => Promise<{ data: T[] | null; error: any }>,
+  fetchTrash: () => PromiseLike<{ data: T[] | null; error: any }>,
 ): Promise<T[]> {
   const res = await fetchTrash();
   if (res.error) {

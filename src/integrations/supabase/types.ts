@@ -10,49 +10,10 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
-      accounting_periods: {
-        Row: {
-          closed_at: string | null
-          closed_by: string | null
-          created_at: string
-          id: string
-          opened_at: string
-          period_month: number
-          period_year: number
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          closed_at?: string | null
-          closed_by?: string | null
-          created_at?: string
-          id?: string
-          opened_at?: string
-          period_month: number
-          period_year: number
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          closed_at?: string | null
-          closed_by?: string | null
-          created_at?: string
-          id?: string
-          opened_at?: string
-          period_month?: number
-          period_year?: number
-          status?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       account_transactions: {
         Row: {
           amount: number
@@ -65,7 +26,6 @@ export type Database = {
           document_no: string
           due_date: string | null
           id: string
-          journal_entry_id: string | null
           source: string
           source_id: string | null
           txn_date: string
@@ -84,7 +44,6 @@ export type Database = {
           document_no?: string
           due_date?: string | null
           id?: string
-          journal_entry_id?: string | null
           source?: string
           source_id?: string | null
           txn_date?: string
@@ -103,7 +62,6 @@ export type Database = {
           document_no?: string
           due_date?: string | null
           id?: string
-          journal_entry_id?: string | null
           source?: string
           source_id?: string | null
           txn_date?: string
@@ -140,14 +98,46 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "account_transactions_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
         ]
+      }
+      accounting_periods: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          id: string
+          is_closed: boolean
+          period_month: number
+          period_year: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          is_closed?: boolean
+          period_month: number
+          period_year: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          is_closed?: boolean
+          period_month?: number
+          period_year?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       admin_audit_log: {
         Row: {
@@ -180,33 +170,27 @@ export type Database = {
         Row: {
           action: string
           created_at: string
+          details: Json
           id: string
-          metadata: Json | null
-          new_data: Json | null
-          old_data: Json | null
-          record_id: string
+          record_id: string | null
           table_name: string
           user_id: string
         }
         Insert: {
           action: string
           created_at?: string
+          details?: Json
           id?: string
-          metadata?: Json | null
-          new_data?: Json | null
-          old_data?: Json | null
-          record_id: string
+          record_id?: string | null
           table_name: string
           user_id: string
         }
         Update: {
           action?: string
           created_at?: string
+          details?: Json
           id?: string
-          metadata?: Json | null
-          new_data?: Json | null
-          old_data?: Json | null
-          record_id?: string
+          record_id?: string | null
           table_name?: string
           user_id?: string
         }
@@ -266,97 +250,12 @@ export type Database = {
             referencedRelation: "chart_of_accounts"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      currencies: {
-        Row: {
-          code: string
-          created_at: string
-          decimal_places: number
-          is_active: boolean
-          name: string
-          symbol: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          decimal_places?: number
-          is_active?: boolean
-          name: string
-          symbol: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          decimal_places?: number
-          is_active?: boolean
-          name?: string
-          symbol?: string
-        }
-        Relationships: []
-      }
-      entry_counters: {
-        Row: {
-          counter_type: string
-          last_number: number
-          updated_at: string
-          user_id: string
-          year: number
-        }
-        Insert: {
-          counter_type?: string
-          last_number?: number
-          updated_at?: string
-          user_id: string
-          year: number
-        }
-        Update: {
-          counter_type?: string
-          last_number?: number
-          updated_at?: string
-          user_id?: string
-          year?: number
-        }
-        Relationships: []
-      }
-      exchange_rates: {
-        Row: {
-          buying_rate: number
-          created_at: string
-          currency_code: string
-          id: string
-          rate_date: string
-          rate_type: string
-          selling_rate: number
-          user_id: string | null
-        }
-        Insert: {
-          buying_rate: number
-          created_at?: string
-          currency_code: string
-          id?: string
-          rate_date: string
-          rate_type?: string
-          selling_rate: number
-          user_id?: string | null
-        }
-        Update: {
-          buying_rate?: number
-          created_at?: string
-          currency_code?: string
-          id?: string
-          rate_date?: string
-          rate_type?: string
-          selling_rate?: number
-          user_id?: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "exchange_rates_currency_code_fkey"
-            columns: ["currency_code"]
+            foreignKeyName: "chart_of_accounts_parent_id_fkey"
+            columns: ["parent_id"]
             isOneToOne: false
-            referencedRelation: "currencies"
-            referencedColumns: ["code"]
+            referencedRelation: "v_account_balances"
+            referencedColumns: ["account_id"]
           },
         ]
       }
@@ -456,6 +355,7 @@ export type Database = {
           integrator_last_error: string
           integrator_last_tested_at: string | null
           integrator_provider: string
+          integrator_sender_alias: string | null
           integrator_status: string
           updated_at: string
           user_id: string
@@ -477,6 +377,7 @@ export type Database = {
           integrator_last_error?: string
           integrator_last_tested_at?: string | null
           integrator_provider?: string
+          integrator_sender_alias?: string | null
           integrator_status?: string
           updated_at?: string
           user_id: string
@@ -498,14 +399,237 @@ export type Database = {
           integrator_last_error?: string
           integrator_last_tested_at?: string | null
           integrator_provider?: string
+          integrator_sender_alias?: string | null
           integrator_status?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: []
       }
+      entry_counters: {
+        Row: {
+          counter_type: string
+          last_number: number
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          counter_type?: string
+          last_number?: number
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          counter_type?: string
+          last_number?: number
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      invoice_items: {
+        Row: {
+          created_at: string
+          currency: string
+          description: string
+          discount_amount: number
+          discount_rate: number
+          exchange_rate: number
+          foreign_amount: number | null
+          id: string
+          invoice_id: string
+          line_number: number
+          line_total: number
+          name: string
+          product_id: string | null
+          purchase_price: number | null
+          quantity: number
+          subtotal: number
+          taxable_amount: number
+          total_cost: number
+          unit: string
+          unit_cost: number
+          unit_price: number
+          user_id: string
+          vat_amount: number
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          description?: string
+          discount_amount?: number
+          discount_rate?: number
+          exchange_rate?: number
+          foreign_amount?: number | null
+          id?: string
+          invoice_id: string
+          line_number?: number
+          line_total?: number
+          name?: string
+          product_id?: string | null
+          purchase_price?: number | null
+          quantity?: number
+          subtotal?: number
+          taxable_amount?: number
+          total_cost?: number
+          unit?: string
+          unit_cost?: number
+          unit_price?: number
+          user_id: string
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          description?: string
+          discount_amount?: number
+          discount_rate?: number
+          exchange_rate?: number
+          foreign_amount?: number | null
+          id?: string
+          invoice_id?: string
+          line_number?: number
+          line_total?: number
+          name?: string
+          product_id?: string | null
+          purchase_price?: number | null
+          quantity?: number
+          subtotal?: number
+          taxable_amount?: number
+          total_cost?: number
+          unit?: string
+          unit_cost?: number
+          unit_price?: number
+          user_id?: string
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_stocks"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_tax_lines: {
+        Row: {
+          created_at: string
+          currency: string
+          direction: string
+          exchange_rate: number
+          exemption_code: string | null
+          id: string
+          invoice_id: string
+          is_audit_adjusted: boolean
+          is_cancelled: boolean
+          is_exempt: boolean
+          is_reversal: boolean
+          period_month: number
+          period_year: number
+          reversal_of: string | null
+          tax_amount: number
+          tax_amount_try: number
+          tax_category: string
+          taxable_amount: number
+          taxable_amount_try: number
+          user_id: string
+          vat_rate: number
+          withholding_amount: number
+          withholding_rate: number
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          direction?: string
+          exchange_rate?: number
+          exemption_code?: string | null
+          id?: string
+          invoice_id: string
+          is_audit_adjusted?: boolean
+          is_cancelled?: boolean
+          is_exempt?: boolean
+          is_reversal?: boolean
+          period_month?: number
+          period_year?: number
+          reversal_of?: string | null
+          tax_amount?: number
+          tax_amount_try?: number
+          tax_category?: string
+          taxable_amount?: number
+          taxable_amount_try?: number
+          user_id: string
+          vat_rate?: number
+          withholding_amount?: number
+          withholding_rate?: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          direction?: string
+          exchange_rate?: number
+          exemption_code?: string | null
+          id?: string
+          invoice_id?: string
+          is_audit_adjusted?: boolean
+          is_cancelled?: boolean
+          is_exempt?: boolean
+          is_reversal?: boolean
+          period_month?: number
+          period_year?: number
+          reversal_of?: string | null
+          tax_amount?: number
+          tax_amount_try?: number
+          tax_category?: string
+          taxable_amount?: number
+          taxable_amount_try?: number
+          user_id?: string
+          vat_rate?: number
+          withholding_amount?: number
+          withholding_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_tax_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_tax_lines_reversal_of_fkey"
+            columns: ["reversal_of"]
+            isOneToOne: false
+            referencedRelation: "invoice_tax_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
+          buyer_name: string
+          buyer_tax_number: string
           cancel_date: string | null
           created_at: string
           currency: string
@@ -513,6 +637,11 @@ export type Database = {
           customer_id: string | null
           deleted_at: string | null
           deleted_by: string | null
+          edm_return_code: string
+          edm_return_message: string
+          edm_status: string
+          error_code: string | null
+          error_message: string | null
           ettn: string
           exchange_rate: number
           gib_approval_date: string | null
@@ -524,34 +653,29 @@ export type Database = {
           notes: string
           payment_info: string
           posted: boolean
+          processed_at: string | null
+          provider: string
+          provider_reference: string | null
+          raw_ubl_xml: string | null
+          response_metadata: Json | null
+          seller_name: string
+          seller_tax_number: string
+          sent_at: string | null
           status: string
           subtotal: number
           taxable_amount: number
           total_discount: number
           total_tevkifat: number
           total_vat: number
+          trx_id: string | null
           type: string
           updated_at: string
           user_id: string
           warehouse_id: string | null
-          provider?: string
-          provider_reference?: string | null
-          trx_id?: string | null
-          seller_tax_number?: string
-          seller_name?: string
-          buyer_tax_number?: string
-          buyer_name?: string
-          edm_status?: string
-          edm_return_code?: string
-          edm_return_message?: string
-          error_code?: string | null
-          error_message?: string | null
-          raw_ubl_xml?: string | null
-          response_metadata?: Json
-          sent_at?: string | null
-          processed_at?: string | null
         }
         Insert: {
+          buyer_name?: string
+          buyer_tax_number?: string
           cancel_date?: string | null
           created_at?: string
           currency?: string
@@ -559,6 +683,11 @@ export type Database = {
           customer_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          edm_return_code?: string
+          edm_return_message?: string
+          edm_status?: string
+          error_code?: string | null
+          error_message?: string | null
           ettn: string
           exchange_rate?: number
           gib_approval_date?: string | null
@@ -570,34 +699,29 @@ export type Database = {
           notes?: string
           payment_info?: string
           posted?: boolean
+          processed_at?: string | null
+          provider?: string
+          provider_reference?: string | null
+          raw_ubl_xml?: string | null
+          response_metadata?: Json | null
+          seller_name?: string
+          seller_tax_number?: string
+          sent_at?: string | null
           status?: string
           subtotal?: number
           taxable_amount?: number
           total_discount?: number
           total_tevkifat?: number
           total_vat?: number
+          trx_id?: string | null
           type?: string
           updated_at?: string
           user_id: string
           warehouse_id?: string | null
-          provider?: string
-          provider_reference?: string | null
-          trx_id?: string | null
-          seller_tax_number?: string
-          seller_name?: string
-          buyer_tax_number?: string
-          buyer_name?: string
-          edm_status?: string
-          edm_return_code?: string
-          edm_return_message?: string
-          error_code?: string | null
-          error_message?: string | null
-          raw_ubl_xml?: string | null
-          response_metadata?: Json
-          sent_at?: string | null
-          processed_at?: string | null
         }
         Update: {
+          buyer_name?: string
+          buyer_tax_number?: string
           cancel_date?: string | null
           created_at?: string
           currency?: string
@@ -605,6 +729,11 @@ export type Database = {
           customer_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          edm_return_code?: string
+          edm_return_message?: string
+          edm_status?: string
+          error_code?: string | null
+          error_message?: string | null
           ettn?: string
           exchange_rate?: number
           gib_approval_date?: string | null
@@ -616,32 +745,25 @@ export type Database = {
           notes?: string
           payment_info?: string
           posted?: boolean
+          processed_at?: string | null
+          provider?: string
+          provider_reference?: string | null
+          raw_ubl_xml?: string | null
+          response_metadata?: Json | null
+          seller_name?: string
+          seller_tax_number?: string
+          sent_at?: string | null
           status?: string
           subtotal?: number
           taxable_amount?: number
           total_discount?: number
           total_tevkifat?: number
           total_vat?: number
+          trx_id?: string | null
           type?: string
           updated_at?: string
           user_id?: string
           warehouse_id?: string | null
-          provider?: string
-          provider_reference?: string | null
-          trx_id?: string | null
-          seller_tax_number?: string
-          seller_name?: string
-          buyer_tax_number?: string
-          buyer_name?: string
-          edm_status?: string
-          edm_return_code?: string
-          edm_return_message?: string
-          error_code?: string | null
-          error_message?: string | null
-          raw_ubl_xml?: string | null
-          response_metadata?: Json
-          sent_at?: string | null
-          processed_at?: string | null
         }
         Relationships: [
           {
@@ -663,171 +785,6 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      invoice_items: {
-        Row: {
-          created_at: string
-          currency: string
-          description: string
-          discount_rate: number
-          exchange_rate: number
-          foreign_amount: number | null
-          id: string
-          invoice_id: string
-          line_number: number
-          line_total: number
-          product_id: string | null
-          quantity: number
-          taxable_amount: number
-          unit: string
-          unit_price: number
-          user_id: string
-          vat_amount: number
-          vat_rate: number
-        }
-        Insert: {
-          created_at?: string
-          currency?: string
-          description?: string
-          discount_rate?: number
-          exchange_rate?: number
-          foreign_amount?: number | null
-          id?: string
-          invoice_id: string
-          line_number: number
-          line_total: number
-          product_id?: string | null
-          quantity: number
-          taxable_amount: number
-          unit?: string
-          unit_price: number
-          user_id: string
-          vat_amount?: number
-          vat_rate?: number
-        }
-        Update: {
-          created_at?: string
-          currency?: string
-          description?: string
-          discount_rate?: number
-          exchange_rate?: number
-          foreign_amount?: number | null
-          id?: string
-          invoice_id?: string
-          line_number?: number
-          line_total?: number
-          product_id?: string | null
-          quantity?: number
-          taxable_amount?: number
-          unit?: string
-          unit_price?: number
-          user_id?: string
-          vat_amount?: number
-          vat_rate?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_items_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      invoice_tax_lines: {
-        Row: {
-          created_at: string
-          currency: string
-          direction: string
-          exchange_rate: number
-          exemption_code: string | null
-          id: string
-          invoice_id: string
-          is_cancelled: boolean
-          is_exempt: boolean
-          is_reversal: boolean
-          period_month: number
-          period_year: number
-          reversal_of: string | null
-          tax_amount: number
-          tax_amount_try: number
-          taxable_amount: number
-          taxable_amount_try: number
-          user_id: string
-          vat_rate: number
-          withholding_amount: number
-          withholding_rate: number
-        }
-        Insert: {
-          created_at?: string
-          currency?: string
-          direction: string
-          exchange_rate?: number
-          exemption_code?: string | null
-          id?: string
-          invoice_id: string
-          is_cancelled?: boolean
-          is_exempt?: boolean
-          is_reversal?: boolean
-          period_month: number
-          period_year: number
-          reversal_of?: string | null
-          tax_amount: number
-          tax_amount_try: number
-          taxable_amount: number
-          taxable_amount_try: number
-          user_id: string
-          vat_rate: number
-          withholding_amount?: number
-          withholding_rate?: number
-        }
-        Update: {
-          created_at?: string
-          currency?: string
-          direction?: string
-          exchange_rate?: number
-          exemption_code?: string | null
-          id?: string
-          invoice_id?: string
-          is_cancelled?: boolean
-          is_exempt?: boolean
-          is_reversal?: boolean
-          period_month?: number
-          period_year?: number
-          reversal_of?: string | null
-          tax_amount?: number
-          tax_amount_try?: number
-          taxable_amount?: number
-          taxable_amount_try?: number
-          user_id?: string
-          vat_rate?: number
-          withholding_amount?: number
-          withholding_rate?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_tax_lines_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_tax_lines_reversal_of_fkey"
-            columns: ["reversal_of"]
-            isOneToOne: false
-            referencedRelation: "invoice_tax_lines"
             referencedColumns: ["id"]
           },
         ]
@@ -935,6 +892,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "journal_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "v_account_balances"
+            referencedColumns: ["account_id"]
+          },
+          {
             foreignKeyName: "journal_lines_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -984,123 +948,6 @@ export type Database = {
           version?: string
         }
         Relationships: []
-      }
-      payment_allocations: {
-        Row: {
-          allocated_amount: number
-          allocated_date: string
-          created_at: string
-          id: string
-          invoice_id: string
-          payment_id: string
-          user_id: string
-        }
-        Insert: {
-          allocated_amount: number
-          allocated_date?: string
-          created_at?: string
-          id?: string
-          invoice_id: string
-          payment_id: string
-          user_id: string
-        }
-        Update: {
-          allocated_amount?: number
-          allocated_date?: string
-          created_at?: string
-          id?: string
-          invoice_id?: string
-          payment_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_allocations_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payment_allocations_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payments: {
-        Row: {
-          amount: number
-          amount_try: number
-          created_at: string
-          currency: string
-          customer_id: string | null
-          deleted_at: string | null
-          deleted_by: string | null
-          description: string | null
-          direction: string
-          exchange_rate: number
-          id: string
-          journal_entry_id: string | null
-          payment_date: string
-          payment_method: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          amount: number
-          amount_try: number
-          created_at?: string
-          currency?: string
-          customer_id?: string | null
-          deleted_at?: string | null
-          deleted_by?: string | null
-          description?: string | null
-          direction: string
-          exchange_rate?: number
-          id?: string
-          journal_entry_id?: string | null
-          payment_date?: string
-          payment_method?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          amount?: number
-          amount_try?: number
-          created_at?: string
-          currency?: string
-          customer_id?: string | null
-          deleted_at?: string | null
-          deleted_by?: string | null
-          description?: string | null
-          direction?: string
-          exchange_rate?: number
-          id?: string
-          journal_entry_id?: string | null
-          payment_date?: string
-          payment_method?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payments_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       pos_sales: {
         Row: {
@@ -1169,6 +1016,7 @@ export type Database = {
           purchase_price: number
           track_stock: boolean
           unit: string
+          unit_cost: number
           unit_price: number
           updated_at: string
           user_id: string
@@ -1189,6 +1037,7 @@ export type Database = {
           purchase_price?: number
           track_stock?: boolean
           unit?: string
+          unit_cost?: number
           unit_price?: number
           updated_at?: string
           user_id: string
@@ -1209,6 +1058,7 @@ export type Database = {
           purchase_price?: number
           track_stock?: boolean
           unit?: string
+          unit_cost?: number
           unit_price?: number
           updated_at?: string
           user_id?: string
@@ -1269,7 +1119,6 @@ export type Database = {
           source_id: string | null
           target_warehouse_id: string | null
           total_cost: number | null
-          transfer_group_id: string | null
           unit_cost: number | null
           unit_price: number
           updated_at: string
@@ -1292,7 +1141,6 @@ export type Database = {
           source_id?: string | null
           target_warehouse_id?: string | null
           total_cost?: number | null
-          transfer_group_id?: string | null
           unit_cost?: number | null
           unit_price?: number
           updated_at?: string
@@ -1315,7 +1163,6 @@ export type Database = {
           source_id?: string | null
           target_warehouse_id?: string | null
           total_cost?: number | null
-          transfer_group_id?: string | null
           unit_cost?: number | null
           unit_price?: number
           updated_at?: string
@@ -1562,18 +1409,170 @@ export type Database = {
       }
     }
     Functions: {
-      assert_accounting_period_open: {
+      approve_purchase_invoice: {
+        Args: { p_invoice_id: string }
+        Returns: Json
+      }
+      approve_sales_invoice: { Args: { p_invoice_id: string }; Returns: Json }
+      assert_accounting_period_open:
+        | { Args: { p_date: string }; Returns: undefined }
+        | { Args: { p_date: string; p_user_id: string }; Returns: undefined }
+      cancel_purchase_invoice: {
+        Args: { p_cancel_reason?: string; p_invoice_id: string }
+        Returns: Json
+      }
+      cancel_sales_invoice: {
+        Args: { p_cancel_reason?: string; p_invoice_id: string }
+        Returns: Json
+      }
+      close_accounting_period: {
+        Args: { p_month: number; p_year: number }
+        Returns: Json
+      }
+      create_and_approve_purchase_invoice: {
         Args: {
-          p_date: string
-          p_user_id: string
+          p_currency?: string
+          p_ettn?: string
+          p_exchange_rate?: number
+          p_grand_total?: number
+          p_invoice_date: string
+          p_invoice_number: string
+          p_items?: Json
+          p_notes?: string
+          p_payment_info?: string
+          p_subtotal?: number
+          p_supplier_id: string
+          p_supplier_info?: Json
+          p_taxable_amount?: number
+          p_total_discount?: number
+          p_total_tevkifat?: number
+          p_total_vat?: number
+          p_warehouse_id?: string
         }
-        Returns: undefined
+        Returns: Json
+      }
+      create_and_approve_sales_invoice: {
+        Args: {
+          p_currency?: string
+          p_customer_id?: string
+          p_customer_info?: Json
+          p_ettn?: string
+          p_exchange_rate?: number
+          p_grand_total?: number
+          p_invoice_date: string
+          p_invoice_number?: string
+          p_items?: Json
+          p_notes?: string
+          p_payment_info?: string
+          p_prefix?: string
+          p_subtotal?: number
+          p_taxable_amount?: number
+          p_total_discount?: number
+          p_total_tevkifat?: number
+          p_total_vat?: number
+          p_type?: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      create_purchase_invoice: {
+        Args: {
+          p_currency?: string
+          p_ettn?: string
+          p_exchange_rate?: number
+          p_grand_total?: number
+          p_invoice_date: string
+          p_invoice_number: string
+          p_items?: Json
+          p_notes?: string
+          p_payment_info?: string
+          p_status?: string
+          p_subtotal?: number
+          p_supplier_id: string
+          p_supplier_info?: Json
+          p_taxable_amount?: number
+          p_total_discount?: number
+          p_total_tevkifat?: number
+          p_total_vat?: number
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      create_purchase_return: {
+        Args: {
+          p_items: Json
+          p_notes?: string
+          p_original_invoice_id: string
+          p_return_date: string
+          p_return_invoice_number: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      create_sales_invoice: {
+        Args: {
+          p_currency?: string
+          p_customer_id?: string
+          p_customer_info?: Json
+          p_ettn?: string
+          p_exchange_rate?: number
+          p_grand_total?: number
+          p_invoice_date: string
+          p_invoice_number?: string
+          p_items?: Json
+          p_notes?: string
+          p_payment_info?: string
+          p_prefix?: string
+          p_status?: string
+          p_subtotal?: number
+          p_taxable_amount?: number
+          p_total_discount?: number
+          p_total_tevkifat?: number
+          p_total_vat?: number
+          p_type?: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      create_sales_return: {
+        Args: {
+          p_description?: string
+          p_items: Json
+          p_original_invoice_id: string
+          p_return_date: string
+          p_return_doc_no?: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      create_stock_valuation_adjustment: {
+        Args: {
+          p_adjustment_qty?: number
+          p_description?: string
+          p_document_no?: string
+          p_new_unit_cost: number
+          p_product_id: string
+          p_valuation_date: string
+          p_warehouse_id: string
+        }
+        Returns: Json
+      }
+      create_supplier_payment: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_document_no?: string
+          p_payment_date: string
+          p_payment_method?: string
+          p_supplier_id: string
+        }
+        Returns: Json
       }
       get_account_ledger: {
         Args: {
           p_account_id: string
-          p_end_date?: string | null
-          p_start_date?: string | null
+          p_end_date?: string
+          p_start_date?: string
         }
         Returns: {
           credit: number
@@ -1584,29 +1583,35 @@ export type Database = {
           journal_entry_id: string
           journal_line_id: string
           running_balance: number
-          source_id: string | null
+          source_id: string
           source_type: string
         }[]
       }
+      get_accounting_audit_summary: { Args: never; Returns: Json }
+      get_customer_balances: {
+        Args: never
+        Returns: {
+          balance: number
+          customer_id: string
+          total_credit: number
+          total_debit: number
+        }[]
+      }
+      get_foreign_currency_balances: { Args: never; Returns: Json }
       get_income_statement: {
-        Args: {
-          p_end_date?: string | null
-          p_start_date?: string | null
-        }
+        Args: { p_end_date?: string; p_start_date?: string }
         Returns: Json
       }
+      get_product_stock_quantity: {
+        Args: { p_product_id: string; p_warehouse_id?: string }
+        Returns: number
+      }
       get_reconciliation_summary: {
-        Args: {
-          p_month?: number | null
-          p_year?: number | null
-        }
+        Args: { p_month?: number; p_year?: number }
         Returns: Json
       }
       get_trial_balance: {
-        Args: {
-          p_end_date?: string | null
-          p_start_date?: string | null
-        }
+        Args: { p_end_date?: string; p_start_date?: string }
         Returns: {
           account_code: string
           account_id: string
@@ -1625,11 +1630,84 @@ export type Database = {
           period_debit: number
         }[]
       }
-      run_accounting_audit: {
+      get_vat_declaration_summary: {
+        Args: { p_month?: number; p_year?: number }
+        Returns: Json
+      }
+      get_withholding_tax_summary: {
+        Args: { p_month?: number; p_year?: number }
+        Returns: Json
+      }
+      has_active_subscription: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
         Args: {
-          p_month?: number | null
-          p_year?: number | null
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
+        Returns: boolean
+      }
+      next_entry_number: {
+        Args: { p_type?: string; p_user_id: string; p_year: number }
+        Returns: string
+      }
+      next_entry_number_with_prefix: {
+        Args: { p_prefix?: string; p_user_id: string; p_year: number }
+        Returns: string
+      }
+      process_customer_virman: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_source_customer_id: string
+          p_target_customer_id: string
+          p_txn_date?: string
+        }
+        Returns: Json
+      }
+      process_invoice_payment: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_document_no?: string
+          p_invoice_id: string
+          p_is_purchase?: boolean
+          p_payment_date?: string
+          p_payment_method?: string
+        }
+        Returns: Json
+      }
+      process_manual_account_transaction: {
+        Args: {
+          p_amount: number
+          p_customer_id: string
+          p_description?: string
+          p_document_no?: string
+          p_due_date?: string
+          p_txn_date?: string
+          p_txn_type: string
+        }
+        Returns: Json
+      }
+      process_manual_stock_movement: {
+        Args: {
+          p_description?: string
+          p_document_no?: string
+          p_movement_date?: string
+          p_movement_type: string
+          p_product_id: string
+          p_quantity: number
+          p_target_warehouse_id?: string
+          p_unit_price?: number
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      reopen_accounting_period: {
+        Args: { p_month: number; p_year: number }
+        Returns: Json
+      }
+      run_accounting_audit: {
+        Args: { p_month?: number; p_year?: number }
         Returns: {
           actual_value: number
           check_name: string
@@ -1637,38 +1715,47 @@ export type Database = {
           difference: number
           expected_value: number
           severity: string
-          source_id: string | null
+          source_id: string
           status: string
         }[]
       }
-      cancel_purchase_invoice: {
+      run_fx_revaluation: {
         Args: {
-          p_cancel_reason?: string
-          p_invoice_id: string
+          p_description?: string
+          p_rates: Json
+          p_revaluation_date: string
         }
         Returns: Json
       }
-      cancel_sales_invoice: {
-        Args: {
-          p_cancel_reason?: string
-          p_invoice_id: string
-        }
-        Returns: Json
-      }
-      close_accounting_period: {
-        Args: {
-          p_month: number
-          p_year: number
-        }
-        Returns: Json
-      }
-      create_purchase_invoice: {
+      update_and_approve_purchase_invoice: {
         Args: {
           p_currency?: string
-          p_ettn?: string | null
           p_exchange_rate?: number
           p_grand_total?: number
           p_invoice_date: string
+          p_invoice_id: string
+          p_invoice_number: string
+          p_items?: Json
+          p_notes?: string
+          p_payment_info?: string
+          p_subtotal?: number
+          p_supplier_id: string
+          p_supplier_info?: Json
+          p_taxable_amount?: number
+          p_total_discount?: number
+          p_total_tevkifat?: number
+          p_total_vat?: number
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      update_purchase_invoice: {
+        Args: {
+          p_currency?: string
+          p_exchange_rate?: number
+          p_grand_total?: number
+          p_invoice_date: string
+          p_invoice_id: string
           p_invoice_number: string
           p_items?: Json
           p_notes?: string
@@ -1681,118 +1768,9 @@ export type Database = {
           p_total_discount?: number
           p_total_tevkifat?: number
           p_total_vat?: number
-          p_warehouse_id?: string | null
+          p_warehouse_id?: string
         }
         Returns: Json
-      }
-      create_purchase_return: {
-        Args: {
-          p_items: Json
-          p_notes?: string
-          p_original_invoice_id: string
-          p_return_date: string
-          p_return_invoice_number: string
-          p_warehouse_id?: string | null
-        }
-        Returns: Json
-      }
-      create_supplier_payment: {
-        Args: {
-          p_amount: number
-          p_description?: string
-          p_document_no?: string
-          p_payment_date: string
-          p_payment_method?: string
-          p_supplier_id: string
-        }
-        Returns: Json
-      }
-      get_foreign_currency_balances: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      run_fx_revaluation: {
-        Args: {
-          p_description?: string
-          p_rates: Json
-          p_revaluation_date: string
-        }
-        Returns: Json
-      }
-      get_vat_declaration_summary: {
-        Args: {
-          p_month?: number | null
-          p_year?: number | null
-        }
-        Returns: Json
-      }
-      get_withholding_tax_summary: {
-        Args: {
-          p_month?: number | null
-          p_year?: number | null
-        }
-        Returns: Json
-      }
-      reopen_accounting_period: {
-        Args: {
-          p_month: number
-          p_year: number
-        }
-        Returns: Json
-      }
-      create_sales_invoice: {
-        Args: {
-          p_currency?: string
-          p_customer_id?: string | null
-          p_customer_info?: Json
-          p_ettn?: string | null
-          p_exchange_rate?: number
-          p_grand_total?: number
-          p_invoice_date: string
-          p_invoice_number?: string | null
-          p_items?: Json
-          p_notes?: string
-          p_payment_info?: string
-          p_status?: string
-          p_subtotal?: number
-          p_taxable_amount?: number
-          p_total_discount?: number
-          p_total_tevkifat?: number
-          p_total_vat?: number
-          p_type?: string
-          p_warehouse_id?: string | null
-        }
-        Returns: Json
-      }
-      get_product_moving_average_cost: {
-        Args: {
-          p_product_id: string
-          p_warehouse_id?: string | null
-        }
-        Returns: number
-      }
-      get_product_stock_quantity: {
-        Args: {
-          p_product_id: string
-          p_warehouse_id?: string | null
-        }
-        Returns: number
-      }
-      has_active_subscription: { Args: { _user_id: string }; Returns: boolean }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      next_entry_number: {
-        Args: {
-          p_type?: string
-          p_user_id: string
-          p_year: number
-        }
-        Returns: string
       }
     }
     Enums: {

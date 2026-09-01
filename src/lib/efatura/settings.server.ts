@@ -35,6 +35,7 @@ export type ConnectionSettingsView = {
     provider: string;
     baseUrl: string;
     apiUsername: string;
+    senderAlias: string;
     hasApiKey: boolean;
     status: string;
     lastTestedAt: string | null;

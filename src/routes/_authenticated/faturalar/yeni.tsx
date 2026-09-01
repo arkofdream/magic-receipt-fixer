@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { validateVknTckn } from "@/lib/validation";
 import { createUblTrInvoice, parseUblXmlForensic, roundDecimal } from "@/lib/ubl";
-import { calculateTotals, formatMoney, getTotalsDisplay } from "@/lib/invoice";
+import { formatMoney } from "@/lib/invoice";
 import { generateUUID } from "@/lib/uuid";
 import { getMyCompanyProfile } from "@/lib/profile.functions";
 
