@@ -240,8 +240,20 @@ export function validateAndCalculateInvoice(data: UblInvoiceData): ValidatedUblD
 }
 
 /**
+ * TCKN (gerçek kişi) taraflar için zorunlu cac:Person elemanını üretir.
+ * GİB Schematron: schemeID="TCKN" ise cac:Person bulunmalıdır.
+ */
+function buildPersonXml(fullName: string): string {
+  const parts = (fullName || "").trim().split(/\s+/).filter(Boolean);
+  const familyName = parts.length > 1 ? parts[parts.length - 1]! : parts[0] || "BELIRTILMEDI";
+  const firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] || "BELIRTILMEDI";
+  return `<cac:Person><cbc:FirstName>${escapeXml(firstName)}</cbc:FirstName><cbc:FamilyName>${escapeXml(familyName)}</cbc:FamilyName></cac:Person>`;
+}
+
+/**
  * Generates GİB UBL-TR 2.1 compliant XML content.
  */
+
 export function createUblTrInvoice(data: UblInvoiceData): string {
   const validated = validateAndCalculateInvoice(data);
 
