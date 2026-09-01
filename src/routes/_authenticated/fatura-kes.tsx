@@ -638,8 +638,11 @@ function NewInvoicePage() {
 
       } else if (operationMode === "SATIS_IADE") {
         // --- 3. SATIŞ İADESİ AKIŞI (create_sales_return) ---
+        if (!originalInvoiceId) {
+          throw new Error("İade edilecek orijinal satış faturası seçilmelidir.");
+        }
         const { data: _result, error } = await supabase.rpc("create_sales_return", {
-          p_original_invoice_id: originalInvoiceId || "",
+          p_original_invoice_id: originalInvoiceId,
           p_return_date: date,
           p_items: JSON.parse(JSON.stringify(items)),
           p_description: notes.trim() || undefined,
