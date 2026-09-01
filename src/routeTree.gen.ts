@@ -42,6 +42,7 @@ import { Route as AuthenticatedFaturalarIdRouteImport } from './routes/_authenti
 import { Route as AuthenticatedFaturalarYeniRouteImport } from './routes/_authenticated/faturalar/yeni'
 import { Route as ApiEdmInvoiceRouteImport } from './routes/api/edm/invoice'
 import { Route as ApiEdmPreflightRouteImport } from './routes/api/edm/preflight'
+import { Route as ApiEdmTaxpayerRouteImport } from './routes/api/edm/taxpayer'
 import { Route as ApiEdmTestRouteImport } from './routes/api/edm/test'
 import { Route as ApiInvoicesIdRouteImport } from './routes/api/invoices/$id'
 import { Route as ApiInvoicesDraftRouteImport } from './routes/api/invoices/draft'
@@ -223,6 +224,11 @@ const ApiEdmPreflightRoute = ApiEdmPreflightRouteImport.update({
   path: '/api/edm/preflight',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEdmTaxpayerRoute = ApiEdmTaxpayerRouteImport.update({
+  id: '/api/edm/taxpayer',
+  path: '/api/edm/taxpayer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEdmTestRoute = ApiEdmTestRouteImport.update({
   id: '/api/edm/test',
   path: '/api/edm/test',
@@ -302,6 +308,7 @@ export interface FileRoutesByFullPath {
   '/faturalar/yeni': typeof AuthenticatedFaturalarYeniRoute
   '/api/edm/invoice': typeof ApiEdmInvoiceRouteWithChildren
   '/api/edm/preflight': typeof ApiEdmPreflightRoute
+  '/api/edm/taxpayer': typeof ApiEdmTaxpayerRoute
   '/api/edm/test': typeof ApiEdmTestRoute
   '/api/invoices/$id': typeof ApiInvoicesIdRouteWithChildren
   '/api/invoices/draft': typeof ApiInvoicesDraftRoute
@@ -344,6 +351,7 @@ export interface FileRoutesByTo {
   '/faturalar/yeni': typeof AuthenticatedFaturalarYeniRoute
   '/api/edm/invoice': typeof ApiEdmInvoiceRouteWithChildren
   '/api/edm/preflight': typeof ApiEdmPreflightRoute
+  '/api/edm/taxpayer': typeof ApiEdmTaxpayerRoute
   '/api/edm/test': typeof ApiEdmTestRoute
   '/api/invoices/$id': typeof ApiInvoicesIdRouteWithChildren
   '/api/invoices/draft': typeof ApiInvoicesDraftRoute
@@ -389,6 +397,7 @@ export interface FileRoutesById {
   '/_authenticated/faturalar/yeni': typeof AuthenticatedFaturalarYeniRoute
   '/api/edm/invoice': typeof ApiEdmInvoiceRouteWithChildren
   '/api/edm/preflight': typeof ApiEdmPreflightRoute
+  '/api/edm/taxpayer': typeof ApiEdmTaxpayerRoute
   '/api/edm/test': typeof ApiEdmTestRoute
   '/api/invoices/$id': typeof ApiInvoicesIdRouteWithChildren
   '/api/invoices/draft': typeof ApiInvoicesDraftRoute
@@ -434,6 +443,7 @@ export interface FileRouteTypes {
     | '/faturalar/yeni'
     | '/api/edm/invoice'
     | '/api/edm/preflight'
+    | '/api/edm/taxpayer'
     | '/api/edm/test'
     | '/api/invoices/$id'
     | '/api/invoices/draft'
@@ -476,6 +486,7 @@ export interface FileRouteTypes {
     | '/faturalar/yeni'
     | '/api/edm/invoice'
     | '/api/edm/preflight'
+    | '/api/edm/taxpayer'
     | '/api/edm/test'
     | '/api/invoices/$id'
     | '/api/invoices/draft'
@@ -520,6 +531,7 @@ export interface FileRouteTypes {
     | '/_authenticated/faturalar/yeni'
     | '/api/edm/invoice'
     | '/api/edm/preflight'
+    | '/api/edm/taxpayer'
     | '/api/edm/test'
     | '/api/invoices/$id'
     | '/api/invoices/draft'
@@ -541,6 +553,7 @@ export interface RootRouteChildren {
   ApiInvoicesRoute: typeof ApiInvoicesRouteWithChildren
   ApiEdmInvoiceRoute: typeof ApiEdmInvoiceRouteWithChildren
   ApiEdmPreflightRoute: typeof ApiEdmPreflightRoute
+  ApiEdmTaxpayerRoute: typeof ApiEdmTaxpayerRoute
   ApiEdmTestRoute: typeof ApiEdmTestRoute
   ApiPublicSubscriptionRemindersRoute: typeof ApiPublicSubscriptionRemindersRoute
 }
@@ -778,6 +791,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEdmPreflightRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/edm/taxpayer': {
+      id: '/api/edm/taxpayer'
+      path: '/api/edm/taxpayer'
+      fullPath: '/api/edm/taxpayer'
+      preLoaderRoute: typeof ApiEdmTaxpayerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/edm/test': {
       id: '/api/edm/test'
       path: '/api/edm/test'
@@ -968,6 +988,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInvoicesRoute: ApiInvoicesRouteWithChildren,
   ApiEdmInvoiceRoute: ApiEdmInvoiceRouteWithChildren,
   ApiEdmPreflightRoute: ApiEdmPreflightRoute,
+  ApiEdmTaxpayerRoute: ApiEdmTaxpayerRoute,
   ApiEdmTestRoute: ApiEdmTestRoute,
   ApiPublicSubscriptionRemindersRoute: ApiPublicSubscriptionRemindersRoute,
 }

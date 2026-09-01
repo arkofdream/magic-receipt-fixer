@@ -33,6 +33,16 @@ export interface EdmInvoiceStatusResult {
 const DEFAULT_EDM_TEST_URL = "https://test.edmbilisim.com.tr/EFaturaEDM21ea/EFaturaEDM.svc";
 const FORBIDDEN_LIVE_HOST = "portal2.edmbilisim.com.tr";
 
+/** XML attribute değerlerini güvenli hale getirir. */
+function escapeXmlAttr(value: string): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+
 /**
  * Checks that the configured service URL is strictly a TEST URL
  * and not accidentally configured to the live EDM production host.
@@ -219,6 +229,222 @@ export async function testEdmConnection(): Promise<EdmConnectionTestResult> {
   }
 }
 
+/** GİB mükellef kaydı (EDM CheckUser → GIBUSER) */
+export interface EdmGibUser {
+  identifier: string;
+  alias: string;
+  title: string;
+  type: string;
+  registerTime?: string;
+  unit?: string; // "PK" (posta kutusu / alıcı) veya "GB" (gönderici birim)
+  aliasCreationTime?: string;
+  aliasRemovalTime?: string;
+  documentType?: string;
+  active: boolean;
+}
+
+export interface EdmCheckUserResult {
+  success: boolean;
+  message: string;
+  identifier: string;
+  isEinvoiceUser: boolean;
+  title?: string;
+  type?: string;
+  registerTime?: string;
+  aliases: EdmGibUser[]; // PK (alıcı posta kutusu) etiketleri
+  senderAliases: EdmGibUser[]; // GB (gönderici birim) etiketleri
+  error?: { code: string; message: string } | null;
+}
+
+/** "urn:mail:merkezpk@nes.com.tr" → "merkezpk@nes.com.tr" */
+export function normalizeAliasMail(alias: string): string {
+  return String(alias || "")
+    .trim()
+    .replace(/^urn:mail:/i, "")
+    .toLowerCase();
+}
+
+/** İki alias'ın (urn:mail ön ekli ya da eksiz) aynı olup olmadığını karşılaştırır. */
+export function isSameAlias(a: string, b: string): boolean {
+  const na = normalizeAliasMail(a);
+  const nb = normalizeAliasMail(b);
+  return Boolean(na) && na === nb;
+}
+
+function parseGibUsers(responseText: string): EdmGibUser[] {
+  const users: EdmGibUser[] = [];
+  const blocks = responseText.match(/<USER[^>]*>[\s\S]*?<\/USER>/g) || [];
+  for (const block of blocks) {
+    const removal = extractXmlTagValue(block, "ALIAS_REMOVAL_TIME") || undefined;
+    const alias = extractXmlTagValue(block, "ALIAS") || "";
+    if (!alias) continue;
+    users.push({
+      identifier: extractXmlTagValue(block, "IDENTIFIER") || "",
+      alias,
+      title: extractXmlTagValue(block, "TITLE") || "",
+      type: extractXmlTagValue(block, "TYPE") || "",
+      registerTime: extractXmlTagValue(block, "REGISTER_TIME") || undefined,
+      unit: (extractXmlTagValue(block, "UNIT") || "").toUpperCase() || undefined,
+      aliasCreationTime: extractXmlTagValue(block, "ALIAS_CREATION_TIME") || undefined,
+      aliasRemovalTime: removal,
+      documentType: extractXmlTagValue(block, "DOCUMENTTYPE") || undefined,
+      // GİB, etiket silindiğinde ALIAS_REMOVAL_TIME döner → geçersiz sayılır.
+      active: !removal || new Date(removal).getTime() > Date.now(),
+    });
+  }
+  return users;
+}
+
+/**
+ * EDM CheckUserRequest (gerçek servis operasyonu) ile GİB e-Fatura mükellef
+ * ve posta kutusu (alias) sorgulaması yapar.
+ */
+export async function checkEdmUser(identifier: string): Promise<EdmCheckUserResult> {
+  const clean = String(identifier || "").replace(/\D/g, "");
+  const base: EdmCheckUserResult = {
+    success: false,
+    message: "",
+    identifier: clean,
+    isEinvoiceUser: false,
+    aliases: [],
+    senderAliases: [],
+    error: null,
+  };
+
+  if (clean.length !== 10 && clean.length !== 11) {
+    return {
+      ...base,
+      message: "Mükellef sorgusu için 10 haneli VKN veya 11 haneli TCKN gereklidir.",
+      error: { code: "INVALID_IDENTIFIER", message: "Geçersiz VKN/TCKN uzunluğu." },
+    };
+  }
+
+  try {
+    const { sessionId, serviceUrl } = await getEdmSessionId();
+    const nowIso = new Date().toISOString();
+
+    const soapPayload = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://tempuri.org/">
+  <soap:Body>
+    <ns:CheckUserRequest>
+      <REQUEST_HEADER>
+        <SESSION_ID>${sessionId}</SESSION_ID>
+        <ACTION_DATE>${nowIso}</ACTION_DATE>
+        <REASON>CHECK_USER</REASON>
+        <APPLICATION_NAME>MagicReceipt</APPLICATION_NAME>
+        <HOSTNAME>localhost</HOSTNAME>
+        <CHANNEL_NAME>XML</CHANNEL_NAME>
+      </REQUEST_HEADER>
+      <USER>
+        <IDENTIFIER>${clean}</IDENTIFIER>
+      </USER>
+    </ns:CheckUserRequest>
+  </soap:Body>
+</soap:Envelope>`;
+
+    const response = await fetch(serviceUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/xml; charset=utf-8",
+        SOAPAction: "CheckUserRequest",
+      },
+      body: soapPayload,
+    });
+
+    const responseText = await response.text();
+
+    const faultString = extractXmlTagValue(responseText, "faultstring");
+    const errorShortDes = extractXmlTagValue(responseText, "ERROR_SHORT_DES");
+    const errorLongDes = extractXmlTagValue(responseText, "ERROR_LONG_DES");
+    if (errorShortDes || errorLongDes || faultString) {
+      const detail = errorLongDes || errorShortDes || faultString;
+      return {
+        ...base,
+        message: `EDM mükellef sorgulama hatası: ${detail}`,
+        error: {
+          code: extractXmlTagValue(responseText, "ERROR_CODE") || "EDM_CHECKUSER_ERROR",
+          message: detail || "Bilinmeyen servis hatası",
+        },
+      };
+    }
+
+    const users = parseGibUsers(responseText).filter((u) => u.active);
+    const pk = users.filter((u) => (u.unit || "PK") === "PK");
+    const gb = users.filter((u) => u.unit === "GB");
+    const first = users[0];
+
+    if (users.length === 0) {
+      return {
+        ...base,
+        success: true,
+        message: `${clean} numarası GİB e-Fatura mükellef listesinde bulunamadı (e-Arşiv fatura düzenlenmelidir).`,
+        isEinvoiceUser: false,
+      };
+    }
+
+    return {
+      success: true,
+      message: `${clean} GİB e-Fatura mükellefidir (${pk.length} aktif posta kutusu etiketi).`,
+      identifier: clean,
+      isEinvoiceUser: true,
+      title: first?.title,
+      type: first?.type,
+      registerTime: first?.registerTime,
+      aliases: pk,
+      senderAliases: gb,
+      error: null,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Bilinmeyen ağ hatası";
+    return {
+      ...base,
+      message: `EDM mükellef sorgulaması başarısız: ${msg}`,
+      error: { code: "EDM_CHECKUSER_NETWORK", message: msg },
+    };
+  }
+}
+
+/**
+ * TICARIFATURA gönderimi öncesi alıcı VKN/TCKN + alias uyumunu GİB kayıtlarına karşı doğrular.
+ */
+export async function verifyReceiverAlias(
+  identifier: string,
+  alias: string,
+): Promise<{ ok: boolean; code: string; message: string; alias?: string; title?: string }> {
+  const cleanAlias = String(alias || "").trim();
+  if (!cleanAlias) {
+    return {
+      ok: false,
+      code: "ALIAS_REQUIRED",
+      message:
+        "TICARIFATURA gönderimi için alıcının GİB posta kutusu etiketi (alias) zorunludur. Lütfen mükellef sorgulaması yapıp geçerli bir etiket seçin.",
+    };
+  }
+
+  const res = await checkEdmUser(identifier);
+  if (!res.success) {
+    return { ok: false, code: res.error?.code || "CHECKUSER_FAILED", message: res.message };
+  }
+  if (!res.isEinvoiceUser) {
+    return {
+      ok: false,
+      code: "TAXPAYER_NOT_FOUND",
+      message: `${res.identifier} GİB e-Fatura mükellef listesinde bulunamadı; TICARIFATURA gönderilemez.`,
+    };
+  }
+
+  const match = res.aliases.find((u) => isSameAlias(u.alias, cleanAlias));
+  if (!match) {
+    return {
+      ok: false,
+      code: "ALIAS_MISMATCH",
+      message: `Seçilen etiket (${normalizeAliasMail(cleanAlias)}) ${res.identifier} numaralı mükellefin geçerli posta kutusu etiketleri arasında bulunamadı.`,
+    };
+  }
+
+  return { ok: true, code: "OK", message: "Alıcı etiketi doğrulandı.", alias: match.alias, title: match.title };
+}
+
 /**
  * Validates, constructs UBL-TR XML, authenticates via EDM TEST Web Service,
  * and sends an e-Invoice to the EDM TEST environment.
@@ -237,6 +463,20 @@ export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData): Promise<
 
     // 4. Build SendInvoiceRequest SOAP XML payload
     const nowIso = new Date().toISOString();
+
+    // e-Fatura (TICARIFATURA/TEMELFATURA) gönderiminde GİB etiketleri iletilir.
+    const receiverAlias = String((validatedData.buyer as { alias?: string }).alias || "").trim();
+    const senderAlias = String((validatedData.seller as { alias?: string }).alias || "").trim();
+    const isEInvoice = validatedData.profileId !== "EARSIVFATURA";
+    const senderXml =
+      isEInvoice && senderAlias
+        ? `\n      <SENDER vkn="${escapeXmlAttr(validatedData.seller.taxNumber)}" alias="${escapeXmlAttr(senderAlias)}" />`
+        : "";
+    const receiverXml =
+      isEInvoice && receiverAlias
+        ? `\n      <RECEIVER vkn="${escapeXmlAttr(validatedData.buyer.taxNumber)}" alias="${escapeXmlAttr(receiverAlias)}" />`
+        : "";
+
     const sendInvoiceSoapPayload = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://tempuri.org/">
   <soap:Body>
@@ -248,7 +488,7 @@ export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData): Promise<
         <APPLICATION_NAME>MagicReceipt</APPLICATION_NAME>
         <HOSTNAME>localhost</HOSTNAME>
         <CHANNEL_NAME>XML</CHANNEL_NAME>
-      </REQUEST_HEADER>
+      </REQUEST_HEADER>${senderXml}${receiverXml}
       <INVOICE TRXID="-1">
         <HEADER>
           <SENDER>${validatedData.seller.taxNumber}</SENDER>
@@ -261,6 +501,7 @@ export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData): Promise<
     </ns:SendInvoiceRequest>
   </soap:Body>
 </soap:Envelope>`;
+
 
     // 5. Send SOAP Request to EDM TEST Web Service
     const response = await fetch(serviceUrl, {
