@@ -25,8 +25,11 @@ export const CHANGELOG: ChangelogEntry[] = [
       { type: "Yeni", text: "İade faturaları artık orijinal faturaya bağlı olarak saklanıyor." },
       { type: "Düzeltme", text: "İptal edilmiş bir satış faturasına iade yapılması engellendi." },
       { type: "Düzeltme", text: "KDV beyan özetinde satış KDV'si 0 görünmesi giderildi; satış ve alış iadeleri doğru yönde hesaplanıyor." },
+      { type: "Düzeltme", text: "İade yapılmış bir fatura artık iptal edilemiyor; önce iade faturasının iptal edilmesi isteniyor (stok ve carinin iki kez geri alınması engellendi)." },
+      { type: "Düzeltme", text: "Cari listesindeki bakiye artık açılış bakiyesini de içeriyor; liste ile cari detay ekranı aynı bakiyeyi gösteriyor." },
       { type: "Düzeltme", text: "Gelir tablosunda brüt kâr marjı hesabındaki sayısal taşma hatası giderildi." },
       { type: "İyileştirme", text: "Satılan malın maliyeti mutabakatı satış iadelerini de kapsıyor; mutabakat farkı sıfırlandı." },
+
     ],
   },
   {
