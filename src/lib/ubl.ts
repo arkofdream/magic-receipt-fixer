@@ -322,6 +322,8 @@ export function createUblTrInvoice(data: UblInvoiceData): string {
         </cac:Country>
       </cac:PostalAddress>
       ${validated.buyer.taxOffice ? `<cac:PartyTaxScheme><cac:TaxScheme><cbc:Name>${escapeXml(validated.buyer.taxOffice)}</cbc:Name></cac:TaxScheme></cac:PartyTaxScheme>` : ""}
+      ${buyerSchemeId === "TCKN" ? buildPersonXml(validated.buyer.name) : ""}
+
     </cac:Party>
   </cac:AccountingCustomerParty>
 
