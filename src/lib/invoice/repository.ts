@@ -364,10 +364,11 @@ export async function updateInvoiceResultRecord(
         let fallbackQuery = supabaseAdmin
           .from("invoices")
           .update({
-            status: mappedStatus,
+            ...(keepDomainStatus ? {} : { status: mappedStatus }),
             notes: result.message ? `[EDM] ${result.message}` : undefined,
             updated_at: processedAt,
           });
+
         if (userId) fallbackQuery = fallbackQuery.eq("user_id", userId);
         if (targetId) {
           fallbackQuery = fallbackQuery.eq("id", targetId);
