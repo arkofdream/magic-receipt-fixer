@@ -61,6 +61,38 @@ export const Route = createFileRoute("/api/edm/invoice")({
           const ettn = validatedData.uuid;
           const invoiceNumber = validatedData.invoiceNumber;
 
+          // 2b. TICARIFATURA/TEMELFATURA → alıcı etiketi (alias) zorunlu ve GİB'e karşı doğrulanır.
+          //     Frontend'den gelen alias'a güvenilmez; CheckUser ile VKN-alias uyumu kontrol edilir.
+          if (validatedData.profileId !== "EARSIVFATURA") {
+            const { verifyReceiverAlias, checkEdmUser } = await import("../../../lib/edm.ts");
+            const buyerAlias = String((validatedData.buyer as { alias?: string }).alias || "");
+            const aliasCheck = await verifyReceiverAlias(validatedData.buyer.taxNumber, buyerAlias);
+            if (!aliasCheck.ok) {
+              return Response.json(
+                {
+                  success: false,
+                  message: aliasCheck.message,
+                  data: null,
+                  error: { code: aliasCheck.code, message: aliasCheck.message },
+                },
+                { status: 400 },
+              );
+            }
+            // GİB kayıtlarındaki kanonik alias kullanılır.
+            (validatedData.buyer as { alias?: string }).alias = aliasCheck.alias;
+
+            // Gönderici birim (GB) etiketi yoksa satıcı VKN'sinden otomatik çözümlenir.
+            const sellerAlias = String((validatedData.seller as { alias?: string }).alias || "").trim();
+            if (!sellerAlias) {
+              const sellerInfo = await checkEdmUser(validatedData.seller.taxNumber);
+              const gb = sellerInfo.senderAliases[0]?.alias;
+              if (gb) {
+                (validatedData.seller as { alias?: string }).alias = gb;
+              }
+            }
+          }
+
+
           // 3. Lock active in-flight request to prevent rapid double-clicks
           lockKey = `lock:${userId}:${ettn.toLowerCase()}`;
           if (activeRequestLocks.has(lockKey)) {
