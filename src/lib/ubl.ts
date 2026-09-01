@@ -46,7 +46,7 @@ export interface ValidatedUblData {
   issueTime: string;
   currency: string;
   profileId: "EARSIVFATURA" | "TICARIFATURA" | "TEMELFATURA";
-  invoiceTypeCode: string;
+  invoiceTypeCode: "SATIS" | "IADE" | "TEVKIFAT" | "ISTISNA";
   seller: UblParty;
   buyer: UblParty;
   lines: UblInvoiceLine[];
