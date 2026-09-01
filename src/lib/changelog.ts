@@ -14,6 +14,22 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-09-01",
+    version: "1.4.1",
+    date: "2026-09-01",
+    title: "İade işlemleri ve muhasebe kayıtlarında düzeltmeler",
+    summary:
+      "Satış ve alış iadesi işlemleri artık sorunsuz çalışıyor; yevmiye fişi toplamları doğru hesaplanıyor.",
+    changes: [
+      { type: "Düzeltme", text: "Satış iadesi oluşturma hatası giderildi; stok girişi, cari alacak ve yevmiye kaydı doğru oluşuyor." },
+      { type: "Düzeltme", text: "Alış iadesi oluşturma hatası giderildi; stok çıkışı ve tedarikçi borç düzeltmesi doğru işleniyor." },
+      { type: "Düzeltme", text: "Fatura kaynaklı yevmiye fişlerinde 0,00 TL görünen toplam borç/alacak tutarları düzeltildi." },
+      { type: "İyileştirme", text: "Yevmiye fişi borç/alacak denge kontrolü işlem sonunda yapılıyor; dengesiz fiş kaydı hâlâ engelleniyor." },
+      { type: "İyileştirme", text: "Orijinal fatura seçilmeden iade denendiğinde anlaşılır bir uyarı gösteriliyor." },
+    ],
+  },
+  {
+
     id: "2026-08-15",
     version: "1.4.0",
     date: "2026-08-15",
