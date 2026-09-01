@@ -1,13 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getInvoiceById } from "../../../lib/invoice/repository.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 export const Route = createFileRoute("/api/invoices/$id")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
         try {
+          const { userId } = await requireApiUser(request);
           const id = params.id;
-          const invoice = await getInvoiceById(id);
+          const invoice = await getInvoiceById(id, userId);
 
           if (!invoice) {
             return Response.json(
@@ -83,6 +85,8 @@ export const Route = createFileRoute("/api/invoices/$id")({
             error: null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Fatura detayı alınırken bir hata oluştu.";
           return Response.json(
