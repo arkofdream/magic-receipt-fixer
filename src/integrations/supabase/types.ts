@@ -651,6 +651,7 @@ export type Database = {
           invoice_number: string
           items: Json
           notes: string
+          original_invoice_id: string | null
           payment_info: string
           posted: boolean
           processed_at: string | null
@@ -697,6 +698,7 @@ export type Database = {
           invoice_number: string
           items?: Json
           notes?: string
+          original_invoice_id?: string | null
           payment_info?: string
           posted?: boolean
           processed_at?: string | null
@@ -743,6 +745,7 @@ export type Database = {
           invoice_number?: string
           items?: Json
           notes?: string
+          original_invoice_id?: string | null
           payment_info?: string
           posted?: boolean
           processed_at?: string | null
@@ -778,6 +781,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
           {
@@ -1417,6 +1427,15 @@ export type Database = {
       assert_accounting_period_open:
         | { Args: { p_date: string }; Returns: undefined }
         | { Args: { p_date: string; p_user_id: string }; Returns: undefined }
+      assert_returnable_quantities: {
+        Args: {
+          p_items: Json
+          p_original_invoice_id: string
+          p_return_type: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       cancel_purchase_invoice: {
         Args: { p_cancel_reason?: string; p_invoice_id: string }
         Returns: Json
@@ -1567,6 +1586,10 @@ export type Database = {
           p_supplier_id: string
         }
         Returns: Json
+      }
+      generate_invoice_tax_lines: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
       }
       get_account_ledger: {
         Args: {
