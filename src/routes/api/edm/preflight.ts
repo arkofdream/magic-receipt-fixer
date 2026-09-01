@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { resolveEdmConfig } from "../../../lib/edm.ts";
 import { isDatabaseConfigured } from "../../../lib/invoice/repository.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 export const Route = createFileRoute("/api/edm/preflight")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
         try {
+          await requireApiUser(request);
           let edmConfig = null;
           let configError = null;
 
@@ -50,6 +52,8 @@ export const Route = createFileRoute("/api/edm/preflight")({
             error: isReady ? null : { code: "PREFLIGHT_CONFIG_WARN", message: configError || "Pre-flight uyarısı" },
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Pre-flight denetim hatası.";
           return Response.json(

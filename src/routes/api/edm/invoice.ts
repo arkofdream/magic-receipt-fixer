@@ -7,6 +7,7 @@ import {
   createPendingInvoiceRecord,
   updateInvoiceResultRecord,
 } from "../../../lib/invoice/repository.ts";
+import { requireApiUser, authErrorResponse } from "../../../lib/api-auth.server.ts";
 
 // Active in-flight request lock set for local concurrent double-click protection
 const activeRequestLocks = new Set<string>();
@@ -18,6 +19,9 @@ export const Route = createFileRoute("/api/edm/invoice")({
         let lockKey: string | null = null;
 
         try {
+          // 0. Kimlik doğrulama — kullanıcı kimliği yalnızca oturumdan alınır.
+          const { userId } = await requireApiUser(request);
+
           // 1. Mandatory Rule: NO DATABASE = NO EDM SEND
           if (!isDatabaseConfigured() && process.env.NODE_ENV === "production") {
             return Response.json(
@@ -58,7 +62,7 @@ export const Route = createFileRoute("/api/edm/invoice")({
           const invoiceNumber = validatedData.invoiceNumber;
 
           // 3. Lock active in-flight request to prevent rapid double-clicks
-          lockKey = `lock:${ettn.toLowerCase()}`;
+          lockKey = `lock:${userId}:${ettn.toLowerCase()}`;
           if (activeRequestLocks.has(lockKey)) {
             return Response.json(
               {
@@ -76,7 +80,7 @@ export const Route = createFileRoute("/api/edm/invoice")({
           activeRequestLocks.add(lockKey);
 
           // 4. Database Idempotency Check (Server restart & Multi-instance safe)
-          const existingRecord = await findInvoiceByEttnOrNumber(ettn, invoiceNumber, "EDM");
+          const existingRecord = await findInvoiceByEttnOrNumber(ettn, invoiceNumber, "EDM", userId);
           if (existingRecord) {
             const status = (existingRecord.status || "").toUpperCase();
             if (status === "SENT" || status === "ACCEPTED" || status === "PROCESSING" || status === "PENDING") {
@@ -104,7 +108,7 @@ export const Route = createFileRoute("/api/edm/invoice")({
 
           // 6. Atomic PENDING Record Creation in Database BEFORE EDM SOAP call
           try {
-            await createPendingInvoiceRecord(validatedData, rawUblXml, "00000000-0000-0000-0000-000000000000", "EDM");
+            await createPendingInvoiceRecord(validatedData, rawUblXml, userId, "EDM");
           } catch (dbErr: any) {
             if (dbErr.statusCode === 409 || dbErr.message?.includes("[409]")) {
               return Response.json(
@@ -149,7 +153,7 @@ export const Route = createFileRoute("/api/edm/invoice")({
             uuid: sendResult.uuid,
             edmReference: sendResult.providerReference,
             status: sendResult.status,
-          });
+          }, userId);
 
           return Response.json({
             success: sendResult.success,
@@ -167,6 +171,8 @@ export const Route = createFileRoute("/api/edm/invoice")({
             error: sendResult.error || null,
           });
         } catch (error: unknown) {
+          const authRes = authErrorResponse(error);
+          if (authRes) return authRes;
           const message =
             error instanceof Error ? error.message : "Sunucuda beklenmeyen bir fatura hatası oluştu.";
           return Response.json(
