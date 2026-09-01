@@ -52,8 +52,8 @@ export const closeAccountingPeriodServerFn = createServerFn({ method: "POST" })
             closed_by: context.userId,
           })
           .eq("user_id", context.userId)
-          .eq("year", year)
-          .eq("month", month)
+          .eq("period_year", year)
+          .eq("period_month", month)
           .select("*")
           .maybeSingle();
 

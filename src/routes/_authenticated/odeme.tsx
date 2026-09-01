@@ -61,6 +61,7 @@ function OdemePage() {
 
       const paidMap = new Map<string, number>();
       for (const p of pmts || []) {
+        if (!p.source_id) continue;
         paidMap.set(p.source_id, (paidMap.get(p.source_id) || 0) + Number(p.amount));
       }
 
@@ -102,7 +103,8 @@ function OdemePage() {
         }
         throw error;
       }
-      if (data && !data.success) throw new Error(data.message || "Bilinmeyen hata");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) throw new Error(_r.message || "Bilinmeyen hata");
     },
     onSuccess: () => {
       toast.success("Ödeme başarıyla kaydedildi.");

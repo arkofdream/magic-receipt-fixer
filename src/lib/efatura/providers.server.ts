@@ -26,6 +26,8 @@ export type ConnectionCredentials = {
   integratorName?: string;
   /** Şirket VKN / TCKN */
   companyVkn?: string;
+  /** Entegratör: gönderici birim etiketi (alias) */
+  senderAlias?: string;
 };
 
 export type ConnectionTestResult = {

@@ -97,8 +97,8 @@ export function AccountingPage() {
     queryKey: ["vat-declaration", parsedTaxYear, parsedTaxMonth],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_vat_declaration_summary", {
-        p_year: parsedTaxYear,
-        p_month: parsedTaxMonth,
+        p_year: parsedTaxYear ?? undefined,
+        p_month: parsedTaxMonth ?? undefined,
       });
       if (error) throw error;
       return (data as any) ?? null;
@@ -113,8 +113,8 @@ export function AccountingPage() {
     queryKey: ["withholding-tax", parsedTaxYear, parsedTaxMonth],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_withholding_tax_summary", {
-        p_year: parsedTaxYear,
-        p_month: parsedTaxMonth,
+        p_year: parsedTaxYear ?? undefined,
+        p_month: parsedTaxMonth ?? undefined,
       });
       if (error) throw error;
       return (data as any) ?? null;
@@ -150,7 +150,7 @@ export function AccountingPage() {
       };
 
       const { data, error } = await supabase.rpc("run_fx_revaluation", {
-        p_revaluation_date: revalDate,
+        p_revaluation_date: revalDate ?? undefined,
         p_rates: rates,
         p_description: revalDesc.trim(),
       });
@@ -202,8 +202,8 @@ export function AccountingPage() {
     queryKey: ["trial-balance", mizanStartDate, mizanEndDate],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_trial_balance", {
-        p_start_date: mizanStartDate || null,
-        p_end_date: mizanEndDate || null,
+        p_start_date: mizanStartDate || undefined,
+        p_end_date: mizanEndDate || undefined,
       });
       if (error) throw error;
       return data ?? [];
@@ -271,8 +271,8 @@ export function AccountingPage() {
       if (!activeAccountId) return [];
       const { data, error } = await supabase.rpc("get_account_ledger", {
         p_account_id: activeAccountId,
-        p_start_date: ledgerStartDate || null,
-        p_end_date: ledgerEndDate || null,
+        p_start_date: ledgerStartDate || undefined,
+        p_end_date: ledgerEndDate || undefined,
       });
       if (error) throw error;
       return data ?? [];
@@ -293,8 +293,8 @@ export function AccountingPage() {
     queryKey: ["income-statement", incomeStartDate, incomeEndDate],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_income_statement", {
-        p_start_date: incomeStartDate || null,
-        p_end_date: incomeEndDate || null,
+        p_start_date: incomeStartDate || undefined,
+        p_end_date: incomeEndDate || undefined,
       });
 
       if (error) {
@@ -380,8 +380,8 @@ export function AccountingPage() {
     queryKey: ["reconciliation-summary", parsedAuditYear, parsedAuditMonth],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_reconciliation_summary", {
-        p_year: parsedAuditYear,
-        p_month: parsedAuditMonth,
+        p_year: parsedAuditYear ?? undefined,
+        p_month: parsedAuditMonth ?? undefined,
       });
       if (error) throw error;
       return (data as any) ?? null;
@@ -396,8 +396,8 @@ export function AccountingPage() {
     queryKey: ["accounting-audit", parsedAuditYear, parsedAuditMonth],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("run_accounting_audit", {
-        p_year: parsedAuditYear,
-        p_month: parsedAuditMonth,
+        p_year: parsedAuditYear ?? undefined,
+        p_month: parsedAuditMonth ?? undefined,
       });
       if (error) throw error;
       return data ?? [];
@@ -1924,7 +1924,7 @@ export function AccountingPage() {
                                 </Badge>
                               </td>
                               <td className="py-2.5 px-3 font-sans text-muted-foreground">
-                                {p.opened_at ? formatDate(p.opened_at) : "-"}
+                                {p.created_at ? formatDate(p.created_at) : "-"}
                               </td>
                               <td className="py-2.5 px-3 font-sans text-muted-foreground">
                                 {p.closed_at ? formatDate(p.closed_at) : "-"}

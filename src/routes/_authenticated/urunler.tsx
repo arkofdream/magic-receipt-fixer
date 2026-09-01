@@ -345,21 +345,35 @@ function ProductsPage() {
       toast.error("Dışa aktarılacak ürün bulunamadı.");
       return;
     }
-    const data = products.map((p) => ({
-      "Ürün Kodu": p.code || "",
-      Barkod: p.barcode || "",
-      Ad: p.name,
-      Kategori: p.category || "",
-      Birim: p.unit,
-      "Alış Fiyatı": Number(p.purchase_price ?? 0),
-      "Satış Fiyatı": Number(p.unit_price),
-      "KDV %": Number(p.vat_rate),
-      "İskonto %": Number(p.discount_rate ?? 0),
-      "Min. Stok": Number(p.min_stock ?? 0),
-      "Mevcut Stok": stockMap.get(p.id) ?? 0,
-      Açıklama: p.description || "",
-    }));
-    downloadWorkbook(data, "urunler_listesi", "Ürünler");
+    const headers = [
+      "Ürün Kodu",
+      "Barkod",
+      "Ad",
+      "Kategori",
+      "Birim",
+      "Alış Fiyatı",
+      "Satış Fiyatı",
+      "KDV %",
+      "İskonto %",
+      "Min. Stok",
+      "Mevcut Stok",
+      "Açıklama",
+    ];
+    const rows = products.map((p) => [
+      p.code || "",
+      p.barcode || "",
+      p.name,
+      p.category || "",
+      p.unit,
+      Number(p.purchase_price ?? 0),
+      Number(p.unit_price),
+      Number(p.vat_rate),
+      Number(p.discount_rate ?? 0),
+      Number(p.min_stock ?? 0),
+      stockMap.get(p.id) ?? 0,
+      p.description || "",
+    ]);
+    downloadWorkbook(headers, rows, "urunler_listesi", "Ürünler");
     toast.success("Excel dosyası indirildi.");
   }
 
@@ -439,34 +453,8 @@ function ProductsPage() {
             <ExcelImportDialog<ImportedProduct>
               title="Excel'den Ürün & Hizmet İçe Aktar"
               columns={PRODUCT_COLUMNS}
-              templateFilename="urun_sablonu"
-              sampleRows={[
-                {
-                  "Ürün Kodu": "U-001",
-                  Barkod: "8690000000001",
-                  Ad: "Laptop Çantası",
-                  Kategori: "Aksesuar",
-                  Birim: "Adet",
-                  "Alış Fiyatı": 250,
-                  "Satış Fiyatı": 450,
-                  "KDV %": 20,
-                  "İskonto %": 0,
-                  "Min. Stok": 5,
-                },
-                {
-                  "Ürün Kodu": "H-001",
-                  Barkod: "",
-                  Ad: "Yazılım Danışmanlığı",
-                  Kategori: "Hizmet",
-                  Birim: "Saat",
-                  "Alış Fiyatı": 0,
-                  "Satış Fiyatı": 2500,
-                  "KDV %": 20,
-                  "İskonto %": 0,
-                  "Min. Stok": 0,
-                },
-              ]}
-              parseRow={(row: SheetRow) => {
+              templateName="urun-sablonu.xlsx"
+              mapRow={(row: SheetRow) => {
                 const name = pickColumn(row, ["Ad", "Ürün Adı", "Hizmet Adı", "urun", "hizmet"]);
                 if (!name) return { error: "Ürün veya hizmet adı boş olamaz." };
                 return {

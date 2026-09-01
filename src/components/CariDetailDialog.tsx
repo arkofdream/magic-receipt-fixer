@@ -135,12 +135,13 @@ export function CariDetailDialog({
         p_txn_type: form.txnType,
         p_amount: amount,
         p_txn_date: form.txnDate,
-        p_due_date: form.dueDate || null,
+        p_due_date: form.dueDate || undefined,
         p_document_no: form.documentNo,
         p_description: form.description
       });
       if (error) throw error;
-      if (data && !data.success) throw new Error(data.message || "Islem basarisiz.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) throw new Error(_r.message || "Islem basarisiz.");
     },
     onSuccess: () => {
       toast.success("Cari hareket kaydedildi.");
@@ -166,7 +167,8 @@ export function CariDetailDialog({
         p_description: description
       });
       if (error) throw error;
-      if (data && !data.success) throw new Error(data.message || "Virman islemi basarisiz.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) throw new Error(_r.message || "Virman islemi basarisiz.");
     },
     onSuccess: () => {
       toast.success("Virman tamamlandı.");

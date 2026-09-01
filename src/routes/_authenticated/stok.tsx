@@ -413,7 +413,8 @@ function StockPage() {
           p_description: form.description || "Depo transfer hareketi"
         });
         if (error) throw error;
-        if (data && !data.success) throw new Error(data.message || "Transfer basarisiz.");
+        const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) throw new Error(_r.message || "Transfer basarisiz.");
         return;
       }
 
@@ -422,14 +423,15 @@ function StockPage() {
         p_movement_type: form.movementType,
         p_quantity: quantity,
         p_unit_price: Number(form.unitPrice) || 0,
-        p_warehouse_id: form.warehouseId || null,
-        p_target_warehouse_id: null,
+        p_warehouse_id: form.warehouseId || undefined,
+        p_target_warehouse_id: undefined,
         p_movement_date: form.movementDate,
         p_document_no: form.documentNo,
         p_description: form.description
       });
       if (error) throw error;
-      if (data && !data.success) throw new Error(data.message || "Stok hareketi basarisiz.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) throw new Error(_r.message || "Stok hareketi basarisiz.");
     },
     onSuccess: () => {
       toast.success("Stok hareketi kaydedildi.");
@@ -621,7 +623,7 @@ function StockPage() {
         m.movement_date,
         productMap.get(m.product_id)?.name ?? "",
         STOCK_LABELS[m.movement_type as StockMovementType] ?? m.movement_type,
-        m.warehouse_id ? (warehouseMap.get(m.warehouse_id)?.name ?? "") : "",
+        m.warehouse_id ? (warehouseMap.get(m.warehouse_id ?? "")?.name ?? "") : "",
         Number(m.quantity),
         Number(m.unit_price),
         m.document_no,
@@ -1181,7 +1183,7 @@ function StockPage() {
                               {STOCK_LABELS[m.movement_type as StockMovementType] ?? m.movement_type}
                             </Badge>
                           </td>
-                          <td className="py-3 pr-4">{warehouseMap.get(m.warehouse_id)?.name ?? "-"}</td>
+                          <td className="py-3 pr-4">{warehouseMap.get(m.warehouse_id ?? "")?.name ?? "-"}</td>
                           <td className="py-3 pr-4 text-right font-mono font-semibold">
                             {m.movement_type === "CIKIS" ? "-" : "+"}
                             {m.quantity}

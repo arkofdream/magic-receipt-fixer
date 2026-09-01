@@ -175,7 +175,7 @@ export async function createPendingInvoiceRecord(
       };
       const { error: updateErr } = await supabaseAdmin
         .from("invoices")
-        .update(updateData)
+        .update(updateData as never)
         .eq("id", existing.id);
 
       if (!updateErr) {
@@ -189,7 +189,7 @@ export async function createPendingInvoiceRecord(
 
     let insertResult = await supabaseAdmin
       .from("invoices")
-      .insert([record])
+      .insert([record as never])
       .select("id, ettn, invoice_number")
       .single();
 
@@ -223,7 +223,7 @@ export async function createPendingInvoiceRecord(
 
       insertResult = await supabaseAdmin
         .from("invoices")
-        .insert([standardRecord])
+        .insert([standardRecord as never])
         .select("id, ettn, invoice_number")
         .single();
     }
@@ -236,7 +236,7 @@ export async function createPendingInvoiceRecord(
           record.user_id = prof.id;
           insertResult = await supabaseAdmin
             .from("invoices")
-            .insert([record])
+            .insert([record as never])
             .select("id, ettn, invoice_number")
             .single();
         }

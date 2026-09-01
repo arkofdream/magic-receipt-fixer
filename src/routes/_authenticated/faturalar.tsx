@@ -160,8 +160,9 @@ export function InvoicesPage() {
       });
       
       if (error) throw error;
-      if (data && !data.success) {
-        throw new Error(data.message || "Fatura onaylanırken bir hata oluştu.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) {
+        throw new Error(_r.message || "Fatura onaylanırken bir hata oluştu.");
       }
     },
     onSuccess: () => {
@@ -192,8 +193,9 @@ export function InvoicesPage() {
       });
       
       if (error) throw error;
-      if (data && !data.success) {
-        throw new Error(data.message || "Tahsilat kaydedilirken hata oluştu.");
+      const _r = data as { success?: boolean; message?: string } | null;
+      if (_r && _r.success === false) {
+        throw new Error(_r.message || "Tahsilat kaydedilirken hata oluştu.");
       }
     },
     onSuccess: () => {

@@ -40,7 +40,7 @@ export const getMyCompanyProfile = createServerFn({ method: "GET" })
     return {
       id: data.id,
       companyTitle: data.company_title || "",
-      vknTckn: data.vknTckn || "",
+      vknTckn: data.vkn_tckn || "",
       taxOffice: data.tax_office || "",
       address: data.address || "",
       phone: data.phone || "",

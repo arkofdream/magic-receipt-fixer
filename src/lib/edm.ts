@@ -490,9 +490,9 @@ export async function cancelInvoiceInEdm(
         success: false,
         message: userFriendlyMsg,
         uuid: cleanUuid,
-        invoiceNumber,
+        invoiceNumber: invoiceNumber ?? undefined,
         errorCode: code,
-        returnMessage: errorLongDes || errorShortDes || faultString,
+        returnMessage: errorLongDes || errorShortDes || faultString || undefined,
       };
     }
 

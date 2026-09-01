@@ -434,7 +434,8 @@ export function invoiceTotals(items: InvoiceItem[], tevkifatRate = 0) {
 
   const validTevkifatRate = Math.min(100, Math.max(0, Number(tevkifatRate) || 0));
   const totalTevkifat = roundMoney((totalVat * validTevkifatRate) / 100);
-  const grandTotal = roundMoney(taxableAmount + totalVat - totalTevkifat);
+  const payableVat = roundMoney(totalVat - totalTevkifat);
+  const grandTotal = roundMoney(taxableAmount + payableVat);
 
   return {
     subtotal,
@@ -442,6 +443,7 @@ export function invoiceTotals(items: InvoiceItem[], tevkifatRate = 0) {
     taxableAmount,
     totalVat,
     totalTevkifat,
+    payableVat,
     grandTotal,
     vatBreakdown,
   };
