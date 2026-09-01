@@ -376,7 +376,7 @@ function NewInvoicePage() {
     }
 
     setDate(existingInvoice.invoice_date || new Date().toISOString().split("T")[0]);
-    setCurrency(existingInvoice.currency || "TRY");
+    setCurrency("TRY");
     setCustomerId(existingInvoice.customer_id || "");
     setNotes(existingInvoice.notes || "");
     setPaymentInfo(existingInvoice.payment_info || "");
@@ -1020,7 +1020,7 @@ function NewInvoicePage() {
 
               <div className="space-y-1">
                 <Label>Para Birimi</Label>
-                <Select value={currency} onValueChange={setCurrency} disabled={isNonEditable}>
+                <Select value="TRY" onValueChange={() => setCurrency("TRY")} disabled>
                   <SelectTrigger>
                     <SelectValue placeholder="Para Birimi" />
                   </SelectTrigger>
@@ -1032,7 +1032,11 @@ function NewInvoicePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Dövizli işlemler şu an desteklenmiyor; tüm faturalar TL olarak düzenlenir.
+                </p>
               </div>
+
 
               <div className="space-y-1">
                 <Label>İlgili Depo (Stok Giriş / Çıkış)</Label>
