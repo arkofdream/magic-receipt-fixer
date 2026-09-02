@@ -123,52 +123,48 @@ export function buildEdmLoginSoapBody(username: string, password: string): strin
 </soap:Envelope>`;
 }
 
+/** Kullanıcıya ait (veritabanında şifreli tutulan) entegratör kimlik bilgileri. */
+export type EdmCredentials = {
+  username: string;
+  password: string;
+  serviceUrl: string;
+  env?: "TEST" | "PRODUCTION";
+};
+
 /**
-  * Resolves environment credentials and enforces environment isolation guards.
-  */
-export function resolveEdmConfig(): { username: string; password: string; serviceUrl: string; env: "TEST" | "PRODUCTION" } {
-  const env = (process.env.EDM_ENV || "TEST").toUpperCase() === "PRODUCTION" ? "PRODUCTION" : "TEST";
-
-  let username = "";
-  let password = "";
-  let serviceUrl = "";
-
-  if (env === "PRODUCTION") {
-    username = process.env.EDM_PROD_USERNAME || "";
-    password = process.env.EDM_PROD_PASSWORD || "";
-    serviceUrl = process.env.EDM_PROD_SERVICE_URL || "https://portal2.edmbilisim.com.tr/EFaturaEDM/EFaturaEDM.svc";
-
-    if (!username || !password) {
-      throw new Error("Production Güvenlik Uyarısı: EDM_PROD_USERNAME veya EDM_PROD_PASSWORD ortam değişkenleri tanımlı değil.");
-    }
-    if (serviceUrl.includes("test.edmbilisim.com.tr")) {
-      throw new Error("Production Güvenlik Uyarısı: EDM_ENV=PRODUCTION modunda TEST URL kullanılamaz.");
-    }
-  } else {
-    if (process.env.EDM_TEST_USERNAME === "" || process.env.EDM_TEST_PASSWORD === "") {
-      throw new Error("EDM_TEST_USERNAME veya EDM_TEST_PASSWORD ortam değişkenleri tanımlı değil.");
-    }
-    username = process.env.EDM_TEST_USERNAME || "fuatekiz";
-    password = process.env.EDM_TEST_PASSWORD || "1234567Edm";
-    serviceUrl = process.env.EDM_TEST_SERVICE_URL || DEFAULT_EDM_TEST_URL;
-
-    if (!username || !password) {
-      throw new Error("EDM_TEST_USERNAME veya EDM_TEST_PASSWORD ortam değişkenleri tanımlı değil.");
-    }
-    if (serviceUrl.includes(FORBIDDEN_LIVE_HOST)) {
-      throw new Error("Güvenlik Uyarısı: Canlı EDM servisine (portal2.edmbilisim.com.tr) bu test modunda gönderim yapılamaz. Yalnızca EDM TEST servisi kullanılabilir.");
-    }
+ * Kimlik bilgilerini çözer. Kod içinde gömülü kullanıcı adı/şifre yoktur;
+ * bilgiler yalnızca kullanıcının veritabanındaki şifreli ayarlarından gelir.
+ */
+export function resolveEdmConfig(
+  creds?: EdmCredentials | null,
+): { username: string; password: string; serviceUrl: string; env: "TEST" | "PRODUCTION" } {
+  if (!creds || !creds.username || !creds.password || !creds.serviceUrl) {
+    throw new Error(
+      "e-Fatura bağlantı bilgileri tanımlı değil. Lütfen Ayarlar > e-Fatura bölümünden entegratör kullanıcı adı, şifre/anahtar ve servis adresini kaydedin.",
+    );
   }
 
-  return { username, password, serviceUrl, env };
+  const serviceUrl = creds.serviceUrl.trim();
+  const env: "TEST" | "PRODUCTION" = serviceUrl.includes("test") ? "TEST" : "PRODUCTION";
+
+  if (env === "TEST" && serviceUrl.includes(FORBIDDEN_LIVE_HOST)) {
+    throw new Error(
+      "Güvenlik Uyarısı: TEST modunda canlı servise gönderim yapılamaz.",
+    );
+  }
+
+  return { username: creds.username.trim(), password: creds.password, serviceUrl, env };
 }
 
 /**
  * Performs EDM Login on server-side and returns the raw SESSION_ID string.
  * Internal server helper.
  */
-export async function getEdmSessionId(): Promise<{ sessionId: string; serviceUrl: string; env: string }> {
-  const { username, password, serviceUrl, env } = resolveEdmConfig();
+export async function getEdmSessionId(
+  creds?: EdmCredentials | null,
+): Promise<{ sessionId: string; serviceUrl: string; env: string }> {
+  const { username, password, serviceUrl, env } = resolveEdmConfig(creds);
+
 
   const soapPayload = buildEdmLoginSoapBody(username, password);
 
