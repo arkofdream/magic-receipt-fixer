@@ -30,7 +30,6 @@ export interface EdmInvoiceStatusResult {
   edmReturnMessage?: string;
 }
 
-const DEFAULT_EDM_TEST_URL = "https://test.edmbilisim.com.tr/EFaturaEDM21ea/EFaturaEDM.svc";
 const FORBIDDEN_LIVE_HOST = "portal2.edmbilisim.com.tr";
 
 /** XML attribute değerlerini güvenli hale getirir. */
@@ -207,9 +206,9 @@ export async function getEdmSessionId(
  * Reads EDM credentials strictly from environment variables.
  * Never returns or exposes actual passwords or SESSION_ID values to the caller.
  */
-export async function testEdmConnection(): Promise<EdmConnectionTestResult> {
+export async function testEdmConnection(creds?: EdmCredentials | null): Promise<EdmConnectionTestResult> {
   try {
-    const { sessionId } = await getEdmSessionId();
+    const { sessionId } = await getEdmSessionId(creds);
     return {
       success: true,
       message: "EDM TEST bağlantısı başarılı.",
@@ -295,7 +294,7 @@ function parseGibUsers(responseText: string): EdmGibUser[] {
  * EDM CheckUserRequest (gerçek servis operasyonu) ile GİB e-Fatura mükellef
  * ve posta kutusu (alias) sorgulaması yapar.
  */
-export async function checkEdmUser(identifier: string): Promise<EdmCheckUserResult> {
+export async function checkEdmUser(identifier: string, creds?: EdmCredentials | null): Promise<EdmCheckUserResult> {
   const clean = String(identifier || "").replace(/\D/g, "");
   const base: EdmCheckUserResult = {
     success: false,
@@ -316,7 +315,7 @@ export async function checkEdmUser(identifier: string): Promise<EdmCheckUserResu
   }
 
   try {
-    const { sessionId, serviceUrl } = await getEdmSessionId();
+    const { sessionId, serviceUrl } = await getEdmSessionId(creds);
     const nowIso = new Date().toISOString();
 
     const soapPayload = `<?xml version="1.0" encoding="utf-8"?>
@@ -406,6 +405,7 @@ export async function checkEdmUser(identifier: string): Promise<EdmCheckUserResu
 export async function verifyReceiverAlias(
   identifier: string,
   alias: string,
+  creds?: EdmCredentials | null,
 ): Promise<{ ok: boolean; code: string; message: string; alias?: string; title?: string }> {
   const cleanAlias = String(alias || "").trim();
   if (!cleanAlias) {
@@ -417,7 +417,7 @@ export async function verifyReceiverAlias(
     };
   }
 
-  const res = await checkEdmUser(identifier);
+  const res = await checkEdmUser(identifier, creds);
   if (!res.success) {
     return { ok: false, code: res.error?.code || "CHECKUSER_FAILED", message: res.message };
   }
@@ -445,7 +445,7 @@ export async function verifyReceiverAlias(
  * Validates, constructs UBL-TR XML, authenticates via EDM TEST Web Service,
  * and sends an e-Invoice to the EDM TEST environment.
  */
-export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData): Promise<EdmSendInvoiceResult> {
+export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData, creds?: EdmCredentials | null): Promise<EdmSendInvoiceResult> {
   try {
     // 1. Validate data & calculate totals
     const validatedData = validateAndCalculateInvoice(rawInvoiceData);
@@ -455,7 +455,7 @@ export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData): Promise<
     const base64UblContent = Buffer.from(ublXml, "utf-8").toString("base64");
 
     // 3. Login to EDM TEST Web Service and get SESSION_ID
-    const { sessionId, serviceUrl } = await getEdmSessionId();
+    const { sessionId, serviceUrl } = await getEdmSessionId(creds);
 
     // 4. Build SendInvoiceRequest SOAP XML payload
     const nowIso = new Date().toISOString();
@@ -559,14 +559,14 @@ export async function sendInvoiceToEdm(rawInvoiceData: UblInvoiceData): Promise<
 /**
  * Executes real EDM SOAP GetInvoiceStatusRequest operation to retrieve live invoice status.
  */
-export async function getInvoiceStatusFromEdm(uuid: string): Promise<EdmInvoiceStatusResult> {
+export async function getInvoiceStatusFromEdm(uuid: string, creds?: EdmCredentials | null): Promise<EdmInvoiceStatusResult> {
   try {
     if (!uuid || !uuid.trim()) {
       throw new Error("Durum sorgulaması için geçerli bir UUID/ETTN gereklidir.");
     }
 
     const cleanUuid = uuid.trim().toLowerCase();
-    const { sessionId, serviceUrl } = await getEdmSessionId();
+    const { sessionId, serviceUrl } = await getEdmSessionId(creds);
     const nowIso = new Date().toISOString();
 
     const soapPayload = `<?xml version="1.0" encoding="utf-8"?>
@@ -664,7 +664,8 @@ export interface EdmCancelResult {
 export async function cancelInvoiceInEdm(
   uuid: string,
   invoiceNumber?: string,
-  cancelReason = "Müşteri talebi ve fatura iptali"
+  cancelReason = "Müşteri talebi ve fatura iptali",
+  creds?: EdmCredentials | null,
 ): Promise<EdmCancelResult> {
   try {
     if (!uuid || !uuid.trim()) {
@@ -672,7 +673,7 @@ export async function cancelInvoiceInEdm(
     }
 
     const cleanUuid = uuid.trim().toLowerCase();
-    const { sessionId, serviceUrl } = await getEdmSessionId();
+    const { sessionId, serviceUrl } = await getEdmSessionId(creds);
     const nowIso = new Date().toISOString();
 
     const soapPayload = `<?xml version="1.0" encoding="utf-8"?>
